@@ -5,8 +5,8 @@
   "buildCommand": "npm run build && rm -rf dist/data",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/:path*", "destination": "https://sysone-api.onrender.com/api/:path*" },
-    { "source": "/data/:path*", "destination": "https://sysone-api.onrender.com/data/:path*" },
+    { "source": "/api/:path*", "destination": "https://threed-sys-com.onrender.com/api/:path*" },
+    { "source": "/data/:path*", "destination": "https://threed-sys-com.onrender.com/data/:path*" },
     { "source": "/((?!assets/|brand/|logo/|model/|api/|data/).*)", "destination": "/index.html" }
   ],
   "headers": [

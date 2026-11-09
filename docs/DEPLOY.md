@@ -28,11 +28,11 @@ Trình duyệt ──https──▶ Vercel (dist/)  ──rewrite /api, /data─
    - `ADMIN_INITIAL_PASSWORD`: mật khẩu tạm cho tài khoản `admin`.
    - `ALLOWED_ORIGINS`: tên miền giao diện trên Vercel, ví dụ `https://sysone-office.vercel.app`. Nhiều tên miền thì cách nhau bằng dấu phẩy, không có `/` ở cuối.
    - `SESSION_SECRET` (tự sinh) và `TRUST_PROXY=true` đã có sẵn trong `render.yaml`.
-3. Deploy xong, mở `https://sysone-api.onrender.com/api/v1/health` để kiểm tra; kết quả phải là `{"ok":true,...}`.
+3. Deploy xong, mở `https://threed-sys-com.onrender.com/api/v1/health` để kiểm tra; kết quả phải là `{"ok":true,...}`.
    Nếu Render đặt tên khác, ghi lại địa chỉ đó để dùng ở bước 2.
 
 ### Bước 2: Vercel (giao diện)
-1. Mở `vercel.json` trong repo, thay `https://sysone-api.onrender.com` (2 chỗ) bằng địa chỉ Render của bạn, rồi commit và push.
+1. Mở `vercel.json` trong repo, thay `https://threed-sys-com.onrender.com` (2 chỗ) bằng địa chỉ Render của bạn, rồi commit và push.
 2. https://vercel.com/new, chọn **Import** repo này. Vercel tự đọc `vercel.json` (build `npm run build`, thư mục `dist`).
 3. **Environment Variables**: `VITE_WS_URL` = `wss://sysone-api.onrender.com` (địa chỉ Render, dùng `wss://`, không có `/ws`). Biến này được nhúng vào lúc build.
 4. Bấm Deploy. Sau đó quay lại Render và kiểm tra `ALLOWED_ORIGINS` có đúng tên miền Vercel vừa nhận (kể cả tên miền riêng nếu thêm sau).
