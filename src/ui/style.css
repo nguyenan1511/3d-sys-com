@@ -1166,3 +1166,115 @@ body.mode2d .tag-layer { display: none; }
 #dash .bk .row { margin-bottom: 12px; gap: 12px; align-items: center; }
 #dash .bk .row .muted { flex: 1 1 320px; }
 #dash .bk code { font-size: 12px; }
+
+/* Thông báo góc phải (tin nhắn mới, có người vào công ty) */
+.notices { position: fixed; top: 72px; right: 16px; z-index: 60; display: flex; flex-direction: column; gap: 8px; pointer-events: none; width: min(320px, calc(100vw - 32px)); }
+.notice { pointer-events: auto; display: flex; align-items: center; gap: 10px; text-align: left; font: inherit; color: var(--ink, #2b2d42); background: var(--paper, #fffaf3); border: 3px solid var(--ink, #2b2d42); border-radius: 12px; padding: 8px 12px; box-shadow: var(--ao-shadow, 0 4px 0 rgba(0,0,0,.2)); animation: notice-in .28s cubic-bezier(.2,.9,.3,1.2) both; transition: opacity .25s ease, transform .25s ease; }
+button.notice { cursor: pointer; }
+button.notice:hover { background: var(--paper-2, #fff1de); }
+.notice.out { opacity: 0; transform: translateX(24px); }
+.notice .nt-ic { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 17px; background: var(--paper-2, #fff1de); border: 2px solid var(--ink, #2b2d42); }
+.notice-join .nt-ic { background: #d9f7ec; }
+.notice .nt-body { display: flex; flex-direction: column; min-width: 0; }
+.notice .nt-body b { font-size: 13.5px; font-weight: 800; }
+.notice .nt-body span { font-size: 12.5px; color: #5f6368; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@keyframes notice-in { from { opacity: 0; transform: translateX(28px) scale(.97); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .notice { animation: ui-fade-in .2s ease both; } .notice.out { transform: none; } }
+
+/* Bảng công: ô hôm nay — viền cam liền nằm gọn trong ô (không vẽ tràn ra ngoài, không lệch với các ô khác) */
+.ts-cell.today { border-style: solid; }
+.ts-cell.is-today { box-shadow: inset 0 0 0 1px var(--accent); border-color: var(--accent); background: #fff7f0; }
+.ts-cell.is-today b { color: var(--accent); }
+
+/* Chọn nhân vật (3D): thẻ mẫu nhỏ gọn (khoảng một nửa), cả 5 nhân vật nằm một hàng, chừa chỗ cho phần màu sắc */
+#modalRoot .av2 .m3-cards { grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; }
+#modalRoot .av2 .m3-card > span { gap: 4px; padding: 6px 4px 7px; border-radius: 12px; }
+#modalRoot .av2 .m3-card canvas { width: 46px; height: 64px; padding: 3px 8px 0; border-radius: 8px; }
+#modalRoot .av2 .m3-card b { font: 800 11.5px/1.2 var(--font); }
+#modalRoot .av2 .m3-card input:checked + span::after { top: 4px; right: 4px; width: 16px; height: 16px; font-size: 10px; }
+
+/* màn hình ≤ 900px: khung cảnh 3D phủ kín (bỏ chiều cao 58vh của bố cục cũ) */
+@media (max-width: 900px) { #stage { height: auto; } }
+
+/* =====================================================================================================
+   ĐIỆN THOẠI (≤ 760px): đầu trang gọn, mọi thứ thu gọn mặc định, cần điều khiển + nút cảm ứng,
+   hộp thoại toàn màn hình (nội dung cuộn, nút ở chân luôn thấy). Bản máy tính không bị ảnh hưởng.
+   ===================================================================================================== */
+.touch-ui { display: none; }
+@media (max-width: 760px), (pointer: coarse) and (max-width: 1100px) {
+  body.touch-ui-on .touch-ui { display: block; }
+  /* cần điều khiển góc trái dưới */
+  .touch-ui .joy { position: absolute; left: calc(18px + env(safe-area-inset-left)); bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 12; width: 124px; height: 124px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,250,243,.55) 0 58%, rgba(255,250,243,.35) 59% 100%); border: 2px solid rgba(43,45,66,.55); box-shadow: 0 6px 18px rgba(43,45,66,.18); touch-action: none; transition: background .15s ease; }
+  .touch-ui .joy.on { background: radial-gradient(circle, rgba(255,250,243,.8) 0 58%, rgba(255,250,243,.5) 59% 100%); }
+  .touch-ui .joy-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; margin: -27px 0 0 -27px; border-radius: 50%; background: var(--paper); border: 2px solid var(--ink); box-shadow: 0 3px 0 var(--ink); pointer-events: none; transition: transform .08s linear; }
+  .touch-ui .joy.on .joy-knob { transition: none; background: #fff4ec; border-color: var(--accent); }
+  /* nút hành động góc phải dưới */
+  .touch-ui .tbtns { position: absolute; right: calc(16px + env(safe-area-inset-right)); bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 12; display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; gap: 10px; align-items: end; }
+  .touch-ui .tbtn { width: 56px; height: 56px; margin: 0; padding: 0; border-radius: 50%; border: 2px solid var(--ink); background: var(--paper); color: var(--ink); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; font: 800 9.5px/1 var(--font); box-shadow: 0 3px 0 var(--ink); touch-action: manipulation; }
+  .touch-ui .tbtn:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+  .touch-ui .tbtn-main { grid-column: 2; grid-row: 1 / span 2; width: 74px; height: 74px; background: var(--accent); color: #fff; border-color: var(--ink); font-size: 10.5px; }
+  .touch-ui .tbtn:nth-child(2) { grid-column: 1; grid-row: 1; } .touch-ui .tbtn:nth-child(3) { grid-column: 1; grid-row: 2; }
+}
+@media (max-width: 760px) {
+  /* đầu trang: logo + tên gọn trên một khung nhỏ; bỏ địa chỉ */
+  #bar { top: 8px; left: 8px; right: 8px; }
+  #sessionBar .project { padding: 6px 10px; gap: 2px; max-width: calc(100vw - 120px); }
+  #sessionBar .project .bar-logo { height: 15px; }
+  #sessionBar .project-meta { font-size: 11px; gap: 5px; } #sessionBar .project-meta .addr { display: none; }
+  #sessionBar .project-meta .badge { font-size: 10px; padding: 1px 6px; }
+  .social-bar { top: 8px; right: 8px; }
+  #appRoot .social-bar button { height: 38px; padding: 0 12px; }
+  /* thanh nhạc: dưới đầu trang, bên phải, mặc định thu gọn */
+  .music-bar { top: 62px !important; left: auto !important; right: 8px; transform: none !important; min-width: 0 !important; width: calc(100vw - 16px) !important; }
+  .music-bar.collapsed { width: 132px !important; }
+  /* nút mở bảng điều khiển: chỉ biểu tượng, dưới đầu trang bên trái */
+  #appRoot #panelToggle { top: 62px; left: 8px; height: 40px; width: 40px; padding: 0; justify-content: center; }
+  #appRoot #panelToggle::after { content: none; }
+  /* bảng điều khiển: tấm trượt từ dưới lên, cuộn được */
+  #panel, #panel.collapsed { position: fixed; top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: 55dvh; z-index: 40; overflow: auto; padding: 12px 10px calc(14px + env(safe-area-inset-bottom));
+    background: var(--paper); border-top: 2px solid var(--ink); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(43,45,66,.25); transform-origin: bottom center; }
+  #panel:not(.collapsed) { height: 55dvh; }
+  #panel::before { content: ''; display: block; width: 44px; height: 5px; margin: -4px auto 10px; border-radius: 3px; background: rgba(43,45,66,.25); }
+  #panel.collapsed { transform: translateY(24px); }
+  /* bản đồ nhỏ: góc phải, dưới thanh nhạc; thu gọn chỉ còn nút */
+  .minimap { top: 112px; bottom: auto; right: 8px; width: min(190px, 48vw); padding: 5px; }
+  .minimap canvas { width: 100% !important; height: auto !important; }
+  .minimap.collapsed { width: auto; }
+  /* thanh dưới: chỉ còn số người online, giữa hai cụm điều khiển */
+  .ctrl-nav, body.mode2d .ctrl-nav, body:not(.mode2d) .ctrl-nav { top: 62px !important; bottom: auto !important; left: 56px !important; right: auto !important; transform: none !important; max-width: calc(100vw - 210px); padding: 4px 10px !important; min-height: 0 !important; }
+  .ctrl-nav .nav-line { gap: 6px; } .ctrl-nav .nav-line > :not(.nav-online) { display: none !important; }
+  .ctrl-nav .nav-keys, .ctrl-nav .nav-sep, .ctrl-nav .keys-btn, .ctrl-nav .keys-short { display: none !important; }
+  #appRoot .ctrl-nav #onlineBox .online-list, .ctrl-nav .nav-online > :not(#onlineBox) { display: none !important; }
+  /* dòng gợi ý "E …": nằm trên cụm nút, chạm được */
+  #hudPrompt, .hud-prompt { position: fixed; left: 50%; bottom: calc(160px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 13; width: max-content; max-width: calc(100vw - 32px); white-space: normal; text-align: center; font-size: 13.5px; padding: 8px 14px; cursor: pointer; pointer-events: auto; }
+  /* lời chào / chị Mai / thông báo: dưới đầu trang, vừa màn hình */
+  .gate-hint { top: 112px; width: calc(100vw - 24px); max-width: none; font-size: 12.5px; padding: 8px 12px; }
+  .guide-card { bottom: calc(160px + env(safe-area-inset-bottom)); width: calc(100vw - 16px); padding: 12px; }
+  .notices { top: 60px; right: 8px; width: calc(100vw - 16px); }
+  .toast { top: 60px; max-width: calc(100vw - 24px); font-size: 13px; }
+  /* chat: toàn màn hình dưới đầu trang */
+  .chat-panel { top: 56px; left: 6px; right: 6px; bottom: 6px; width: auto; z-index: 41; }
+  .speaker-pop { left: 8px; right: 8px; width: auto; }
+  /* hộp thoại nhỏ: vừa màn hình */
+  .ts-pop { width: calc(100vw - 12px); max-height: calc(100dvh - 24px); }
+  .att-card, .lift-box { width: calc(100vw - 24px); }
+  .km-card { max-height: calc(100dvh - 24px); }
+  /* chọn nhân vật: toàn màn hình — đầu cố định, thân cuộn, chân cố định */
+  #modalRoot .modal.charsel.av2 { width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; border: 0; display: flex; flex-direction: column; overflow: hidden; }
+  #modalRoot .modal-back:has(.av2) { padding: 0; }
+  .modal-back { padding: 10px; }
+  #modalRoot .av2 .cs-head { padding: calc(12px + env(safe-area-inset-top)) 14px 6px; }
+  #modalRoot .av2 .cs-head h2 { font-size: 17px; }
+  #modalRoot .av2 .av-mode { font-size: 11px; }
+  #modalRoot .av2 .cs-body { flex: 1; min-height: 0; overflow: auto; grid-template-columns: 1fr; gap: 12px; padding: 4px 14px 8px; }
+  #modalRoot .av2 .cs-stage { min-height: 230px; height: 34dvh; }
+  #modalRoot .av2 .m3-cards { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+  #modalRoot .av2 .m3-card canvas { width: 40px; height: 56px; padding: 2px 4px 0; }
+  #modalRoot .av2 .m3-card b { font-size: 10px; }
+  #modalRoot .av2 .av-part { padding: 0 4px; font-size: 12px; gap: 4px; }
+  #modalRoot .av2 .cs-foot { margin-top: 0; padding: 10px 14px calc(12px + env(safe-area-inset-bottom)); gap: 8px; }
+  #modalRoot .av2 .cs-foot .av-act { width: 44px; padding: 0; justify-content: center; font-size: 0; gap: 0; }
+  #modalRoot .av2 .cs-foot .av-act svg { width: 18px; height: 18px; }
+  #modalRoot .av2 .cs-foot #avSave { flex: 1; justify-content: center; margin-left: auto; white-space: nowrap; }
+}

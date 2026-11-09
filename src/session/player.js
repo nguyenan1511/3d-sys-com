@@ -88,7 +88,7 @@ export class Player {
   /** Nhảy: nhún lấy đà 0.12 s rồi bật lên. */
   jump() {
     if (this.seated || this.seq || !this.onGround || this.jumpWind > 0) return;
-    this.jumpWind = 0.04;
+    this.jumpWind = 0.04; this.lastJumpPeak = null;
     this._afterJump = this.agent.act && this.agent.act !== 'jump' ? this.agent.act : null;
     this.agent.act = 'jump'; this.agent.actT = 0; this.send(true);
   }
@@ -197,7 +197,7 @@ export class Player {
 
   /** Mỗi khung hình. Khung chậm (máy yếu) thì chia thành các bước ≤ 1/30 giây: đi/chạy/nhảy luôn đúng tốc độ thật. */
   update(dt) {
-    const n = Math.min(8, Math.ceil(dt / (1 / 30)));
+    const n = Math.min(30, Math.ceil(dt / (1 / 30)));      // (mỗi bước ≤ 1/30 s: không đi xuyên vách mỏng)
     for (let i = 0; i < n; i++) this.step(dt / n);
   }
   step(dt) {
@@ -209,7 +209,8 @@ export class Player {
     a.moveFwd = f > 0; // camera chỉ tự xoay theo khi đi tới, tránh đi vòng tròn khi đi ngang
     if (this.sofa) { if (f || r) this.standSofa(); a.walkAmt = 0; this.send(); return; } // đang xem TV: muốn đi thì đứng dậy
     if (this.seated) {
-      if (f || r) this.session.stand(); // muốn đi thì đứng dậy
+      // muốn đi thì đứng dậy — chỉ gửi một lần (đang chờ server trả lời thì không gửi tiếp)
+      if ((f || r) && !this._standing) { this._standing = true; Promise.resolve(this.session.stand()).finally(() => { this._standing = false; }); }
       a.walkAmt = 0; this.send(); return;
     }
     // đi theo hướng camera, tốc độ đều, không quán tính (kiểu agent-office); nhân vật quay mặt theo hướng đi
@@ -248,9 +249,10 @@ export class Player {
     // nhảy: nhún lấy đà -> bật -> rơi -> nhún khi tiếp đất
     if (this.jumpWind > 0) { this.jumpWind -= dt; if (this.jumpWind <= 0) { this.vy = this.JUMP_V; this.onGround = false; } }
     const ground = rig.groundAt(a.x, a.z, a.y);
+    if (!this.onGround) this.airPeak = Math.max(this.airPeak ?? a.y, a.y); else if (!this.jumpWind) this.airPeak = null; // (độ cao cao nhất của cú nhảy gần nhất — kiểm thử)
     if (!this.onGround || this.vy > 0) {
       this.vy -= this.GJ * dt; a.y += this.vy * dt;
-      if (a.y <= ground) { a.y = ground; this.vy = 0; this.onGround = true; this.landT = 0; }
+      if (a.y <= ground) { a.y = ground; this.vy = 0; this.onGround = true; this.landT = 0; this.lastJumpPeak = this.airPeak; }
     } else if (ground < a.y - 0.35) { this.onGround = false; this.vy = 0; } // rơi khỏi mép
     else a.y += (ground - a.y) * Math.min(1, dt * 14);
     this.landT += dt; a.landT = this.landT; a.airborne = !this.onGround;
@@ -270,7 +272,21 @@ export class Player {
     for (const st of m.stairs) if (x >= st.x0 - 0.3 && x <= st.x1 + 0.3 && z >= st.z0 - 0.3 && z <= st.z1 + 0.3 && (a.f === st.from || a.f === st.to)) return true;
     if (a.f === 0 && z > 9.3) return true;                                     // lòng đường (cảnh báo xuống lòng đường vẫn chạy)
     const g = nav.grid(a.f); if (!g) return true;
-    return g.isFree(x, z, 0.1);
+    return g.isFree(x, z, 0.1) && this.camOk(x, z);
+  }
+  /**
+   * Ngách / điểm chết: chỗ mà xoay camera hướng nào (kể cả nâng cao) cũng không đủ khoảng trống để thấy trọn nhân vật thì
+   * không cho bước vào. Kết quả lưu theo ô 0,2 m, mỗi ô chỉ tính một lần.
+   */
+  camOk(x, z) {
+    const rig = this.app.rig, a = this.agent; if (!rig?.bestArm) return true;
+    const key = `${a.f}:${Math.round(x / 0.2)}:${Math.round(z / 0.2)}`, c = this._camOk || (this._camOk = new Map());
+    if (c.has(key)) return c.get(key);
+    const t = this._camT || (this._camT = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; } }), probe = { ...a, x, z }, need = rig.armNeed(a);
+    t.set(x, a.y + 0.65 * this.H, z);
+    let ok = false;
+    for (let q = 0; q < 12 && !ok; q++) ok = rig.bestArm(t, q * Math.PI / 6, Math.PI / 2 - 0.5, 10, probe, need).f >= need;
+    c.set(key, ok); return ok;
   }
   /** Tự đi tới điểm (x, z) trên tầng f theo lưới điều hướng (bấm chuột lên sàn). Đường xa thì chạy. */
   walkTo(x, z, f) {

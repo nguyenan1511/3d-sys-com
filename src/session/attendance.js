@@ -110,6 +110,7 @@ export class Attendance {
   /** (mỗi khung hình) vào tới trong nhà mà chưa chấm công → nhắc một lần. */
   tick(a) {
     if (!this.code || this.mine || this.hintShown || !a) return;
+    if (document.querySelector('#modalRoot .modal')) return; // (đang mở hộp thoại, vd. chọn nhân vật: nhắc sau khi đóng, không đè lên)
     if (a.f === 0 && a.z < (this.app.model.waypoints.door0?.z ?? 4.6) - 0.4 && a.z > -13) { this.hintShown = true; this.s.toast('Bạn chưa chấm công hôm nay — ghé máy chấm công cạnh cửa chính (sảnh) và bấm E nhé.'); }
   }
 

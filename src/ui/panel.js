@@ -20,7 +20,8 @@ export class Panel {
     // nút mũi tên đặt ngoài ngăn kéo (ngăn kéo có transform nên position: fixed bên trong sẽ bị tính theo ngăn kéo)
     document.getElementById('main').appendChild($('panelToggle'));
     $('panelToggle').onclick = () => setDrawer($('panel').classList.contains('collapsed'));
-    setDrawer(localStorage.getItem('sysone.drawer') !== '0');
+    // điện thoại: luôn bắt đầu thu gọn (ngăn kéo che gần hết màn hình)
+    setDrawer(matchMedia('(max-width: 760px)').matches ? false : localStorage.getItem('sysone.drawer') !== '0');
     $('play').onclick = () => { app.paused = !app.paused; this.syncSpeed(); };
     document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { app.speed = +b.dataset.speed; app.paused = false; this.syncSpeed(); });
     $('jump').onchange = e => { const v = e.target.value; if (v) { app.jump(parseTime(v)); e.target.value = ''; } };

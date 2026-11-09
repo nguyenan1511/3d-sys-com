@@ -18,7 +18,7 @@ export class Minimap {
     this.label = el.querySelector('.mm-floor');
     const tog = el.querySelector('.mm-tog');
     const setCollapsed = c => { el.classList.toggle('collapsed', c); tog.innerHTML = icon(c ? 'plus' : 'minus', 14); tog.title = c ? 'Mở bản đồ nhỏ' : 'Thu gọn bản đồ nhỏ'; tog.setAttribute('aria-expanded', String(!c)); try { localStorage.setItem('sysone.minimap', c ? '0' : '1'); } catch { /* */ } };
-    setCollapsed(localStorage.getItem('sysone.minimap') === '0');
+    { const v = localStorage.getItem('sysone.minimap'); setCollapsed(v === '0' || (v === null && matchMedia('(max-width: 760px)').matches)); } // (điện thoại: mặc định thu gọn)
     tog.onclick = () => setCollapsed(!el.classList.contains('collapsed'));
     // bấm lên bản đồ: tự đi tới (trên tầng đang xem)
     this.cv.addEventListener('click', e => {

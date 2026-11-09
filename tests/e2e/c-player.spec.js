@@ -25,16 +25,21 @@ test('di chuyển bằng phím, nhảy, động tác được người khác th�
   // đi về phía trước 1 giây: vị trí phải đổi
   // (giữ W tới khi đi được: vừa đóng "Chọn chỗ" bản đồ còn đang chuyển cảnh, máy test chạy 12 khung/giây)
   const s0 = await state(a);
+  const tW = Date.now();
   await a.keyboard.down('w');
   await expect.poll(async () => { const s = await state(a); return Math.hypot(s.x - s0.x, s.z - s0.z); }, { timeout: 5000 }).toBeGreaterThan(0.3);
   await a.keyboard.up('w');
   const s1 = await state(a);
+  // không nhanh hơn tốc độ chạy (bắt lỗi vòng lặp tính sai thời gian mỗi khung → nhân vật "bay" rồi kẹt vào tường)
+  const run = await a.evaluate(() => window.__app.session.player.RUN);
+  expect(Math.hypot(s1.x - s0.x, s1.z - s0.z)).toBeLessThan(run * 1.3 * ((Date.now() - tW) / 1000) + 0.3);
   // nhảy: lên khỏi mặt đất rồi rơi xuống
   // nhảy (nhân vật tỉ lệ 0.5): nhún lấy đà 0.12 s, cao ~0.27 m
+  // (máy test vẽ một khung mất ~1 s: cả cú nhảy có thể nằm gọn trong một khung — đọc độ cao cao nhất mà nhân vật ghi lại)
   await a.keyboard.press('Space');
-  await expect.poll(() => state(a).then(s => s.y - s1.y), { intervals: [50], timeout: 2000 }).toBeGreaterThan(0.15);
-  await a.waitForTimeout(900);
-  expect(Math.abs((await state(a)).y - s1.y)).toBeLessThan(0.05);
+  await expect.poll(() => a.evaluate(() => window.__app.session.player.lastJumpPeak), { timeout: 4000 }).not.toBeNull();
+  expect(await a.evaluate(() => window.__app.session.player.lastJumpPeak) - s1.y).toBeGreaterThan(0.15);
+  await expect.poll(async () => Math.abs((await state(a)).y - s1.y), { timeout: 3000 }).toBeLessThan(0.05);
 
   // quy định: không hút thuốc trong văn phòng — trong nhà bấm 2 bị từ chối, có thông báo
   const b = await newPage(browser);
@@ -225,12 +230,14 @@ test('bấm lên sàn ở tầng 2: nhân vật đi tới đó trong tầng 2, k
   test.skip(LAYOUT_WORLD !== 'sysone-mo', 'toà nhà lớn');
   const a = await newPage(browser);
   await loginEmployeeUI(a, `${uniqueCode()}-Tầng`); await waitScene(a); await finishAvatar(a);
-  await a.evaluate(() => { const s = window.__app.session; Object.assign(s.player.agent, { x: 1.2, z: -6.0, y: 4.55, f: 1 }); s.player.follow(); const r = window.__app.app.rig; r.G.th = r.S.th = Math.PI; document.querySelector('#panel')?.setAttribute('hidden', ''); });
+  await a.evaluate(() => { const s = window.__app.session; Object.assign(s.player.agent, { x: 1.2, z: -6.0, y: 4.55, f: 1 }); s.player.follow(); const r = window.__app.app.rig; r.G.th = r.S.th = 0; document.querySelector('#panel')?.setAttribute('hidden', ''); });
   await a.waitForTimeout(2000);
   const pt = await a.evaluate(() => { const app = window.__app.app, v = new (app.camera.position.constructor)(1.2, 4.56, -10.5).project(app.camera), r = document.getElementById('c3').getBoundingClientRect(); return { x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height }; });
+  // ghi lại đường đi ngay khi được lập (đường ngắn có thể đi xong trong một khung hình chậm của máy test)
+  await a.evaluate(() => { const pl = window.__app.session.player, f = pl.walkTo.bind(pl); pl.walkTo = (...x) => { const ok = f(...x); window.__lastPath = pl.path ? pl.path.slice() : null; return ok; }; });
   await a.mouse.click(pt.x, pt.y);
-  await expect.poll(() => a.evaluate(() => (window.__app.session.player.path || []).length)).toBeGreaterThan(0);
-  expect(await a.evaluate(() => window.__app.session.player.path.every(p => p.f === undefined || p.f === 1))).toBe(true);
+  await expect.poll(() => a.evaluate(() => (window.__lastPath || []).length)).toBeGreaterThan(0);
+  expect(await a.evaluate(() => window.__lastPath.every(p => p.f === undefined || p.f === 1))).toBe(true);
   await expect.poll(() => a.evaluate(() => window.__app.session.player.path), { timeout: 30_000 }).toBe(null);
   const end = await a.evaluate(() => { const p = window.__app.session.player.agent; return { f: p.f, z: p.z }; });
   expect(end.f).toBe(1); expect(end.z).toBeLessThan(-9.5);

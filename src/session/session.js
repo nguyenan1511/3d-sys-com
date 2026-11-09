@@ -19,6 +19,8 @@ import { Attendance } from './attendance.js';
 import { defaultEquipment, normalizeEquipment } from '../shared/equipment.js';
 import { footprint, seatApproach } from '../model/layoutModel.js';
 import { facingVec } from '../core/util.js';
+import { sound } from '../audio/notify.js';
+import { notice } from '../ui/notices.js';
 
 const $ = id => document.getElementById(id);
 
@@ -84,17 +86,19 @@ export class Session {
   start() {
     this.renderBar();
     this.renderSeatBox();
+    sound.unlockOnGesture();
     this.rt.on('hello', m => {
       this.applySeats(m.seats, true);
       // kết nối lại: server không còn nhớ mình đang ngồi -> báo lại (server vẫn kiểm tra quyền)
       if (this.seated && !m.presence.some(p => p.key === this.key && p.seated === this.seated)) api('POST', `/api/seats/${encodeURIComponent(this.seated)}/sit`, {}).then(r => { if (!r.ok) { this.seated = null; this.renderSeatBox(); } });
       this.online = m.online; this.renderOnline();
+      this.known = new Set(m.online.map(o => o.key));
       for (const p of m.presence) this.remote.upsert(p);
       for (const [id, open] of Object.entries(m.blinds || {})) this.blinds.set(id, open, true);
       this.synced = true; // đã nhận trạng thái chung (chỗ ngồi, rèm…) từ server
     });
     this.rt.on('blind', m => { const it = this.blinds.byId.get(m.id); if (it && it.open !== m.open) { this.blinds.set(m.id, m.open); if (m.by) toast(`${m.by} ${m.open ? 'kéo' : 'hạ'} ${it.name.toLowerCase()}.`); } });
-    this.rt.on('online', m => { this.online = m.list; this.renderOnline(); for (const k of [...this.remote.byKey.keys()]) if (k !== 'guide' && !m.list.some(o => o.key === k)) this.remote.remove(k); }); // (chị hướng dẫn chỉ có trên máy mình, không nằm trong danh sách online)
+    this.rt.on('online', m => { this.announceArrivals(m.list); this.online = m.list; this.renderOnline(); for (const k of [...this.remote.byKey.keys()]) if (k !== 'guide' && !m.list.some(o => o.key === k)) this.remote.remove(k); }); // (chị hướng dẫn chỉ có trên máy mình, không nằm trong danh sách online)
     this.rt.on('positions', m => { for (const p of m.list) { if (p.key === this.key) this.syncSelf(p); this.remote.upsert(p); } });
     this.rt.on('gone', m => this.remote.remove(m.key));
     this.rt.on('seats', m => this.applySeats(m.list, m.full));
@@ -156,6 +160,7 @@ export class Session {
       ${this.isAdmin ? `<button id="btnDash" class="dock-btn">${icon('clipboard')} <span class="lbl">Bảng quản trị</span></button><button id="btnPw" class="dock-btn">${icon('key')} <span class="lbl">Đổi mật khẩu</span></button>` : ''}
       ${this.isAdmin ? '' : `<button id="btnLook" class="dock-btn">${icon('user')} <span class="lbl">Nhân vật của tôi</span></button>`}
       <label class="dock-btn dock-check"><input type="checkbox" id="cOwners"> ${icon('tag')} <span class="lbl">Hiện chủ chỗ</span></label>
+      <label class="dock-btn dock-check"><input type="checkbox" id="cSound"> ${icon('volume')} <span class="lbl">Âm báo tin nhắn</span></label>
       ${this.player && ENABLE_2D ? `<div class="dock-seg" role="group" aria-label="Chế độ hiển thị"><button id="view2d" class="dock-btn${VIEW.mode === '2d' ? ' on' : ''}" aria-pressed="${VIEW.mode === '2d'}" title="2D: bản đồ pixel nhìn từ trên xuống (mặc định)">${icon('map')} <span class="lbl">2D</span></button><button id="view3d" class="dock-btn${VIEW.mode === '3d' ? ' on' : ''}" aria-pressed="${VIEW.mode === '3d'}" title="3D: cảnh 3D">${icon('cube')} <span class="lbl">3D</span></button></div>` : ''}
       <button id="btnLogout" class="dock-btn">${icon('logout')} <span class="lbl">Đăng xuất</span></button></nav>`;
     $('view2d')?.addEventListener('click', () => this.app.setView('2d')); $('view3d')?.addEventListener('click', () => this.app.setView('3d'));
@@ -163,6 +168,8 @@ export class Session {
     $('btnLook')?.addEventListener('click', () => this.editLook(false));
     const co = $('cOwners'); co.checked = !!this.showOwners;
     co.onchange = e => { this.showOwners = e.target.checked; this.labels.visible = this.showOwners || this.selecting; };
+    const cs = $('cSound'); cs.checked = sound.on;
+    cs.onchange = e => { sound.on = e.target.checked; if (sound.on) sound.play('message'); };
     if (this.isAdmin) {
       $('btnDash').onclick = () => this.app.dashboard?.toggle();
       $('btnPw').onclick = () => this.changePassword();
@@ -420,6 +427,21 @@ export class Session {
   }
 
   // ---------- danh sách online ----------
+  /**
+   * Có người vừa vào công ty: thông báo góc phải + âm báo. Người vừa rời đi dưới 2 phút rồi vào lại (tải lại trang, rớt mạng)
+   * thì không báo, đỡ ồn.
+   */
+  announceArrivals(list) {
+    if (!this.known) return;
+    const now = Date.now(), left = this.leftAt || (this.leftAt = new Map()), keys = new Set(list.map(o => o.key));
+    for (const k of this.known) if (!keys.has(k)) left.set(k, now);
+    const fresh = list.filter(o => !this.known.has(o.key) && o.key !== this.key && !(now - (left.get(o.key) || 0) < 120e3));
+    this.known = keys;
+    if (!fresh.length) return;
+    const names = fresh.map(o => o.display);
+    notice({ title: names.length === 1 ? `${names[0]} vừa vào công ty` : `${names.length} người vừa vào công ty`, text: names.length > 1 ? names.join(', ') : 'Chào mừng tới SYSONE!', icon: 'user', tone: 'join' });
+    sound.play('join');
+  }
   renderOnline() {
     let box = $('onlineBox');
     if (!box) { box = document.createElement('section'); box.className = 'box'; box.id = 'onlineBox'; $('simBox').parentNode.insertBefore(box, $('simBox')); }
@@ -438,7 +460,7 @@ export class Session {
   // ---------- mỗi khung hình ----------
   update(dt, cutY, rawDt = dt) {
     this.remote.selfHidden = this.app.rig.walkMode;
-    if (this.player) this.player.update(rawDt); // (thời gian thật, tối đa 0,25 s — nhân vật tự chia bước)
+    if (this.player) this.player.update(rawDt); // (thời gian thật, tối đa 1 s — nhân vật tự chia bước)
     this.remote.update(dt, cutY);
     this.fx.update(dt, this.remote.list);
     this.blinds.update(dt);

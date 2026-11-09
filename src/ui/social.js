@@ -8,6 +8,8 @@ import { api } from '../net/api.js';
 import { esc } from '../session/ui.js';
 import { icon } from './icons.js';
 import { YoutubeMusic } from '../audio/youtube.js';
+import { sound } from '../audio/notify.js';
+import { notice } from './notices.js';
 
 const fmtDur = sec => { sec = Math.max(0, Math.floor(sec || 0)); const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, x = sec % 60; return (h ? `${h}:${String(m).padStart(2, '0')}` : `${m}`) + `:${String(x).padStart(2, '0')}`; };
 const fmtTime = ts => { const d = new Date(ts); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
@@ -118,7 +120,14 @@ export class Social {
     this.renderChannels();
     // bong bóng trên đầu người gửi (kênh chung + kênh phòng ban; tin nhắn riêng không hiện công khai)
     if (!m.channel.startsWith('dm:')) this.bubbles.set(m.from === this.me ? 'me' : m.from, { text: m.body.length > 60 ? m.body.slice(0, 58) + '…' : m.body, until: performance.now() + 6000 });
-    if (!visible && m.from !== this.me && m.channel.startsWith('dm:')) this.s.toast(`✉ ${m.name}: ${m.body.slice(0, 80)}`);
+    // tin nhắn mới của người khác: âm báo + thông báo góc phải (bấm để mở đúng kênh); đang mở đúng kênh thì chỉ kêu khi tab bị ẩn
+    if (m.from !== this.me && (!visible || document.hidden)) {
+      sound.play('message');
+      if (!visible) {
+        const where = m.channel.startsWith('dm:') ? 'nhắn riêng cho bạn' : m.channel === 'all' ? 'trong # Toàn công ty' : `trong # ${(this.channels.find(c => c.id === m.channel)?.name || '').replace(/^(Phòng|Team) /, '')}`;
+        notice({ title: `${m.name} ${where}`, text: m.body.slice(0, 120), icon: 'chat', tone: 'msg', onClick: () => { if (this.panel.hidden) this.toggle(true); this.open(m.channel); } });
+      }
+    }
   }
 
   // ---------- loa: nhạc YouTube cho cả công ty ----------
@@ -164,7 +173,7 @@ export class Social {
       el.classList.toggle('collapsed', c); localStorage.setItem('sysone.musicbar', c ? '0' : '1');
       const t = q('.mb-toggle'); t.innerHTML = icon(c ? 'chevDown' : 'chevUp', 15); t.title = c ? 'Mở thanh nhạc' : 'Thu gọn thanh nhạc'; t.setAttribute('aria-label', t.title); t.setAttribute('aria-expanded', String(!c));
     };
-    setCollapsed(localStorage.getItem('sysone.musicbar') === '0');
+    { const v = localStorage.getItem('sysone.musicbar'); setCollapsed(v === '0' || (v === null && matchMedia('(max-width: 760px)').matches)); } // (điện thoại: mặc định thu gọn)
     q('.mb-toggle').onclick = e => { e.stopPropagation(); setCollapsed(!el.classList.contains('collapsed')); };
     el.addEventListener('click', e => { if (el.classList.contains('collapsed') && !e.target.closest('.mb-toggle')) setCollapsed(false); });
     setInterval(() => this.tickBar(), 500);

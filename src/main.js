@@ -36,6 +36,7 @@ import { OUTLINE } from './agents/toon.js';
 import { icon } from './ui/icons.js';
 import { Minimap } from './ui/minimap.js';
 import { QuickTravel } from './ui/quickTravel.js';
+import { TouchControls, isTouchUI } from './ui/touchControls.js';
 import { NameTags } from './ui/nameTags.js';
 import { departmentOfDesk } from './shared/departments.js';
 import { buildDeptSigns } from './scene/deptSigns.js';
@@ -342,9 +343,9 @@ export async function startApp(me, hooks = {}) {
       const qt = app.quickTravel = new QuickTravel(app, session, host);
       session.onSeats(() => qt.render());
     } else if (!session.player && menu && slot && menu.parentElement !== slot) { menu.hidden = false; slot.appendChild(menu); }
-    // "Của tôi" trong ngăn kéo: Nhân vật của tôi, Hiện chủ chỗ, Đăng xuất
-    const meRow = document.querySelector('#meBox .me-row'), look = $('btnLook'), owners = $('cOwners')?.closest('label'), out = $('btnLogout');
-    if (meRow) { meRow.replaceChildren(...[look, $('btnDash'), $('btnPw'), owners, out].filter(Boolean)); $('meBox').hidden = !meRow.children.length; }
+    // "Của tôi" trong ngăn kéo: Nhân vật của tôi, Hiện chủ chỗ, Âm báo tin nhắn, Đăng xuất
+    const meRow = document.querySelector('#meBox .me-row'), look = $('btnLook'), owners = $('cOwners')?.closest('label'), snd = $('cSound')?.closest('label'), out = $('btnLogout');
+    if (meRow) { meRow.replaceChildren(...[look, $('btnDash'), $('btnPw'), owners, snd, out].filter(Boolean)); $('meBox').hidden = !meRow.children.length; }
     $('sessionBar').querySelector('.dock')?.remove();
     // thanh dưới một dòng: Đang online + phím chính + nút Phím tắt
     const online = $('onlineBox'), slotO = ctrlNav.querySelector('.nav-online'); if (online && online.parentElement !== slotO) slotO.replaceChildren(online);
@@ -455,7 +456,7 @@ export async function startApp(me, hooks = {}) {
   const keyCaps = k => k.split(' ').map(x => `<span class="key">${x}</span>`).join('');
   const keyFull = rows => '<ul class="keylist">' + rows.map(([k, t]) => `<li><span class="keys">${keyCaps(k)}</span><span class="what">${t}</span></li>`).join('') + '</ul>';
   const keyLine = rows => `<span class="keys-short">${rows.slice(0, 3).map(([k, t]) => `<span class="ks">${keyCaps(k)}<span class="what">${t}</span></span>`).join('')}</span><button type="button" class="keys-btn" onclick="window.__app.app.openKeys()" title="Xem tất cả phím tắt và động tác">${icon('keyboard')} Phím tắt</button>`;
-  const KEYROWS3D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['B', 'Về bàn làm việc (tự đi tới và ngồi)'], ['T', 'Chat nội bộ'], ['Space', 'Nhảy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['V', 'Góc nhìn thứ nhất / thứ ba'], ['C', 'Đưa camera về sau lưng'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Kéo', 'Xoay camera'], ['Cuộn', 'Phóng to / thu nhỏ'], ['Esc', 'Dừng động tác']];
+  const KEYROWS3D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['B', 'Về bàn làm việc (tự đi tới và ngồi)'], ['T', 'Chat nội bộ'], ['Space', 'Nhảy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['V', 'Góc nhìn thứ nhất / thứ ba'], ['C', 'Đưa camera về sau lưng'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Kéo', 'Xoay camera (thả tay camera trôi nhẹ rồi dừng)'], ['Cuộn + −', 'Phóng to / thu nhỏ'], ['2 ngón', 'Điện thoại: chụm để zoom, kéo ngang để xoay'], ['Esc', 'Dừng động tác']];
   const KEYROWS2D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Chuột', 'Bấm bàn để xem chủ chỗ'], ['Cầu thang', 'Đi vào cầu thang để lên / xuống tầng'], ['Esc', 'Dừng động tác']];
   const KEYS3D = keyLine(KEYROWS3D), KEYS2D = keyLine(KEYROWS2D);
   { const k = document.querySelector('.hud-keys'); if (k) k.innerHTML = KEYS3D; }
@@ -499,6 +500,7 @@ export async function startApp(me, hooks = {}) {
   let last = performance.now(), fps = 60, frames = 0, perfT = 0, cutCheck = 0;
   // bản đồ nhỏ góc dưới bên phải (cảnh 3D)
   const minimap = session.player ? new Minimap($('appRoot'), app) : null;
+  if (session.player && isTouchUI()) app.touch = new TouchControls(app, session); // điện thoại: cần điều khiển + nút Tương tác / Nhảy / Về bàn
   // nhãn tên + phòng ban trên đầu mọi người (thay nhãn cũ của người online)
   const tags = new NameTags(scene, canvas.parentElement); session.remote.tags.visible = false;
   { const fit = () => tags.setSize(canvas.clientWidth || 680, canvas.clientHeight || 480); new ResizeObserver(fit).observe(canvas); fit(); }
@@ -548,7 +550,8 @@ export async function startApp(me, hooks = {}) {
   function frame(now) {
     if (window.__PAUSE_RENDER) { last = now; requestAnimationFrame(frame); return; } // (kiểm thử nhiều trang trên GPU giả lập: trang khác đang tải cảnh thì tạm dừng vẽ)
     if (maxFps && now - last < 1000 / maxFps - 2) { requestAnimationFrame(frame); return; }
-    const rawDt = Math.min((now - last) / 1000, 0.25), rdt = Math.min(rawDt, 0.1); last = now;
+    // (khung giật tới 1 s: nhân vật vẫn đi đủ quãng, không bị "quay chậm")
+    const rawDt = Math.min((now - last) / 1000, 1.0), rdt = Math.min(rawDt, 0.1); last = now;
     if (!app.paused) sim.step(rdt * app.speed);
     if (MYOFFICE || CITY) updateMyOffice(rdt); // đường phố, xe cộ, người đi đường (và đồ vật chuyển động khi dùng cả văn phòng my-office)
     // cổng tự mở khi có người tới gần

@@ -44,10 +44,14 @@ export class CameraRig {
     this.onWalkChange = () => {};
     this.onUserOrbit = () => {};
     this.lastUserOrbit = 0; this.camDist = null; this.squeezeT = 0; this.recenter = false;
+    // quán tính xoay (kiểu OrbitControls enableDamping): vận tốc góc rad/s, giảm dần sau khi thả chuột
+    this.vth = 0; this.vph = 0;
+    this.reduceMotion = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
     this._t = new THREE.Vector3(); this._d = new THREE.Vector3();
     this._bind();
   }
   go(k) {
+    this.stopCoast();
     if (this.walkMode) this.setWalk(false);
     const p = PRESETS[k]; this.follow = null;
     this.G.th = p.th; this.G.ph = p.ph; this.G.r = p.r; this.G.t.set(...p.t); this.auto = false;
@@ -56,9 +60,32 @@ export class CameraRig {
   snap() { this.S.th = this.G.th; this.S.ph = this.G.ph; this.S.r = this.G.r; this.S.t.copy(this.G.t); }
   zoom(f) {
     if (this.walkMode) return;
-    if (this.follow && this.follow.local) { const H = this.follow.camR ?? (this.follow.camH ?? 0.375) / 0.5; this.G.r = clamp(this.G.r * f, LIM.fR[0] * H, LIM.fR[1] * H); }
+    if (this.follow && this.follow.local) {
+      const H = this.follow.camR ?? (this.follow.camH ?? 0.375) / 0.5;
+      let r = clamp(this.G.r * f, LIM.fR[0] * H, LIM.fR[1] * H);
+      // cuộn ra xa khi sau lưng là tường: không cộng dồn khoảng cách "ảo" (cuộn vào lại có tác dụng ngay)
+      if (f > 1 && this.lastFree != null) r = Math.min(r, Math.max(this.G.r, this.lastFree + 0.5));
+      this.G.r = r;
+    }
     else this.G.r = clamp(this.G.r * f, LIM.oR[0], LIM.oR[1]);
   }
+
+  /**
+   * Quán tính sau khi thả chuột: camera trôi tiếp theo hướng vừa kéo rồi dừng êm (giảm ~99% trong 0,8 s).
+   * phLim: [min, max] góc cực của chế độ hiện tại. Trả về true khi còn đang trôi.
+   */
+  coast(dt, phLim) {
+    if (this.drag || (!this.vth && !this.vph)) return false;
+    const S = this.S, G = this.G;
+    if (!this.canOrbit(S.th + this.vth * dt, S.ph)) { this.stopCoast(); return false; } // trôi tới tường: dừng
+    S.th += this.vth * dt; G.th = S.th;
+    if (this.vph) { S.ph = clamp(S.ph + this.vph * dt, phLim[0], phLim[1]); G.ph = S.ph; }
+    const f = Math.exp(-dt * 6); this.vth *= f; this.vph *= f;
+    if (Math.abs(this.vth) < 0.02 && Math.abs(this.vph) < 0.02) { this.vth = this.vph = 0; return false; }
+    this.lastUserOrbit = performance.now();                 // đang trôi = người dùng đang chỉnh: không tự xoay tránh góc chết
+    return true;
+  }
+  stopCoast() { this.vth = this.vph = 0; }
 
   setWalk(on) {
     this.walkMode = on; this.follow = null;
@@ -141,16 +168,89 @@ export class CameraRig {
   /** Camera bám nhân vật kiểu game: tự xoay về sau lưng khi đi, tránh tường, góc chết thì tự canh giữa. */
   /** Góc nhìn thứ nhất (phím V) khi đang điều khiển nhân vật. */
   setFirstPerson(on) {
-    this.fp = !!on;
+    this.fp = !!on; this.stopCoast();
     if (this.follow) this.follow._fpHide = this.fp;
     if (this.fp && this.follow) { this.S.th = this.G.th = this.follow.yaw; this.fpPitch = -0.08; }
     else if (this.follow) { this.S.th = this.G.th = this.follow.yaw; this.camDist = null; }
   }
 
   /**
-   * Camera bám nhân vật kiểu agent-office: quay quanh nhân vật theo chuột (kéo để xoay, cuộn để gần/xa), không tự
-   * xoay về sau lưng; nhắm vào ngang vai (≈0.65 chiều cao), trượt mượt tới chỗ mới. Có vật cản giữa nhân vật và camera
-   * thì kéo camera lại gần (không xuyên tường), thông rồi lùi ra từ từ. Bấm C để về sau lưng.
+   * Khoảng trống cho "cần" camera (spring arm) tính từ tâm nhìn t theo hướng (th, ph), tối đa maxD:
+   * - tường, vách, cột (bỏ qua đồ đạc thấp);
+   * - camera có bề dày và phải thấy cả đầu lẫn chân: bắn 5 tia (tâm, 2 mép ống kính, ngang đầu, ngang chân);
+   * - không lên quá trần (this.clamp) và không lọt ra ngoài vỏ nhà khi nhân vật ở trong nhà (world.sameSpace).
+   */
+  armFree(t, th, ph, maxD, a) {
+    const d = this._ad || (this._ad = new THREE.Vector3()), o = this._ao || (this._ao = new THREE.Vector3()), q = this._aq || (this._aq = new THREE.Vector3());
+    const sp = Math.sin(ph); d.set(sp * Math.sin(th), Math.cos(ph), sp * Math.cos(th));
+    let f = this.rayCOL(t, d, maxD, true);
+    // tia song song từ đầu và chân nhân vật (lan can, bờ tường thấp không được che mất chân) và hai mép ống kính
+    const rx = Math.cos(th), rz = -Math.sin(th), w = 0.12, H = a ? (a.camH ?? 0.375) / 0.5 : 0.75;
+    for (const [sx, sy] of [[1, 0], [-1, 0], [0, 0.3 * H], [0, -0.45 * H]]) { o.set(t.x + rx * sx * w, t.y + sy, t.z + rz * sx * w); f = Math.min(f, this.rayCOL(o, d, f, true)); }
+    f = Math.max(0, f - 0.18);
+    if (this.clamp && d.y > 0.02) { q.set(t.x + d.x * f, t.y + d.y * f, t.z + d.z * f); const y0 = q.y; this.clamp(q); if (q.y < y0 - 1e-3) f = Math.max(0, (q.y - t.y) / d.y); }
+    if (this.world.sameSpace && a) for (let i = 0; i < 24 && f > 0.3; i++) { q.set(t.x + d.x * f, t.y + d.y * f, t.z + d.z * f); if (this.world.sameSpace(a, q)) break; f -= 0.2; }
+    return f;
+  }
+  /**
+   * Khoảng trống tốt nhất tại hướng th: thử góc người dùng chọn, rồi nâng dần camera lên cao (nhìn chếch xuống nhiều hơn)
+   * cho tới khi đủ chỗ. Trả về { f, ph }.
+   */
+  bestArm(t, th, ph, want, a, need) {
+    // tốt: đủ chỗ VÀ bàn ghế, cây cảnh không che mặt/chân nhân vật. Không có góc nào tốt thì lấy góc rộng chỗ nhất.
+    let f = this.armFree(t, th, ph, want, a), best = ph;
+    if (f >= need && !this.furnitureBlocks(t, th, ph, Math.min(want, f), a)) return { f, ph };
+    let good = null;
+    for (let el = PH(ph) + 0.1; el <= 1.4 + 1e-6; el += 0.1) {
+      const p2 = PH(el), f2 = this.armFree(t, th, p2, want, a);
+      if (f2 > f + 0.05) { f = f2; best = p2; }
+      if (f2 >= need && !this.furnitureBlocks(t, th, p2, Math.min(want, f2), a)) { good = { f: f2, ph: p2 }; break; }
+    }
+    return good || { f, ph: best };
+  }
+  /**
+   * Đồ đạc thấp (bàn, ghế, quầy, chậu cây) có che đầu hoặc chân nhân vật khi camera ở (th, ph, cách r) không.
+   * Khối đồ đạc trong dữ liệu va chạm cao 1,4 m cho chắc chân; để nhìn thì coi cao tối đa 0,95 m (bàn, quầy, cây thấp).
+   */
+  furnitureBlocks(t, th, ph, r, a) {
+    if (!a || r < 0.3) return false;
+    const H = (a.camH ?? 0.375) / 0.5, sp = Math.sin(ph);
+    const cx = t.x + r * sp * Math.sin(th), cy = t.y + r * Math.cos(ph), cz = t.z + r * sp * Math.cos(th);
+    for (const hy of [0.92 * H, 0.15 * H]) {
+      const ox = a.x, oy = a.y + hy, oz = a.z, dx = cx - ox, dy = cy - oy, dz = cz - oz;
+      for (const c of this.world.COL) {
+        if (!c.low) continue;
+        const top = Math.min(c.y1, c.y0 + 0.95);
+        if (oy > top && cy > top) continue;                                   // cả hai đầu cao hơn đồ đạc
+        // đoạn thẳng nhân vật → camera cắt hộp đồ đạc? (bỏ đoạn sát chân nhân vật: đứng sát bàn không tính là che)
+        let t0 = 0.12, t1 = 1;
+        for (const [o, d, lo, hi] of [[ox, dx, c.x0, c.x1], [oy, dy, c.y0, top], [oz, dz, c.z0, c.z1]]) {
+          if (Math.abs(d) < 1e-9) { if (o < lo || o > hi) { t1 = -1; break; } continue; }
+          let ta = (lo - o) / d, tb = (hi - o) / d; if (ta > tb) { const q = ta; ta = tb; tb = q; }
+          if (ta > t0) t0 = ta; if (tb < t1) t1 = tb; if (t0 > t1) break;
+        }
+        if (t0 <= t1) return true;
+      }
+    }
+    return false;
+  }
+  /** Người dùng (hoặc quán tính) có được xoay camera tới hướng th không: chỉ chặn khi hướng mới chật hơn hẳn mà vẫn không đủ chỗ. */
+  canOrbit(th, ph) {
+    const a = this.follow; if (!a || !a.local || this.fp) return true;
+    const need = this.armNeed(a), cur = this.lastFree ?? 0;
+    const { f } = this.bestArm(this.S.t, th, ph, Math.max(need, this.S.r), a, need);
+    return f >= need || f >= cur - 0.05;
+  }
+  /** Khoảng cách tối thiểu để thấy trọn nhân vật thoải mái. */
+  armNeed(a) { const R = a.camR ?? (a.camH ?? 0.375) / 0.5; return LIM.fR[0] * R * 0.8; }
+
+  /**
+   * Camera bám nhân vật kiểu game góc nhìn thứ ba (spring arm):
+   * - Kéo chuột để xoay quanh nhân vật, cuộn để gần/xa. Thả chuột thì camera đứng yên ở đó, không tự quay về.
+   * - Không bao giờ để tường, vách che nhân vật: có vật cản giữa nhân vật và camera thì camera tự lại gần (nhanh) và nâng
+   *   cao lên (nhìn chếch xuống), ra chỗ thoáng thì lùi và hạ về đúng góc người dùng chọn (chậm, êm).
+   * - Không cho xoay/trôi vào hướng bị tường chắn kín (canOrbit).
+   * Bấm C để về sau lưng.
    */
   updateThirdPerson(dt, a) {
     const S = this.S, G = this.G, H = (a.camH ?? 0.375) / 0.5; // chiều cao nhân vật (camH = 0.5·H)
@@ -165,58 +265,44 @@ export class CameraRig {
       return;
     }
     if (this.camera.fov !== 60) { this.camera.fov = 60; this.camera.updateProjectionMatrix(); }
-    const ty = a.y + 0.65 * H + lift + (a.jumpH || 0);
-    G.t.set(a.x, ty, a.z);
-    const k = 1 - Math.exp(-dt * 16);                       // ≈ lerp 0.25 mỗi khung hình ở 60 fps
-    S.t.lerp(G.t, k);
-    if (this.recenter) { S.th += angDiff(S.th, a.yaw) * Math.min(1, dt * 8); if (Math.abs(angDiff(S.th, a.yaw)) < 0.02) this.recenter = false; }
+    // tâm nhìn: ngang vai, bám theo nhân vật mượt (nhảy thì chỉ nhấc nửa, đỡ rung)
+    G.t.set(a.x, a.y + 0.65 * H + lift + (a.jumpH || 0) * 0.5, a.z);
+    S.t.lerp(G.t, 1 - Math.exp(-dt * 14));
+    if (this.recenter) { this.stopCoast(); S.th += angDiff(S.th, a.yaw) * Math.min(1, dt * 6); if (Math.abs(angDiff(S.th, a.yaw)) < 0.02) this.recenter = false; }
+    else this.coast(dt, [PH(LIM.fEl[1]), PH(LIM.fEl[0])]);
     G.ph = clamp(G.ph, PH(LIM.fEl[1]), PH(LIM.fEl[0])); G.r = clamp(G.r, LIM.fR[0] * R, LIM.fR[1] * R);
-    // tường ép camera sát người quá 0.35 s (và người dùng không đang kéo): xoay sang hướng thoáng nhất gần nhất
-    const fixed = !!this.world.fixedFollow; // khoảng cách cố định: không co giãn theo vật cản, không cắt cảnh (người dùng tự xoay/cuộn để nhìn)
-    if (!fixed && this.squeezeT > 0.35 && !this.drag && this.escapeTh == null) {
-      let best = null, score = -Infinity;
-      for (let k = 1; k < 12; k++) for (const sg of [1, -1]) {
-        const th = S.th + sg * k * Math.PI / 12, dd = this._t.set(Math.sin(S.ph) * Math.sin(th), Math.cos(S.ph), Math.sin(S.ph) * Math.cos(th));
-        const fr = Math.min(this.rayCOL(S.t, dd, S.r), S.r), sc = fr - k * 0.04 * H;
-        if (fr > LIM.fR[0] * R && sc > score) { score = sc; best = th; }
-      }
-      this.escapeTh = best ?? S.th + Math.PI; // không hướng nào thoáng: nhìn từ phía ngược lại
-      if (best === null) G.ph = PH(LIM.fEl[1]);
-    }
-    // khoảng cách cố định: bị che (góc chết) thì tự xoay sang hướng gần nhất thấy trọn nhân vật nhất — ưu tiên sau lưng;
-    // người dùng vừa tự xoay camera thì để yên 2,5 giây
-    if (fixed) {
-      this.visT = (this.visT || 0) - dt;
-      if (this.visT <= 0) {
-        this.visT = 0.15;
-        const cur = this.viewScore(a, S.th, S.ph, S.r, H), idle = !this.drag && !this.recenter && performance.now() - this.lastUserOrbit > 2500;
-        this.blockT = cur < 2 ? (this.blockT || 0) + 0.15 : 0;
-        if (idle && this.escapeTh == null && cur < 2 && this.blockT >= (cur < 1 ? 0.3 : 0.9)) {
-          let best = null, bs = cur + 0.3;
-          for (let k = 1; k <= 12; k++) for (const sg of [1, -1]) {
-            const th = S.th + sg * k * Math.PI / 12;
-            const sc = this.viewScore(a, th, S.ph, S.r, H) - k * 0.015 - Math.abs(angDiff(th, a.yaw)) * 0.05;
-            if (sc > bs) { bs = sc; best = th; }
-          }
-          if (best !== null) this.escapeTh = best;
-          this.blockT = 0;
-        }
+    G.th = S.th; S.ph += (G.ph - S.ph) * (1 - Math.exp(-dt * 10)); S.r += (G.r - S.r) * (1 - Math.exp(-dt * 10));
+
+    // spring arm: tìm góc nâng cần thiết (mỗi 0,08 s) để camera đủ xa mà không có tường chen giữa
+    const need = this.armNeed(a), t = S.t;
+    if (this.camDist === null) { this.aPh = null; this.armT = 0; } // vừa chuyển sang bám nhân vật / dịch chuyển nhanh: tính lại ngay
+    this.armT = (this.armT || 0) - dt;
+    if (this.armT <= 0 || this.aPh == null) {
+      this.armT = 0.08;
+      const b = this.bestArm(t, S.th, S.ph, S.r, a, Math.min(S.r, need));
+      this.aPhGoal = b.ph;
+      // chật kín mọi phía ở góc này (rất hiếm, vd. bị đặt sát góc tường): xoay sang hướng thoáng nhất gần nhất
+      if (b.f < need * 0.5 && !this.drag && !this.recenter && this.escapeTh == null) {
+        let best = null, bf = b.f + 0.3;
+        for (let k = 1; k <= 12; k++) for (const sg of [1, -1]) { const th = S.th + sg * k * Math.PI / 12, x = this.bestArm(t, th, S.ph, S.r, a, need).f - k * 0.03; if (x > bf) { bf = x; best = th; } }
+        if (best !== null) this.escapeTh = best;
       }
     }
-    if (this.escapeTh != null) { const dth = angDiff(S.th, this.escapeTh); S.th += dth * Math.min(1, dt * (fixed ? 3 : 5)); if (Math.abs(dth) < 0.03 || this.drag) this.escapeTh = null; }
-    G.th = S.th; S.ph += (G.ph - S.ph) * Math.min(1, dt * 8); S.r += (G.r - S.r) * Math.min(1, dt * 10);
-    // không xuyên tường: rút camera lại khi có vật cản, lùi ra từ từ khi thông
-    const t = S.t, d = this._d.set(Math.sin(S.ph) * Math.sin(S.th), Math.cos(S.ph), Math.sin(S.ph) * Math.cos(S.th));
-    const free = fixed ? S.r : this.rayCOL(t, d, S.r) - 0.15;
-    const want = fixed ? S.r : Math.max(LIM.fMin * H, Math.min(S.r, free));
-    this.squeezeT = free < Math.min(S.r, LIM.fR[0] * R) ? (this.squeezeT || 0) + dt : 0;
-    // vướng vật cản: kéo lại gần nhanh nhưng mượt (không giật); thông rồi lùi ra từ từ
-    if (this.camDist === null || fixed) this.camDist = want;
-    else if (want < this.camDist) this.camDist = Math.max(want, this.camDist + (want - this.camDist) * (1 - Math.exp(-dt * 18)) - dt * 0.5);
-    else this.camDist = Math.min(want, this.camDist + dt * 2.2);
-    const r = this.camDist;
-    this.camera.position.set(t.x + r * d.x, t.y + r * d.y, t.z + r * d.z);
-    if (this.clamp) this.clamp(this.camera.position);
+    if (this.escapeTh != null) { const dth = angDiff(S.th, this.escapeTh); S.th += dth * Math.min(1, dt * 4); G.th = S.th; if (Math.abs(dth) < 0.03 || this.drag) this.escapeTh = null; }
+    // góc nâng thực tế: nâng lên nhanh khi bị ép, hạ về góc người dùng chọn từ từ
+    if (this.aPh == null) this.aPh = this.aPhGoal;
+    const up = this.aPhGoal < this.aPh;
+    this.aPh += (this.aPhGoal - this.aPh) * (1 - Math.exp(-dt * (up ? 9 : 2.5)));
+    const ph = Math.min(S.ph, this.aPh);
+    const free = this.armFree(t, S.th, ph, S.r, a);
+    this.lastFree = free;
+    // khoảng cách: vướng thì kéo lại gần nhanh mà mượt; thông rồi lùi ra từ từ (không giật, không "thở")
+    const want = Math.min(S.r, free);
+    if (this.camDist === null) this.camDist = want;
+    else if (want < this.camDist) this.camDist = Math.max(want, this.camDist + (want - this.camDist) * (1 - Math.exp(-dt * 20)));
+    else this.camDist = Math.min(want, this.camDist + (want - this.camDist) * (1 - Math.exp(-dt * 2.2)) + dt * 0.15);
+    const r = this.camDist, sp = Math.sin(ph);
+    this.camera.position.set(t.x + r * sp * Math.sin(S.th), t.y + r * Math.cos(ph), t.z + r * sp * Math.cos(S.th));
     this.camera.lookAt(t);
   }
 
@@ -233,6 +319,7 @@ export class CameraRig {
       for (const T of [G.t, S.t]) T.set(clamp(T.x, LIM.ox[0], LIM.ox[1]), clamp(T.y, LIM.oy[0], LIM.oy[1]), clamp(T.z, LIM.oz[0], LIM.oz[1]));
       G.r = clamp(G.r, LIM.oR[0], LIM.oR[1]); G.ph = clamp(G.ph, LIM.oPh[0], LIM.oPh[1]);
     }
+    if (!this.auto) this.coast(dt, LIM.oPh);
     if (this.follow) { const a = this.follow; G.t.lerp(new THREE.Vector3(a.x, a.y + (a.camH ?? 1.0) + (a.jumpH || 0) * 0.5, a.z), Math.min(1, dt * (a.local ? 10 : 4))); }
     const k = 1 - Math.pow(0.001, dt);     // nội suy không phụ thuộc fps
     S.t.lerp(G.t, k);
@@ -252,31 +339,81 @@ export class CameraRig {
 
   _bind() {
     const cv = this.canvas, ptrs = new Map();
-    let pd = 0, moved = 0;
-    cv.addEventListener('pointerdown', e => { cv.focus(); cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); this.drag = true; moved = 0; cv.style.cursor = 'grabbing'; if (ptrs.size === 2) { const a = [...ptrs.values()]; pd = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); } });
+    let pd = 0, mid = null, moved = 0, lastT = 0;
+    const tpLocal = () => this.follow && this.follow.local;
+    const followR = () => this.follow.camR ?? (this.follow.camH ?? 0.375) / 0.5;
+    /** Ghi vận tốc góc để thả tay ra còn trôi (làm mượt theo thời gian, bỏ qua khung quá ngắn). */
+    const track = (dth, dph) => {
+      const now = performance.now(), dt = Math.max(0.008, (now - lastT) / 1000); lastT = now;
+      const a = Math.min(1, dt * 20);
+      this.vth += (dth / dt - this.vth) * a; this.vph += (dph / dt - this.vph) * a;
+    };
+    const midOf = () => { const a = [...ptrs.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) }; };
+    cv.addEventListener('pointerdown', e => {
+      cv.focus(); cv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.drag = true; moved = 0; this.stopCoast(); lastT = performance.now(); cv.style.cursor = 'grabbing';
+      if (ptrs.size === 2) { const m = midOf(); pd = m.d; mid = m; }
+    });
     cv.addEventListener('pointermove', e => {
       const p = ptrs.get(e.pointerId); if (!p) return;
       const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
       if (this.walkMode) { this.PL.yaw -= dx * 0.005; this.PL.pitch = clamp(this.PL.pitch - dy * 0.004, -1.2, 1.2); return; }
-      const S = this.S;
+      const S = this.S, G = this.G;
       // nhìn bằng mắt nhân vật: kéo để nhìn quanh
-      if (this.fp && this.follow && this.follow.local) { S.th -= dx * 0.005; this.G.th = S.th; this.fpPitch = clamp((this.fpPitch ?? 0) - dy * 0.005, -1.2, 1.2); return; }
-      // bám nhân vật (kiểu agent-office): ngang 0.006 rad/px, dọc 0.004 rad/px, góc chếch 0.05–1.3 rad
-      if (ptrs.size === 1 && this.follow && this.follow.local) { S.th -= dx * 0.006; S.ph = clamp(S.ph - dy * 0.004, PH(LIM.fEl[1]), PH(LIM.fEl[0])); this.G.th = S.th; this.G.ph = S.ph; this.lastUserOrbit = performance.now(); this.recenter = false; if (moved > 6) this.onUserOrbit(); return; }
-      if (ptrs.size === 1) { S.th -= dx * 0.008; S.ph = clamp(S.ph - dy * 0.008, LIM.oPh[0], LIM.oPh[1]); this.lastUserOrbit = performance.now(); this.recenter = false; if (moved > 6) this.onUserOrbit(); }
-      else if (ptrs.size === 2) { const a = [...ptrs.values()]; const d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); if (pd > 0) S.r = clamp(S.r * pd / d, LIM.oR[0], LIM.oR[1]); pd = d; }
-      this.G.th = S.th; this.G.ph = S.ph; this.G.r = S.r;
+      if (this.fp && tpLocal()) { S.th -= dx * 0.005; G.th = S.th; this.fpPitch = clamp((this.fpPitch ?? 0) - dy * 0.005, -1.2, 1.2); return; }
+      // hai ngón (điện thoại): chụm/mở để gần/xa, kéo ngang để xoay
+      if (ptrs.size === 2) {
+        const m = midOf();
+        if (pd > 0 && m.d > 0) {
+          const f = pd / m.d;
+          if (tpLocal()) { const R = followR(); G.r = clamp(G.r * f, LIM.fR[0] * R, LIM.fR[1] * R); }
+          else { S.r = G.r = clamp(S.r * f, LIM.oR[0], LIM.oR[1]); }
+        }
+        if (mid) { const th2 = S.th - (m.x - mid.x) * 0.005; if (!tpLocal() || this.canOrbit(th2, S.ph)) { S.th = th2; G.th = S.th; } this.lastUserOrbit = performance.now(); }
+        pd = m.d; mid = m; return;
+      }
+      if (ptrs.size !== 1) return;
+      // bám nhân vật (kiểu agent-office): ngang 0.006 rad/px, dọc 0.004 rad/px; tổng quan: 0.008 rad/px
+      const local = tpLocal(), kx = local ? 0.006 : 0.008, ky = local ? 0.004 : 0.008;
+      const lim = local ? [PH(LIM.fEl[1]), PH(LIM.fEl[0])] : LIM.oPh;
+      const ph0 = S.ph;
+      let th2 = S.th - dx * kx, ph2 = clamp(S.ph - dy * ky, lim[0], lim[1]);
+      // bám nhân vật: không kéo camera vào hướng bị tường chắn kín (giữ nguyên trục bị chặn, trục kia vẫn đi)
+      if (local && !this.canOrbit(th2, ph2)) { if (this.canOrbit(th2, S.ph)) ph2 = S.ph; else if (this.canOrbit(S.th, ph2)) th2 = S.th; else { th2 = S.th; ph2 = S.ph; } }
+      const dth = th2 - S.th; S.th = th2; S.ph = ph2;
+      G.th = S.th; G.ph = S.ph; if (!local) G.r = S.r;
+      track(dth, S.ph - ph0);
+      this.lastUserOrbit = performance.now(); this.recenter = false;
+      if (moved > 6) this.onUserOrbit();
     });
-    const up = e => { ptrs.delete(e.pointerId); if (!ptrs.size) { this.drag = false; cv.style.cursor = 'grab'; } this.lastMoved = moved; };
+    const up = e => {
+      ptrs.delete(e.pointerId);
+      if (ptrs.size < 2) { pd = 0; mid = null; }
+      if (!ptrs.size) {
+        this.drag = false; cv.style.cursor = 'grab';
+        // chỉ trôi khi vừa kéo thật (không phải bấm) và tay còn đang di chuyển lúc thả
+        const still = performance.now() - lastT > 90;
+        if (this.reduceMotion || this.walkMode || this.fp || moved <= 6 || still) this.stopCoast();
+        else { this.vth = clamp(this.vth, -6, 6); this.vph = clamp(this.vph, -3, 3); }
+      }
+      this.lastMoved = moved;
+    };
     cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     cv.addEventListener('wheel', e => {
       if (this.walkMode) return; e.preventDefault();
-      const tp = this.follow && this.follow.local;
-      if (tp) { const H = this.follow.camR ?? (this.follow.camH ?? 0.375) / 0.5; this.G.r = clamp(this.G.r + e.deltaY * 0.01 * H / 2, LIM.fR[0] * H, LIM.fR[1] * H); return; }
-      this.G.r = this.S.r = clamp(this.S.r * Math.exp(e.deltaY * 0.0012), LIM.oR[0], LIM.oR[1]);
+      // chuẩn hoá: chuột (dòng/trang) và trackpad (điểm ảnh); chụm 2 ngón trên trackpad Mac = wheel + ctrlKey (bước nhỏ)
+      let dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+      if (e.ctrlKey) dy *= 4;
+      dy = clamp(dy, -160, 160);                               // một nấc cuộn không nhảy quá xa
+      this.zoom(Math.exp(dy * 0.0015));
+      if (!tpLocal()) this.S.r = this.G.r;
     }, { passive: false });
     const KM = { w: 'w', s: 's', a: 'a', d: 'd', ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', W: 'w', S: 's', A: 'a', D: 'd' };
-    cv.addEventListener('keydown', e => { const k = KM[e.key]; if (k) { this.keys[k] = true; if (this.walkMode) e.preventDefault(); } });
+    cv.addEventListener('keydown', e => {
+      // + / − : phóng to / thu nhỏ (bàn phím thường và bàn phím số)
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === '+' || e.key === '=' || e.key === '-' || e.key === '_')) { e.preventDefault(); this.zoom(e.key === '-' || e.key === '_' ? 1.15 : 1 / 1.15); return; }
+      const k = KM[e.key]; if (k) { this.keys[k] = true; if (this.walkMode) e.preventDefault(); }
+    });
     cv.addEventListener('keyup', e => { const k = KM[e.key]; if (k) this.keys[k] = false; });
     cv.addEventListener('blur', () => { this.keys = {}; });
   }
