@@ -69,3 +69,27 @@ export function recordFailure(db, scope, key) {
   db.prepare('DELETE FROM login_failures WHERE ts < ?').run(Date.now() - 24 * 3600e3);
 }
 export function clearFailures(db, scope, key) { db.prepare('DELETE FROM login_failures WHERE scope = ? AND key = ?').run(scope, key); }
+
+/** Yêu cầu đến từ nguồn hợp lệ: không có Origin, cùng tên miền, hoặc nằm trong ALLOWED_ORIGINS (giao diện đặt ở Vercel). */
+export function originAllowed(req, allowed = []) {
+  const origin = req.headers.origin;
+  if (!origin) return true;
+  let u; try { u = new URL(origin); } catch { return false; }
+  return u.host === req.headers.host || allowed.includes(u.origin);
+}
+
+// Vé WebSocket: giao diện ở tên miền khác (Vercel) không gửi được cookie khi mở WS thẳng tới server, nên lấy một vé
+// qua API (đi qua proxy, có cookie) rồi mở wss://server/ws?ticket=…  Vé dùng một lần, hết hạn sau 30 giây, chỉ nằm trong bộ nhớ.
+const tickets = new Map();
+export function issueWsTicket(cookieHeader) {
+  const now = Date.now();
+  for (const [k, t] of tickets) if (t.exp < now) tickets.delete(k);
+  const id = crypto.randomBytes(24).toString('base64url');
+  tickets.set(id, { cookie: cookieHeader, exp: now + 30e3 });
+  return id;
+}
+export function redeemWsTicket(id) {
+  const t = tickets.get(String(id || '')); if (!t) return null;
+  tickets.delete(id);
+  return t.exp >= Date.now() ? t.cookie : null;
+}

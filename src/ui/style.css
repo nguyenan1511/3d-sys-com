@@ -1160,3 +1160,9 @@ body.mode2d .tag-layer { display: none; }
 #appRoot :is(#panel .box, #card, #hud) button.primary:not(.plain) { transition: filter .15s ease, transform .12s ease; }
 #appRoot :is(#panel .box, #card, #hud) button.primary:not(.plain):hover { filter: brightness(.92) saturate(1.1); transform: translateY(-1px); }
 #appRoot :is(#panel .box, #card, #hud) button.primary:not(.plain):active { filter: brightness(.85); transform: translateY(0); }
+
+/* Bảng quản trị: tab Sao lưu */
+#dash .bk { animation: ui-fade-in .22s ease both; min-height: 160px; }
+#dash .bk .row { margin-bottom: 12px; gap: 12px; align-items: center; }
+#dash .bk .row .muted { flex: 1 1 320px; }
+#dash .bk code { font-size: 12px; }

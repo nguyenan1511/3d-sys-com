@@ -2,7 +2,7 @@ import { canUseChannel, postMessage, musicState, canMusic, dmChannel } from './s
 // WebSocket: danh sách online, trạng thái chỗ ngồi, vị trí avatar người dùng khác, buộc đăng xuất.
 // Xác thực bằng cookie phiên lúc nâng cấp kết nối; server là nguồn sự thật về "đang ngồi ở đâu".
 import { WebSocketServer } from 'ws';
-import { sessionFromCookie } from './security.js';
+import { sessionFromCookie, originAllowed, redeemWsTicket } from './security.js';
 import { displayOf } from '../src/shared/identity.js';
 
 const LIMIT = { x: [-16, 16], y: [-1, 12], z: [-11, 31] };
@@ -32,10 +32,11 @@ export class Hub {
     this.wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
     server.on('upgrade', (req, socket, head) => {
       if (!req.url.startsWith('/ws')) return;
-      // chống mở WS từ trang khác (cookie tự gửi kèm)
-      const origin = req.headers.origin;
-      if (origin && new URL(origin).host !== req.headers.host) { socket.write('HTTP/1.1 403 Forbidden\r\n\r\n'); socket.destroy(); return; }
-      const sess = sessionFromCookie(this.store.db, req.headers.cookie);
+      // chống mở WS từ trang khác (cookie tự gửi kèm); giao diện ở tên miền khác thì phải nằm trong ALLOWED_ORIGINS
+      if (!originAllowed(req, this.config.allowedOrigins)) { socket.write('HTTP/1.1 403 Forbidden\r\n\r\n'); socket.destroy(); return; }
+      // xác thực: cookie phiên (cùng tên miền) hoặc vé dùng một lần ?ticket= (giao diện ở Vercel)
+      const ticket = new URL(req.url, 'http://x').searchParams.get('ticket');
+      const sess = sessionFromCookie(this.store.db, ticket ? redeemWsTicket(ticket) : req.headers.cookie);
       if (!sess) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
       this.wss.handleUpgrade(req, socket, head, ws => this.onConnect(ws, sess));
     });

@@ -28,6 +28,10 @@ export const config = {
   employeeSessionHours: +(env.EMPLOYEE_SESSION_HOURS || 24 * 7),
   adminSessionHours: +(env.ADMIN_SESSION_HOURS || 12),
   onlineGraceMs: +(env.ONLINE_GRACE_MS || 30000),
+  // giao diện đặt ở tên miền khác (ví dụ Vercel): các nguồn được phép gọi API ghi và mở WebSocket, cách nhau bằng dấu phẩy
+  allowedOrigins: String(env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim().replace(/\/+$/, '')).filter(Boolean),
+  // đứng sau proxy (Render, Vercel): 'loopback' (mặc định), true, số lớp proxy, hoặc danh sách IP — xem Express "trust proxy"
+  trustProxy: env.TRUST_PROXY === undefined || env.TRUST_PROXY === '' ? 'loopback' : /^\d+$/.test(env.TRUST_PROXY) ? +env.TRUST_PROXY : /^(true|false)$/i.test(env.TRUST_PROXY) ? /^true$/i.test(env.TRUST_PROXY) : env.TRUST_PROXY,
   loginWindowMin: 15,
   loginMaxFailures: 5
 };

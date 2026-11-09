@@ -77,3 +77,10 @@ Ca: `SHIFT_START` (mặc định `08:00`), cho trễ `LATE_GRACE_MIN` phút (m�
 1. Tạo `server/routes/<tên>.js` xuất `function xxxRoutes(api, { db, store, hub, config, guards })`.
 2. Mỗi route: gắn quyền (`guards.needAuth / needEmployee / needAdmin`), kiểm tra dữ liệu bằng `check(req.body, { field: v.str({ max }) … })` (`server/http.js`), thêm `rateLimit(...)` nếu là thao tác ghi dễ lạm dụng, ghi `audit(...)` cho thao tác quan trọng, lỗi nghiệp vụ ném `HttpError(status, message, { code })`.
 3. Đăng ký trong `server/app.js` (cạnh `attendanceRoutes(api, ctx)`), viết test trong `tests/api.test.js`, cập nhật tài liệu này.
+
+## Sao lưu (chỉ CEO)
+| Method | Đường dẫn | Mô tả |
+|---|---|---|
+| GET | `/api/v1/admin/backups` | `{ backups: [{ name, size, ts }], keep, enabled }`, mới nhất trước |
+| POST | `/api/v1/admin/backups` | sao lưu ngay (gửi body `{}`), trả `{ ok, backup }`; tối đa 6 lần/phút |
+| GET | `/api/v1/admin/backups/:name` | tải file `.db` về máy |

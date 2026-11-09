@@ -8,10 +8,12 @@ import { Hub } from './realtime.js';
 import { requestLog, securityHeaders, rateLimit } from './http.js';
 import { attendanceRoutes } from './routes/attendance.js';
 import { chatRoutes } from './routes/chat.js';
+import { backupRoutes } from './routes/backup.js';
+import { scheduleBackups, backupDir } from './backup.js';
 import { musicRoutes } from './routes/music.js';
 import {
   hashPassword, verifyPassword, dummyVerify, createSession, sessionFromCookie, setSessionCookie, clearSessionCookie,
-  failureCount, recordFailure, clearFailures
+  failureCount, recordFailure, clearFailures, originAllowed, issueWsTicket
 } from './security.js';
 import { displayOf } from '../src/shared/identity.js';
 
@@ -28,7 +30,7 @@ export async function createApp(config = defaultConfig) {
 
   const app = express();
   app.disable('x-powered-by');
-  app.set('trust proxy', 'loopback');
+  app.set('trust proxy', config.trustProxy ?? 'loopback');
   app.use(securityHeaders({ production: config.production, secure: config.cookieSecure }));
   app.use(express.json({ limit: '1mb' }));
 
@@ -52,8 +54,7 @@ export async function createApp(config = defaultConfig) {
   app.use('/api', (req, res, next) => {
     if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
     if (!req.is('application/json')) return res.status(415).json({ error: 'Yêu cầu phải gửi dạng JSON.' });
-    const origin = req.headers.origin;
-    if (origin && new URL(origin).host !== req.headers.host) return res.status(403).json({ error: 'Nguồn yêu cầu không hợp lệ.' });
+    if (!originAllowed(req, config.allowedOrigins)) return res.status(403).json({ error: 'Nguồn yêu cầu không hợp lệ.' });
     next();
   });
 
@@ -178,9 +179,13 @@ export async function createApp(config = defaultConfig) {
   api.post('/admin/import', needAdmin, (req, res) => res.json({ ok: true, ...store.importCsv(req.actor, req.body?.csv) }));
   api.get('/admin/audit', needAdmin, (req, res) => res.json({ audit: store.auditLog(+req.query.limit || 200) }));
 
+  /** Vé mở WebSocket thẳng tới server (khi giao diện đặt ở tên miền khác, ví dụ Vercel). */
+  api.post('/ws-ticket', needAuth, (req, res) => res.json({ ticket: issueWsTicket(req.headers.cookie) }));
+
   attendanceRoutes(api, ctx);
   chatRoutes(api, ctx);
   musicRoutes(api, ctx);
+  backupRoutes(api, ctx);
   app.use(['/api/v1', '/api'], api);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Không có API này.', code: 'not_found', path: req.originalUrl.split('?')[0], requestId: req.id }));
 
@@ -202,7 +207,8 @@ export async function createApp(config = defaultConfig) {
   let t = null;
   const watcher = (await import('fs')).watch(config.layoutPath, () => { clearTimeout(t); t = setTimeout(() => { try { store.loadLayout(); hub.onStore({ type: 'seats' }); } catch (e) { console.error('layout.json lỗi:', e.message); } }, 300); });
 
-  return { app, db, store, hub, finish, close() { watcher.close(); hub.close(); db.close(); } };
+  const stopBackups = scheduleBackups(db, backupDir(config));
+  return { app, db, store, hub, finish, close() { stopBackups(); watcher.close(); hub.close(); db.close(); } };
 }
 
 async function seedAdmin(db, config) {

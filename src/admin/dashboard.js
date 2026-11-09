@@ -40,7 +40,7 @@ export class Dashboard {
   }
 
   render() {
-    const tabs = [['emp', 'Nhân viên'], ['map', 'Sơ đồ chỗ ngồi'], ['audit', 'Nhật ký']];
+    const tabs = [['emp', 'Nhân viên'], ['map', 'Sơ đồ chỗ ngồi'], ['audit', 'Nhật ký'], ['backup', 'Sao lưu']];
     this.el.innerHTML = `<div class="dash-head"><h2>Bảng quản trị</h2>
       <div class="seg" role="tablist">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${this.tab === k}" class="${this.tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
       <button id="dashClose" aria-label="Đóng bảng quản trị">Đóng ✕</button></div><div id="dashBody"></div>`;
@@ -48,6 +48,7 @@ export class Dashboard {
     $('dashClose').onclick = () => this.toggle(false);
     if (this.tab === 'emp') this.renderEmployees();
     else if (this.tab === 'map') this.renderMap();
+    else if (this.tab === 'backup') this.renderBackups();
     else this.renderAudit();
   }
 
@@ -291,7 +292,31 @@ export class Dashboard {
     $('dashBody').innerHTML = '<p class="muted">Đang tải…</p>';
     const r = await api('GET', '/api/admin/audit?limit=300');
     if (!r.ok) { $('dashBody').textContent = r.error; return; }
-    const label = { 'login.new': 'Đăng ký mới', 'login.return': 'Vào lại', 'seat.claim': 'Nhận chỗ', 'seat.move': 'Tự đổi chỗ', 'seat.equipment': 'Sửa dụng cụ', 'seat.sit': 'Ngồi', 'admin.login': 'CEO đăng nhập', 'admin.login.fail': 'CEO đăng nhập sai', 'admin.seat.assign': 'Gán chỗ', 'admin.seat.release': 'Giải phóng chỗ', 'admin.seat.lock': 'Khóa chỗ', 'admin.seat.unlock': 'Mở khóa chỗ', 'admin.employee.update': 'Sửa nhân viên', 'admin.employee.delete': 'Xóa nhân viên', 'admin.employee.logout': 'Buộc đăng xuất', 'admin.csv.import': 'Nhập CSV', 'admin.csv.export': 'Xuất CSV', 'admin.password.change': 'Đổi mật khẩu', logout: 'Đăng xuất', 'admin.seed': 'Tạo tài khoản CEO', 'layout.desk_removed': 'Bàn bị bỏ khỏi layout' };
+    const label = { 'login.new': 'Đăng ký mới', 'login.return': 'Vào lại', 'seat.claim': 'Nhận chỗ', 'seat.move': 'Tự đổi chỗ', 'seat.equipment': 'Sửa dụng cụ', 'seat.sit': 'Ngồi', 'admin.login': 'CEO đăng nhập', 'admin.login.fail': 'CEO đăng nhập sai', 'admin.seat.assign': 'Gán chỗ', 'admin.seat.release': 'Giải phóng chỗ', 'admin.seat.lock': 'Khóa chỗ', 'admin.seat.unlock': 'Mở khóa chỗ', 'admin.employee.update': 'Sửa nhân viên', 'admin.employee.delete': 'Xóa nhân viên', 'admin.employee.logout': 'Buộc đăng xuất', 'admin.csv.import': 'Nhập CSV', 'admin.csv.export': 'Xuất CSV', 'admin.backup': 'Sao lưu database', 'admin.backup.download': 'Tải bản sao lưu', 'admin.password.change': 'Đổi mật khẩu', logout: 'Đăng xuất', 'admin.seed': 'Tạo tài khoản CEO', 'layout.desk_removed': 'Bàn bị bỏ khỏi layout' };
     $('dashBody').innerHTML = `<div class="table-wrap"><table class="dtable"><thead><tr><th>Thời gian</th><th>Người làm</th><th>Thao tác</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead><tbody>${r.audit.map(a => `<tr><td class="small">${fmt(a.ts)}</td><td>${esc(a.actor)}</td><td>${esc(label[a.action] || a.action)}</td><td>${esc(a.target || '')}</td><td class="small muted">${esc(a.detail ? JSON.stringify(a.detail).slice(0, 160) : '')}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  // ---------- sao lưu ----------
+  async renderBackups() {
+    const body = $('dashBody');
+    body.innerHTML = '<div class="bk"><p class="muted">Đang tải…</p></div>';
+    const r = await api('GET', '/api/admin/backups');
+    if (this.tab !== 'backup') return;
+    if (!r.ok) { body.textContent = r.error; return; }
+    const kb = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+    body.innerHTML = `<div class="bk">
+      <div class="row tight wrap"><button id="bkNow" class="primary" ${r.enabled ? '' : 'disabled'}>Sao lưu ngay</button>
+        <span class="muted small">Tự sao lưu mỗi đêm sau 2 giờ sáng, giữ ${r.keep} bản gần nhất. Thỉnh thoảng hãy tải một bản về máy hoặc Google Drive: bản đó vẫn còn kể cả khi mất server.</span></div>
+      ${r.backups.length ? `<div class="table-wrap"><table class="dtable"><thead><tr><th>Thời gian</th><th>Tên file</th><th>Dung lượng</th><th><span class="sr-only">Tải về</span></th></tr></thead><tbody>
+        ${r.backups.map(b => `<tr><td class="small">${fmt(b.ts)}</td><td><code>${esc(b.name)}</code></td><td class="small">${kb(b.size)}</td><td><a class="btn" href="/api/admin/backups/${encodeURIComponent(b.name)}" download>Tải về</a></td></tr>`).join('')}
+      </tbody></table></div>` : `<p class="muted">${r.enabled ? 'Chưa có bản sao lưu nào.' : 'Database đang chạy trong bộ nhớ (chế độ thử), không sao lưu.'}</p>`}</div>`;
+    const btn = $('bkNow');
+    if (btn) btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = 'Đang sao lưu…';
+      const x = await api('POST', '/api/admin/backups', {});
+      if (!x.ok) { toast(x.error, true); btn.disabled = false; btn.textContent = 'Sao lưu ngay'; return; }
+      toast(`Đã sao lưu: ${x.backup.name}`);
+      this.renderBackups();
+    };
   }
 }

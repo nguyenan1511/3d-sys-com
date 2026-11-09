@@ -160,3 +160,31 @@ describe('loa công ty (YouTube)', () => {
     expect((await req('POST', '/api/v1/music/control', { cookie: a, body: { action: 'pause' } })).body.code).toBe('music_off');
   });
 });
+
+describe('sao lưu (API)', () => {
+  it('chỉ CEO xem được; tên file lạ trả 404', async () => {
+    expect((await req('GET', '/api/v1/admin/backups')).status).toBe(401);
+    const emp = await loginEmp('7101-Sao');
+    expect((await req('GET', '/api/v1/admin/backups', { cookie: emp })).status).toBe(403);
+    const ceo = await loginCeo();
+    const r = await req('GET', '/api/v1/admin/backups', { cookie: ceo });
+    expect(r.status).toBe(200); expect(r.body).toMatchObject({ backups: [], enabled: false });
+    expect((await req('GET', '/api/v1/admin/backups/..%2Fsysone.db', { cookie: ceo })).status).toBe(404);
+  });
+});
+
+describe('giao diện ở tên miền khác (Vercel)', () => {
+  it('vé WebSocket: cần đăng nhập, mỗi vé dùng một lần', async () => {
+    const { redeemWsTicket } = await import('../server/security.js');
+    expect((await req('POST', '/api/v1/ws-ticket', { body: {} })).status).toBe(401);
+    const emp = await loginEmp('7102-Ve');
+    const r = await req('POST', '/api/v1/ws-ticket', { body: {}, cookie: emp });
+    expect(r.status).toBe(200); expect(r.body.ticket).toMatch(/^[\w-]{20,}$/);
+    expect(redeemWsTicket(r.body.ticket)).toBe(emp);
+    expect(redeemWsTicket(r.body.ticket)).toBe(null);
+  });
+  it('nguồn lạ bị chặn khi ghi', async () => {
+    const r = await req('POST', '/api/v1/ws-ticket', { body: {}, headers: { origin: 'https://evil.example' } });
+    expect(r.status).toBe(403);
+  });
+});

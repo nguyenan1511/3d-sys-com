@@ -1,0 +1,20 @@
+# Render Blueprint: backend (API + WebSocket + SQLite). Render → New → Blueprint → chọn repo này.
+services:
+  - type: web
+    name: sysone-api
+    runtime: docker
+    plan: starter            # cần gói trả phí để gắn disk (dữ liệu SQLite)
+    healthCheckPath: /api/v1/health
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ADMIN_INITIAL_PASSWORD
+        sync: false          # nhập tay khi tạo
+      - key: ALLOWED_ORIGINS
+        sync: false          # ví dụ https://sysone-office.vercel.app (tên miền giao diện trên Vercel)
+      - key: TRUST_PROXY
+        value: "true"
