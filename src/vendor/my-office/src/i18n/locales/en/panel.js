@@ -1,0 +1,33 @@
+// The small panel (app/panel, src/panel/main.js): the editor's side bar, the Mac's menu bar
+export default {
+  connecting: 'Connecting to the office…',
+  open3d: 'Open the office',
+  open2d: 'List view',
+  now: 'just now',
+  answerInOffice: 'Answer in the office',
+  until: 'Back to the IDE in {s} s',
+  failed: "Couldn't send. Try again.",
+  openWindow: 'Click: bring its window to the front',
+  // a session's card (src/panel/session-card.js)
+  card: {
+    dir: 'Folder', branch: 'Branch', model: 'Model', cost: 'Cost', cache: 'Prompt cache', acct: 'Account', did: 'Done so far',
+    dirty: { one: '{n} change not committed', other: '{n} changes not committed' }, ahead: { one: '{n} commit not pushed', other: '{n} commits not pushed' },
+    ciGreen: 'CI green', ciRed: 'CI red',
+    ctx: 'context {pct}% ({used}/{max})', costApi: '≈ {usd} (at API prices)',
+    warm: 'warm for {time}', cold: 'cold', counts: '{read} reads · {edit} edits · {cmd} commands',
+    asked: 'You asked', doing: 'Doing now', reply: 'Last reply',
+    todos: 'Checklist {done}/{n}', subs: 'Subagents ({n})', bg: 'Background jobs ({n})', more: '+{n} more',
+  },
+  status: { wait: 'Waiting for you', work: 'Working', done: 'Done', rest: 'Resting' },
+  subs: { one: '{n} subagent at work', other: '{n} subagents at work' },
+  working: '{n} working',
+  waiting: { one: '{n} waits for you', other: '{n} wait for you' },
+  bar: { allow: 'Allow', deny: 'Deny', ide: 'Answer in the IDE', answer: 'Open to answer', window: 'Open the session window', plan: 'A plan needs your approval', wait: '{name} is waiting for you', done: '{name} is done', quit: 'Hide this icon (until the office starts again)' },
+  quiet: 'All quiet',
+  keys: '⌃⌥O opens this · ↑↓ pick a session · Enter its window · Y / N approve · Esc closes',
+  needsYou: 'Needs you ({n})',
+  sessions: 'Sessions',
+  mac: { title: '{Mac}' },
+  noSessions: 'No Claude session open. Start one and it shows here.',
+  offline: "The office isn't running. Start it with: my-office start",
+};

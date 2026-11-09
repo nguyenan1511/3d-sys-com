@@ -1,0 +1,8 @@
+{
+  "_huong_dan": "Nội dung hai dòng chữ trên biển công ty. Sửa xong chạy: npm run sign",
+  "top": "CÔNG TY CỔ PHẦN CÔNG NGHỆ",
+  "addr": "ĐC: 33 DƯƠNG QUANG ĐÔNG, P. CHÁNH HƯNG, TP.HCM",
+  "color": "#003c9b",
+  "weight": 700,
+  "letterSpacing": 0.02
+}

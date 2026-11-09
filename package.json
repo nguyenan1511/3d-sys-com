@@ -1,0 +1,47 @@
+{
+  "name": "sysone-digital-twin",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch-path=server --watch-path=src/shared --watch-preserve-output --disable-warning=ExperimentalWarning server/index.js",
+    "build": "vite build",
+    "preview": "vite preview --port 4173",
+    "logo": "node scripts/trace-logo.mjs && node scripts/compare-logo.mjs",
+    "test": "vitest run",
+    "shots": "node scripts/shots.mjs",
+    "sign": "node scripts/make-sign-text.mjs",
+    "shots:baseline": "node scripts/shots.mjs --baseline",
+    "e2e": "node scripts/e2e.mjs",
+    "perf": "node scripts/perf.mjs",
+    "start": "NODE_ENV=production node --disable-warning=ExperimentalWarning server/index.js",
+    "test:auth": "playwright test",
+    "model": "node scripts/optimize-model.mjs",
+    "model:view": "node scripts/view-model.mjs",
+    "motion": "node scripts/motion-check.mjs",
+    "model:fetch": "node scripts/fetch-sketchfab.mjs"
+  },
+  "dependencies": {
+    "@pixiv/three-vrm": "^3.5.5",
+    "express": "^5.3.0",
+    "three": "^0.187.0",
+    "ws": "^8.22.1"
+  },
+  "devDependencies": {
+    "@fontsource/be-vietnam-pro": "^5.3.0",
+    "@gltf-transform/core": "^4.5.1",
+    "@gltf-transform/extensions": "^4.5.1",
+    "@gltf-transform/functions": "^4.5.1",
+    "@playwright/test": "^1.64.1",
+    "meshoptimizer": "^1.3.0",
+    "opentype.js": "^2.0.0",
+    "playwright": "^1.64.1",
+    "pngjs": "^7.0.0",
+    "sharp": "^0.35.5",
+    "vite": "^8.3.5",
+    "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22.5"
+  }
+}

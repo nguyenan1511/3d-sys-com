@@ -1,0 +1,12 @@
+node_modules/
+dist/
+shots/latest/
+.DS_Store
+.env
+data/
+test-results/
+playwright-report/
+public/model/src/
+*.db
+*.db-wal
+*.db-shm

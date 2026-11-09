@@ -1,0 +1,1067 @@
+{
+  "_huong_dan": [
+    "Tên trong file này là tên giả. Thay bằng danh sách thật khi có.",
+    "deskId phải trùng id một bàn trong layout.json; mỗi bàn chỉ một người.",
+    "Giờ dạng HH:MM. lunch.place: outside (ra ngoài ăn), pantry, desk (ăn tại bàn).",
+    "meetings[].room là id bàn họp trong layout.json (MR1 tầng trệt, MR3 tầng 3).",
+    "breaks: số lần giải lao pantry mỗi ngày, wc: số lần đi vệ sinh (mặc định lấy từ defaults)."
+  ],
+  "defaults": {
+    "shift": {
+      "arrive": "08:00",
+      "leave": "17:30"
+    },
+    "lunch": {
+      "start": "12:00",
+      "duration": 60,
+      "place": "outside"
+    },
+    "breaks": 2,
+    "wc": 2,
+    "speed": 1.25,
+    "jitterMinutes": 6
+  },
+  "departments": [
+    "Team Cộng Tác Viên",
+    "Ban giám đốc",
+    "Phòng Hành chính - Nhân sự",
+    "Phòng Triển khai",
+    "Phòng Tài chính - Kế toán",
+    "Phòng Phân tích nghiệp vụ",
+    "Phòng Phát triển ứng dụng",
+    "Phòng Mobile App",
+    "Phòng Data Backbone",
+    "Phòng Hệ thống",
+    "Team Đối tác",
+    "Phòng Security",
+    "Team Fresher"
+  ],
+  "employees": [
+    {
+      "id": "NV01",
+      "name": "Nhân viên 01",
+      "role": "Lễ tân",
+      "department": "Phòng Hành chính - Nhân sự",
+      "deskId": "LT-01",
+      "shift": {
+        "arrive": "07:45",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#f2f2ee",
+        "hair": "#151515",
+        "skin": "#c99872",
+        "pants": "#1f2329",
+        "height": 0.98
+      },
+      "speed": 1.39,
+      "breaks": 1
+    },
+    {
+      "id": "NV02",
+      "name": "Nhân viên 02",
+      "role": "Trưởng phòng Hành chính - Nhân sự",
+      "department": "Phòng Hành chính - Nhân sự",
+      "deskId": "T1-01",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "08:30",
+          "duration": 20,
+          "title": "Giao ban sáng"
+        }
+      ],
+      "look": {
+        "shirt": "#577590",
+        "hair": "#2b2018",
+        "skin": "#b98562",
+        "pants": "#3c4a5c",
+        "height": 1.02
+      },
+      "speed": 1.35
+    },
+    {
+      "id": "NV03",
+      "name": "Nhân viên 03",
+      "role": "Kế toán trưởng",
+      "department": "Phòng Hành chính - Nhân sự",
+      "deskId": "T1-02",
+      "shift": {
+        "arrive": "08:10",
+        "leave": "17:45"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "08:30",
+          "duration": 20,
+          "title": "Giao ban sáng"
+        }
+      ],
+      "look": {
+        "shirt": "#4f8f4a",
+        "hair": "#4a3324",
+        "skin": "#dcae88",
+        "pants": "#5a4a3a",
+        "height": 0.95
+      },
+      "speed": 1.31
+    },
+    {
+      "id": "NV04",
+      "name": "Nhân viên 04",
+      "role": "Kế toán viên",
+      "department": "Phòng Hành chính - Nhân sự",
+      "deskId": "T1-03",
+      "shift": {
+        "arrive": "08:15",
+        "leave": "18:00"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "desk"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#2a9d8f",
+        "hair": "#3b2a1e",
+        "skin": "#f0cfae",
+        "pants": "#22262c",
+        "height": 0.99
+      },
+      "speed": 1.27
+    },
+    {
+      "id": "NV05",
+      "name": "Nhân viên 05",
+      "role": "Chuyên viên nhân sự",
+      "department": "Phòng Hành chính - Nhân sự",
+      "deskId": "T1-04",
+      "shift": {
+        "arrive": "07:50",
+        "leave": "17:15"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#c2402f",
+        "hair": "#1d1a17",
+        "skin": "#e8c3a0",
+        "pants": "#2d3440",
+        "height": 1.03
+      },
+      "speed": 1.23
+    },
+    {
+      "id": "NV06",
+      "name": "Nhân viên 06",
+      "role": "Trưởng nhóm phát triển",
+      "department": "Phòng Phát triển ứng dụng",
+      "deskId": "T2-01",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "08:30",
+          "duration": 20,
+          "title": "Giao ban sáng"
+        }
+      ],
+      "look": {
+        "shirt": "#3a3f4a",
+        "hair": "#151515",
+        "skin": "#c99872",
+        "pants": "#1f2329",
+        "height": 0.96
+      },
+      "speed": 1.19
+    },
+    {
+      "id": "NV07",
+      "name": "Nhân viên 07",
+      "role": "Lập trình viên",
+      "department": "Phòng Phát triển ứng dụng",
+      "deskId": "T2-02",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "pantry"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "14:00",
+          "duration": 30,
+          "title": "Họp sprint"
+        }
+      ],
+      "look": {
+        "shirt": "#e76f51",
+        "hair": "#2b2018",
+        "skin": "#b98562",
+        "pants": "#3c4a5c",
+        "height": 1
+      },
+      "speed": 1.15
+    },
+    {
+      "id": "NV08",
+      "name": "Nhân viên 08",
+      "role": "Lập trình viên",
+      "department": "Phòng Phát triển ứng dụng",
+      "deskId": "T2-03",
+      "shift": {
+        "arrive": "08:10",
+        "leave": "17:45"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "desk"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "14:00",
+          "duration": 30,
+          "title": "Họp sprint"
+        }
+      ],
+      "look": {
+        "shirt": "#6b4aa5",
+        "hair": "#4a3324",
+        "skin": "#dcae88",
+        "pants": "#5a4a3a",
+        "height": 1.04
+      },
+      "speed": 1.39
+    },
+    {
+      "id": "NV09",
+      "name": "Nhân viên 09",
+      "role": "Lập trình viên",
+      "department": "Phòng Phát triển ứng dụng",
+      "deskId": "T2-04",
+      "shift": {
+        "arrive": "08:15",
+        "leave": "18:00"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "14:00",
+          "duration": 30,
+          "title": "Họp sprint"
+        }
+      ],
+      "look": {
+        "shirt": "#b5838d",
+        "hair": "#3b2a1e",
+        "skin": "#f0cfae",
+        "pants": "#22262c",
+        "height": 0.97
+      },
+      "speed": 1.35
+    },
+    {
+      "id": "NV10",
+      "name": "Nhân viên 10",
+      "role": "Lập trình viên",
+      "department": "Phòng Phát triển ứng dụng",
+      "deskId": "T2-05",
+      "shift": {
+        "arrive": "07:50",
+        "leave": "17:15"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#e0b030",
+        "hair": "#1d1a17",
+        "skin": "#e8c3a0",
+        "pants": "#2d3440",
+        "height": 1.01
+      },
+      "speed": 1.31
+    },
+    {
+      "id": "NV11",
+      "name": "Nhân viên 11",
+      "role": "Lập trình viên",
+      "department": "Phòng Phát triển ứng dụng",
+      "deskId": "T2-06",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#d9822b",
+        "hair": "#151515",
+        "skin": "#c99872",
+        "pants": "#1f2329",
+        "height": 0.94
+      },
+      "speed": 1.27
+    },
+    {
+      "id": "NV12",
+      "name": "Nhân viên 12",
+      "role": "Lập trình viên",
+      "department": "Phòng Phát triển ứng dụng",
+      "deskId": "T2-07",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "desk"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#2f6db5",
+        "hair": "#2b2018",
+        "skin": "#b98562",
+        "pants": "#3c4a5c",
+        "height": 0.98
+      },
+      "speed": 1.23
+    },
+    {
+      "id": "NV13",
+      "name": "Nhân viên 13",
+      "role": "Lập trình viên",
+      "department": "Phòng Phát triển ứng dụng",
+      "deskId": "T2-08",
+      "shift": {
+        "arrive": "08:10",
+        "leave": "17:45"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#f2f2ee",
+        "hair": "#4a3324",
+        "skin": "#dcae88",
+        "pants": "#5a4a3a",
+        "height": 1.02
+      },
+      "speed": 1.19
+    },
+    {
+      "id": "NV14",
+      "name": "Nhân viên 14",
+      "role": "Lập trình viên",
+      "department": "Phòng Mobile App",
+      "deskId": "T2-09",
+      "shift": {
+        "arrive": "08:15",
+        "leave": "18:00"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "pantry"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#577590",
+        "hair": "#3b2a1e",
+        "skin": "#f0cfae",
+        "pants": "#22262c",
+        "height": 0.95
+      },
+      "speed": 1.15
+    },
+    {
+      "id": "NV15",
+      "name": "Nhân viên 15",
+      "role": "Lập trình viên",
+      "department": "Phòng Mobile App",
+      "deskId": "T2-10",
+      "shift": {
+        "arrive": "07:50",
+        "leave": "17:15"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#4f8f4a",
+        "hair": "#1d1a17",
+        "skin": "#e8c3a0",
+        "pants": "#2d3440",
+        "height": 0.99
+      },
+      "speed": 1.39
+    },
+    {
+      "id": "NV16",
+      "name": "Nhân viên 16",
+      "role": "Kỹ sư kiểm thử",
+      "department": "Phòng Hệ thống",
+      "deskId": "T2-25",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "desk"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "08:30",
+          "duration": 20,
+          "title": "Giao ban sáng"
+        }
+      ],
+      "look": {
+        "shirt": "#2a9d8f",
+        "hair": "#151515",
+        "skin": "#c99872",
+        "pants": "#1f2329",
+        "height": 1.03
+      },
+      "speed": 1.35
+    },
+    {
+      "id": "NV17",
+      "name": "Nhân viên 17",
+      "role": "Kỹ sư kiểm thử",
+      "department": "Phòng Hệ thống",
+      "deskId": "T2-26",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "14:00",
+          "duration": 30,
+          "title": "Họp sprint"
+        }
+      ],
+      "look": {
+        "shirt": "#c2402f",
+        "hair": "#2b2018",
+        "skin": "#b98562",
+        "pants": "#3c4a5c",
+        "height": 0.96
+      },
+      "speed": 1.31
+    },
+    {
+      "id": "NV18",
+      "name": "Nhân viên 18",
+      "role": "Kỹ sư kiểm thử",
+      "department": "Phòng Hệ thống",
+      "deskId": "T2-27",
+      "shift": {
+        "arrive": "08:10",
+        "leave": "17:45"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#3a3f4a",
+        "hair": "#4a3324",
+        "skin": "#dcae88",
+        "pants": "#5a4a3a",
+        "height": 1
+      },
+      "speed": 1.27
+    },
+    {
+      "id": "NV19",
+      "name": "Nhân viên 19",
+      "role": "Kỹ sư kiểm thử",
+      "department": "Phòng Hệ thống",
+      "deskId": "T2-28",
+      "shift": {
+        "arrive": "08:15",
+        "leave": "18:00"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#e76f51",
+        "hair": "#3b2a1e",
+        "skin": "#f0cfae",
+        "pants": "#22262c",
+        "height": 1.04
+      },
+      "speed": 1.23
+    },
+    {
+      "id": "NV20",
+      "name": "Nhân viên 20",
+      "role": "Kỹ sư kiểm thử",
+      "department": "Phòng Security",
+      "deskId": "T2-29",
+      "shift": {
+        "arrive": "07:50",
+        "leave": "17:15"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "desk"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#6b4aa5",
+        "hair": "#1d1a17",
+        "skin": "#e8c3a0",
+        "pants": "#2d3440",
+        "height": 0.97
+      },
+      "speed": 1.19
+    },
+    {
+      "id": "NV21",
+      "name": "Nhân viên 21",
+      "role": "Kỹ sư kiểm thử",
+      "department": "Phòng Security",
+      "deskId": "T2-30",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "pantry"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#b5838d",
+        "hair": "#151515",
+        "skin": "#c99872",
+        "pants": "#1f2329",
+        "height": 1.01
+      },
+      "speed": 1.15
+    },
+    {
+      "id": "NV22",
+      "name": "Nhân viên 22",
+      "role": "Trưởng phòng Kinh doanh",
+      "department": "Phòng Phân tích nghiệp vụ",
+      "deskId": "T2-17",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "08:30",
+          "duration": 20,
+          "title": "Giao ban sáng"
+        }
+      ],
+      "look": {
+        "shirt": "#e0b030",
+        "hair": "#2b2018",
+        "skin": "#b98562",
+        "pants": "#3c4a5c",
+        "height": 0.94
+      },
+      "speed": 1.39
+    },
+    {
+      "id": "NV23",
+      "name": "Nhân viên 23",
+      "role": "Chuyên viên kinh doanh",
+      "department": "Phòng Phân tích nghiệp vụ",
+      "deskId": "T2-18",
+      "shift": {
+        "arrive": "08:10",
+        "leave": "17:45"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "15:30",
+          "duration": 45,
+          "title": "Họp kinh doanh"
+        }
+      ],
+      "look": {
+        "shirt": "#d9822b",
+        "hair": "#4a3324",
+        "skin": "#dcae88",
+        "pants": "#5a4a3a",
+        "height": 0.98
+      },
+      "speed": 1.35
+    },
+    {
+      "id": "NV24",
+      "name": "Nhân viên 24",
+      "role": "Chuyên viên kinh doanh",
+      "department": "Phòng Phân tích nghiệp vụ",
+      "deskId": "T2-19",
+      "shift": {
+        "arrive": "08:15",
+        "leave": "18:00"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "desk"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "15:30",
+          "duration": 45,
+          "title": "Họp kinh doanh"
+        }
+      ],
+      "look": {
+        "shirt": "#2f6db5",
+        "hair": "#3b2a1e",
+        "skin": "#f0cfae",
+        "pants": "#22262c",
+        "height": 1.02
+      },
+      "speed": 1.31
+    },
+    {
+      "id": "NV25",
+      "name": "Nhân viên 25",
+      "role": "Chuyên viên kinh doanh",
+      "department": "Phòng Phân tích nghiệp vụ",
+      "deskId": "T2-20",
+      "shift": {
+        "arrive": "07:50",
+        "leave": "17:15"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "15:30",
+          "duration": 45,
+          "title": "Họp kinh doanh"
+        }
+      ],
+      "look": {
+        "shirt": "#f2f2ee",
+        "hair": "#1d1a17",
+        "skin": "#e8c3a0",
+        "pants": "#2d3440",
+        "height": 0.95
+      },
+      "speed": 1.27
+    },
+    {
+      "id": "NV26",
+      "name": "Nhân viên 26",
+      "role": "Chuyên viên kinh doanh",
+      "department": "Phòng Triển khai",
+      "deskId": "T2-21",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "15:30",
+          "duration": 45,
+          "title": "Họp kinh doanh"
+        }
+      ],
+      "look": {
+        "shirt": "#577590",
+        "hair": "#151515",
+        "skin": "#c99872",
+        "pants": "#1f2329",
+        "height": 0.99
+      },
+      "speed": 1.23
+    },
+    {
+      "id": "NV27",
+      "name": "Nhân viên 27",
+      "role": "Chuyên viên kinh doanh",
+      "department": "Phòng Triển khai",
+      "deskId": "T2-22",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "15:30",
+          "duration": 45,
+          "title": "Họp kinh doanh"
+        }
+      ],
+      "look": {
+        "shirt": "#4f8f4a",
+        "hair": "#2b2018",
+        "skin": "#b98562",
+        "pants": "#3c4a5c",
+        "height": 1.03
+      },
+      "speed": 1.19
+    },
+    {
+      "id": "NV28",
+      "name": "Nhân viên 28",
+      "role": "Chuyên viên kinh doanh",
+      "department": "Phòng Triển khai",
+      "deskId": "T2-23",
+      "shift": {
+        "arrive": "08:10",
+        "leave": "17:45"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "pantry"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#2a9d8f",
+        "hair": "#4a3324",
+        "skin": "#dcae88",
+        "pants": "#5a4a3a",
+        "height": 0.96
+      },
+      "speed": 1.15
+    },
+    {
+      "id": "NV29",
+      "name": "Nhân viên 29",
+      "role": "Chuyên viên kinh doanh",
+      "department": "Phòng Triển khai",
+      "deskId": "T2-24",
+      "shift": {
+        "arrive": "08:15",
+        "leave": "18:00"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#c2402f",
+        "hair": "#3b2a1e",
+        "skin": "#f0cfae",
+        "pants": "#22262c",
+        "height": 1
+      },
+      "speed": 1.39
+    },
+    {
+      "id": "NV30",
+      "name": "Nhân viên 30",
+      "role": "Kỹ sư hỗ trợ kỹ thuật",
+      "department": "Phòng Tài chính - Kế toán",
+      "deskId": "T1-05",
+      "shift": {
+        "arrive": "07:50",
+        "leave": "17:15"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR1",
+          "start": "08:30",
+          "duration": 20,
+          "title": "Giao ban sáng"
+        }
+      ],
+      "look": {
+        "shirt": "#3a3f4a",
+        "hair": "#1d1a17",
+        "skin": "#e8c3a0",
+        "pants": "#2d3440",
+        "height": 1.04
+      },
+      "speed": 1.35
+    },
+    {
+      "id": "NV31",
+      "name": "Nhân viên 31",
+      "role": "Kỹ sư hỗ trợ kỹ thuật",
+      "department": "Phòng Tài chính - Kế toán",
+      "deskId": "T1-06",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#e76f51",
+        "hair": "#151515",
+        "skin": "#c99872",
+        "pants": "#1f2329",
+        "height": 0.97
+      },
+      "speed": 1.31
+    },
+    {
+      "id": "NV32",
+      "name": "Nhân viên 32",
+      "role": "Kỹ sư hỗ trợ kỹ thuật",
+      "department": "Phòng Tài chính - Kế toán",
+      "deskId": "T1-07",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "desk"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#6b4aa5",
+        "hair": "#2b2018",
+        "skin": "#b98562",
+        "pants": "#3c4a5c",
+        "height": 1.01
+      },
+      "speed": 1.27
+    },
+    {
+      "id": "NV33",
+      "name": "Nhân viên 33",
+      "role": "Kỹ sư hỗ trợ kỹ thuật",
+      "department": "Phòng Tài chính - Kế toán",
+      "deskId": "T1-08",
+      "shift": {
+        "arrive": "08:10",
+        "leave": "17:45"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#b5838d",
+        "hair": "#4a3324",
+        "skin": "#dcae88",
+        "pants": "#5a4a3a",
+        "height": 0.94
+      },
+      "speed": 1.23
+    },
+    {
+      "id": "NV34",
+      "name": "Nhân viên 34",
+      "role": "Giám đốc",
+      "department": "Ban giám đốc",
+      "deskId": "T3-01",
+      "shift": {
+        "arrive": "08:15",
+        "leave": "18:00"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "outside"
+      },
+      "meetings": [
+        {
+          "room": "MR3",
+          "start": "08:30",
+          "duration": 20,
+          "title": "Giao ban sáng"
+        },
+        {
+          "room": "MR3",
+          "start": "15:30",
+          "duration": 45,
+          "title": "Họp kinh doanh"
+        }
+      ],
+      "look": {
+        "shirt": "#e0b030",
+        "hair": "#3b2a1e",
+        "skin": "#f0cfae",
+        "pants": "#22262c",
+        "height": 0.98
+      },
+      "speed": 1.19
+    },
+    {
+      "id": "NV35",
+      "name": "Nhân viên 35",
+      "role": "Phó giám đốc",
+      "department": "Ban giám đốc",
+      "deskId": "T3-02",
+      "shift": {
+        "arrive": "07:50",
+        "leave": "17:15"
+      },
+      "lunch": {
+        "start": "12:00",
+        "duration": 60,
+        "place": "pantry"
+      },
+      "meetings": [
+        {
+          "room": "MR3",
+          "start": "08:30",
+          "duration": 20,
+          "title": "Giao ban sáng"
+        }
+      ],
+      "look": {
+        "shirt": "#d9822b",
+        "hair": "#1d1a17",
+        "skin": "#e8c3a0",
+        "pants": "#2d3440",
+        "height": 1.02
+      },
+      "speed": 1.15
+    },
+    {
+      "id": "NV36",
+      "name": "Nhân viên 36",
+      "role": "Phó giám đốc",
+      "department": "Ban giám đốc",
+      "deskId": "T3-03",
+      "shift": {
+        "arrive": "08:00",
+        "leave": "17:30"
+      },
+      "lunch": {
+        "start": "11:45",
+        "duration": 60,
+        "place": "desk"
+      },
+      "meetings": [],
+      "look": {
+        "shirt": "#2f6db5",
+        "hair": "#151515",
+        "skin": "#c99872",
+        "pants": "#1f2329",
+        "height": 0.95
+      },
+      "speed": 1.39
+    }
+  ]
+}

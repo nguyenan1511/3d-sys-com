@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SYSONE – Digital twin văn phòng 33 Dương Quang Đông</title>
+<!-- favicon SYSONE (gốc: cdn.sysone.vn/hrm/share/assets/images/brand/) -->
+<link rel="icon" type="image/png" sizes="32x32" href="/brand/favicon-32x32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/brand/favicon-16x16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/brand/apple-touch-icon.png">
+<link rel="stylesheet" href="/src/ui/style.css">
+</head>
+<body>
+<h1 class="sr-only">Mô hình 3D văn phòng công ty SYSONE, số 33 Dương Quang Đông, phường Chánh Hưng, TP.HCM, mô phỏng nhân viên làm việc theo lịch trong ngày</h1>
+<section id="login" hidden></section>
+<div id="appRoot" hidden>
+<header id="bar">
+  <div class="row" id="sessionBar"></div>
+    <!-- menu ☰ (kiểu agent-office): góc nhìn, tầng, đi bộ, hiển thị -->
+  <div id="viewMenu" class="panel menu" hidden>
+    <h4>Góc nhìn</h4>
+<div class="row" id="views">
+    <button data-view="L">Logo</button><button data-view="F">Chính diện</button><button data-view="A">Góc chéo</button><button data-view="W">Toàn cảnh</button><button data-view="G">Góc đường</button><button data-view="K">Phía sau</button><button data-view="T">Từ trên</button>
+    <button id="zi" aria-label="Phóng to">+</button><button id="zo" aria-label="Thu nhỏ">−</button>
+    <span class="sep"></span>
+    <span class="lbl">Xem tầng:</span>
+    <span class="seg" id="floors"><button data-floor="all" class="on">Cả nhà</button></span>
+  </div>
+    <h4 hidden>Đi bộ &amp; hiển thị</h4>
+  <div class="row" hidden>
+    <button id="wO">Đi bộ: ngoài cổng</button><button id="wL">Sảnh tầng trệt</button><button id="wF">Tầng 2</button><button id="wS">Tầng 3</button><button id="wX">Thoát đi bộ</button>
+    <span class="sep"></span>
+    <label><input type="checkbox" id="cN" checked>Nhà bên cạnh</label>
+    <label><input type="checkbox" id="cS" checked>Đường phố</label>
+    <label><input type="checkbox" id="cV" checked>Xe chạy</label>
+    <label><input type="checkbox" id="cG">Mở cổng</label>
+    <label><input type="checkbox" id="cM">Bỏ mái</label>
+    <label><input type="checkbox" id="cR">Tự xoay</label>
+  </div>
+  <div class="row" id="pad" hidden>
+    <button data-hold="f">Tiến</button><button data-hold="b">Lùi</button><button data-hold="l">Sang trái</button><button data-hold="r">Sang phải</button><button data-hold="tl">Quay trái</button><button data-hold="tr">Quay phải</button>
+    <span class="lbl">Kéo chuột để nhìn quanh, hoặc dùng W A S D và phím mũi tên.</span>
+  </div>
+  </div>
+</header>
+<main id="main">
+  <div id="stage">
+    <canvas id="c3" tabindex="0" aria-label="Khung nhìn 3D"></canvas>
+    <canvas id="map2d" class="map2d" aria-label="Sơ đồ văn phòng 2D" hidden></canvas>
+    <div id="modeFade" class="mode-fade" aria-hidden="true"></div>
+    <div id="clockOverlay" aria-hidden="true"></div>
+    <div id="loading">Đang dựng mô hình…</div>
+    <section id="card" hidden aria-live="polite"></section>
+    <div id="hud" hidden></div>
+    <nav id="ctrlNav" class="ctrl-nav" aria-label="Điều khiển"><div class="nav-line"><div class="nav-online"></div><span class="nav-sep" aria-hidden="true"></span><div class="nav-keys"></div></div></nav>
+    <div id="keysModal" class="keys-modal" role="dialog" aria-modal="true" aria-labelledby="keysTitle" hidden>
+      <div class="km-card">
+        <header class="km-head"><h2 id="keysTitle">Phím tắt &amp; động tác</h2><button type="button" class="km-x" id="keysClose" aria-label="Đóng (Esc)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+        <div class="km-body"><section><h3>Di chuyển &amp; thao tác</h3><div class="km-keys"></div></section><section><h3>Động tác <small>bấm hoặc nhấn phím 1–5</small></h3><div class="km-acts"></div></section></div>
+        <p class="km-rule"><svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M5.3 5.3l13.4 13.4"/><path d="M6 13.5h8.5v2.5H6zM16.5 13.5V16M14 9c0-1 1.3-1 1.3-2"/></svg> Quy định văn phòng: <b>không hút thuốc trong văn phòng làm việc</b> — chỉ hút ngoài vỉa hè.</p>
+      </div>
+    </div>
+    <div id="roadWarn" hidden role="alert"></div>
+  </div>
+  <aside id="panel" aria-label="Bảng điều khiển mô phỏng">
+    <button id="panelToggle" aria-expanded="true" aria-controls="panel" title="Đóng bảng điều khiển"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    <div class="drawer-scroll">
+    <section class="box me-box" id="meBox"><h2>Của tôi</h2><div class="me-row"></div></section>
+    <details class="box view-box" id="viewBox"><summary><h2>Góc nhìn</h2></summary></details>
+    <div id="errors" hidden></div>
+    <section class="box" id="simBox">
+      <div class="clock"><span id="clock">--:--</span><span id="day"></span></div>
+      <div class="row tight" id="speeds">
+        <button id="play" aria-label="Tạm dừng">⏸</button>
+        <button data-speed="1">x1</button><button data-speed="10" class="on">x10</button><button data-speed="60">x60</button><button data-speed="300">x300</button>
+      </div>
+      <div class="row tight">
+        <label for="jump" class="lbl">Tua tới</label>
+        <select id="jump">
+          <option value="">chọn giờ…</option>
+          <option>07:30</option><option>07:55</option><option>08:30</option><option>10:00</option><option>12:05</option><option>13:30</option><option>14:05</option><option>15:40</option><option>17:35</option><option>18:10</option>
+        </select>
+      </div>
+    </section>
+    <section class="box">
+      <h2>Thống kê</h2>
+      <div id="floorStats" class="stats"></div>
+      <div id="stateStats" class="chips"></div>
+    </section>
+    <section class="box grow">
+      <h2>Nhân viên <span id="empCount" class="muted"></span></h2>
+      <div class="row tight">
+        <input id="search" type="search" placeholder="Tìm tên, mã, bàn…" aria-label="Tìm nhân viên">
+        <select id="dept" aria-label="Lọc theo phòng ban"><option value="">Mọi phòng ban</option></select>
+      </div>
+      <ul id="empList" role="listbox" aria-label="Danh sách nhân viên"></ul>
+    </section>
+    <section class="box" id="checkBox" hidden>
+      <h2>Kiểm tra bố cục</h2>
+      <div class="row tight wrap">
+        <label><input type="checkbox" id="dPaths">Đường đi</label>
+        <label><input type="checkbox" id="dDesks">Vị trí bàn</label>
+        <label><input type="checkbox" id="dGrid">Lưới điều hướng</label>
+      </div>
+      <div class="row tight wrap">
+        <label class="file">Nhập sơ đồ chỗ ngồi (CSV)<input type="file" id="csv" accept=".csv,text/csv,text/plain"></label>
+        <button id="csvOut">Tải CSV hiện tại</button>
+      </div>
+      <p class="muted small">CSV hai cột: nhân viên (mã hoặc tên), mã bàn. Ví dụ: <code>NV01,T2-17</code></p>
+      <div id="perf" class="muted small"></div>
+    </section>
+      </div>
+  </aside>
+</main>
+</div>
+<div id="modalRoot"></div>
+<script type="module" src="/src/entry.js"></script>
+</body>
+</html>

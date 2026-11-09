@@ -1,0 +1,2 @@
+cars.json — Kenney "Car Kit" 3.1 (CC0 1.0, https://kenney.nl/assets/car-kit), packed by khanh020905/my-office
+(MIT, scripts/build-cars.mjs). Each model: paint + rest (glass, lights, bumpers) + the kit's wheel, nose along +x, ×1.2.

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><title>Xem model nhân vật</title>
+<style>body{margin:0;font:13px system-ui;background:#e9ecf3}#c{display:block}#info{position:fixed;left:8px;top:8px;background:#fff;padding:6px 10px;border-radius:8px}</style></head>
+<body><canvas id="c" width="1200" height="600"></canvas><div id="info">đang tải…</div>
+<script type="module">
+// Công cụ cho người làm nội dung: xem model GLB từ trước / bên / sau / trên, kèm khung xương tự dựng (?rig=1).
+// Dùng: /tools/model-viewer.html?f=/model/ten.opt.glb[&rig=id-trong-characters.json]
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { computeSkin } from '/src/agents/glbCharacters.js';
+const q = new URLSearchParams(location.search), file = q.get('f');
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true, preserveDrawingBuffer: true });
+r.outputColorSpace = THREE.SRGBColorSpace;
+const s = new THREE.Scene(); s.background = new THREE.Color(0xe9ecf3);
+s.add(new THREE.HemisphereLight(0xffffff, 0x9a9a9a, 2.2)); const sun = new THREE.DirectionalLight(0xffffff, 1.6); sun.position.set(2, 4, 3); s.add(sun);
+s.add(new THREE.GridHelper(2, 10, 0x999999, 0xcccccc));
+const rigId = q.get('rig');
+const defs = rigId ? (await (await fetch('/data/characters.json')).json()).characters : [];
+new GLTFLoader().load(file, g => {
+  s.add(g.scene);
+  if (rigId) {
+    // tô màu theo xương chi phối: hông xám, thân xanh, đầu vàng, đùi đỏ/cam, cẳng chân hồng/tím, cánh tay xanh lá, cẳng tay ngọc
+    const def = defs.find(d => d.id === rigId);
+    const cols = [0x888888, 0x2f6db5, 0xe0b030, 0xd33a2c, 0xf3a21f, 0xe0577a, 0x7a5aa8, 0x2bb673, 0x4f8f4a, 0x2bb3c9, 0x1b8f8f].map(c => new THREE.Color(c));
+    g.scene.updateMatrixWorld(true);
+    const all = new THREE.Box3();
+    g.scene.traverse(o => { if (o.isMesh) { const w = o.geometry.clone(); w.applyMatrix4(o.matrixWorld); w.computeBoundingBox(); all.union(w.boundingBox); } });
+    g.scene.traverse(o => {
+      if (!o.isMesh) return;
+      const geo = o.geometry;
+      const world = geo.clone(); world.applyMatrix4(o.matrixWorld); // giống lúc chạy thật: áp ma trận node,
+      world.translate(0, -all.min.y, 0);                              // đo chiều cao trên toàn model (không theo từng mảnh)
+      const H = all.max.y - all.min.y;
+      const { idx, wgt } = computeSkin(world.attributes.position, H, def.rig, def.arms !== false);
+      const c = new Float32Array(geo.attributes.position.count * 3);
+      for (let i = 0; i < geo.attributes.position.count; i++) { const col = new THREE.Color(0, 0, 0); for (let k = 0; k < 4; k++) col.add(cols[idx[i * 4 + k]].clone().multiplyScalar(wgt[i * 4 + k])); c.set([col.r, col.g, col.b], i * 3); }
+      geo.setAttribute('color', new THREE.BufferAttribute(c, 3));
+      o.material = new THREE.MeshLambertMaterial({ vertexColors: true });
+    });
+  }
+  const box = new THREE.Box3().setFromObject(g.scene), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
+  document.getElementById('info').textContent = `${file} · cao ${size.y.toFixed(2)} rộng ${size.x.toFixed(2)} sâu ${size.z.toFixed(2)}`;
+  const views = [[0, 0, 1], [1, 0, 0], [0, 0, -1], [0, 1, 0.001]];
+  r.setScissorTest(true);
+  views.forEach((v, i) => {
+    const cam = new THREE.PerspectiveCamera(30, 300 / 600, 0.1, 50);
+    const d = size.y * 2.1; cam.position.set(c.x + v[0] * d, c.y + v[1] * d, c.z + v[2] * d); cam.lookAt(c);
+    r.setViewport(i * 300, 0, 300, 600); r.setScissor(i * 300, 0, 300, 600); r.render(s, cam);
+  });
+  window.done = true;
+});
+</script></body></html>
