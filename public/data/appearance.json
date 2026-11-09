@@ -1,0 +1,286 @@
+{
+  "_huong_dan": [
+    "Nhân vật 2D và 3D cùng là bộ chibi của my-office (public/data/characters.json); chọn và chỉnh màu riêng cho mỗi chế độ (2D: khoá pixel + px*, 3D: khoá model + màu). Màu '' = giữ màu gốc.",
+    "Ngoại hình đã lưu theo lựa chọn không còn trong file này được server tự đưa về mặc định khi khởi động (server/store.js migrateLooks)."
+  ],
+  "groups": [],
+  "items": [
+    {
+      "key": "pixel",
+      "label": "Nhân vật 2D",
+      "type": "select",
+      "default": "mo-nu",
+      "options": [
+        {
+          "value": "mo-nam",
+          "label": "Nam"
+        },
+        {
+          "value": "mo-nu",
+          "label": "Nữ"
+        },
+        {
+          "value": "mo-nu-bob",
+          "label": "Nữ tóc ngắn"
+        },
+        {
+          "value": "mo-dev",
+          "label": "Dev tai nghe"
+        },
+        {
+          "value": "mo-toy",
+          "label": "Đồ chơi"
+        }
+      ]
+    },
+    {
+      "key": "pxHairColor",
+      "label": "Màu tóc",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#1d1a17",
+        "#3b2a20",
+        "#6b4226",
+        "#a0522d",
+        "#c68642",
+        "#e6c27a",
+        "#d9d9d9",
+        "#8b1e3f",
+        "#2c3e8c",
+        "#6a3fa0"
+      ]
+    },
+    {
+      "key": "pxSkinColor",
+      "label": "Màu da",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#ffe0cf",
+        "#f6cfb4",
+        "#ecc9a8",
+        "#d9a77c",
+        "#b97a50",
+        "#8d5a3b",
+        "#5c3a26"
+      ]
+    },
+    {
+      "key": "pxTopColor",
+      "label": "Màu áo",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#ffffff",
+        "#d9d9d9",
+        "#6b7280",
+        "#2b2d42",
+        "#111111",
+        "#1f4e9c",
+        "#3a86ff",
+        "#06a77d",
+        "#2d6a4f",
+        "#e63946",
+        "#ff7f50",
+        "#f2c230",
+        "#e0577a",
+        "#8e5cc2",
+        "#8b5a2b",
+        "#c8b28a"
+      ]
+    },
+    {
+      "key": "pxBottomColor",
+      "label": "Màu quần/váy",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#ffffff",
+        "#d9d9d9",
+        "#6b7280",
+        "#2b2d42",
+        "#111111",
+        "#1f4e9c",
+        "#3a86ff",
+        "#06a77d",
+        "#2d6a4f",
+        "#e63946",
+        "#ff7f50",
+        "#f2c230",
+        "#e0577a",
+        "#8e5cc2",
+        "#8b5a2b",
+        "#c8b28a"
+      ]
+    },
+    {
+      "key": "pxShoeColor",
+      "label": "Màu giày",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#ffffff",
+        "#d9d9d9",
+        "#6b7280",
+        "#2b2d42",
+        "#111111",
+        "#1f4e9c",
+        "#3a86ff",
+        "#06a77d",
+        "#2d6a4f",
+        "#e63946",
+        "#ff7f50",
+        "#f2c230",
+        "#e0577a",
+        "#8e5cc2",
+        "#8b5a2b",
+        "#c8b28a"
+      ]
+    },
+    {
+      "key": "model",
+      "label": "Nhân vật 3D",
+      "type": "select",
+      "default": "mo-nam",
+      "options": [
+        {
+          "value": "mo-nam",
+          "label": "Nam"
+        },
+        {
+          "value": "mo-nu",
+          "label": "Nữ"
+        },
+        {
+          "value": "mo-nu-bob",
+          "label": "Nữ tóc ngắn"
+        },
+        {
+          "value": "mo-dev",
+          "label": "Dev tai nghe"
+        },
+        {
+          "value": "mo-toy",
+          "label": "Đồ chơi"
+        }
+      ]
+    },
+    {
+      "key": "hairColor",
+      "label": "Màu tóc",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#1d1a17",
+        "#3b2a20",
+        "#6b4226",
+        "#a0522d",
+        "#c68642",
+        "#e6c27a",
+        "#d9d9d9",
+        "#8b1e3f",
+        "#2c3e8c",
+        "#6a3fa0"
+      ]
+    },
+    {
+      "key": "skinColor",
+      "label": "Màu da",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#ffe0cf",
+        "#f6cfb4",
+        "#ecc9a8",
+        "#d9a77c",
+        "#b97a50",
+        "#8d5a3b",
+        "#5c3a26"
+      ]
+    },
+    {
+      "key": "topColor",
+      "label": "Màu áo",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#ffffff",
+        "#d9d9d9",
+        "#6b7280",
+        "#2b2d42",
+        "#111111",
+        "#1f4e9c",
+        "#3a86ff",
+        "#06a77d",
+        "#2d6a4f",
+        "#e63946",
+        "#ff7f50",
+        "#f2c230",
+        "#e0577a",
+        "#8e5cc2",
+        "#8b5a2b",
+        "#c8b28a"
+      ]
+    },
+    {
+      "key": "bottomColor",
+      "label": "Màu quần",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#ffffff",
+        "#d9d9d9",
+        "#6b7280",
+        "#2b2d42",
+        "#111111",
+        "#1f4e9c",
+        "#3a86ff",
+        "#06a77d",
+        "#2d6a4f",
+        "#e63946",
+        "#ff7f50",
+        "#f2c230",
+        "#e0577a",
+        "#8e5cc2",
+        "#8b5a2b",
+        "#c8b28a"
+      ]
+    },
+    {
+      "key": "shoeColor",
+      "label": "Màu giày",
+      "type": "color",
+      "default": "",
+      "allowEmpty": true,
+      "options": [
+        "#ffffff",
+        "#d9d9d9",
+        "#6b7280",
+        "#2b2d42",
+        "#111111",
+        "#1f4e9c",
+        "#3a86ff",
+        "#06a77d",
+        "#2d6a4f",
+        "#e63946",
+        "#ff7f50",
+        "#f2c230",
+        "#e0577a",
+        "#8e5cc2",
+        "#8b5a2b",
+        "#c8b28a"
+      ]
+    }
+  ],
+  "presets": []
+}

@@ -1,0 +1,19 @@
+{
+  "_huong_dan": [
+    "Danh sách dụng cụ cấu hình được cho mỗi chỗ ngồi. Thêm/bớt mục, đổi nhãn, giá trị mặc định, danh sách lựa chọn ở đây.",
+    "type: int (min, max), bool, select (options), color (options là mã màu).",
+    "key phải trùng với key mà phần dựng 3D hiểu (src/interior/deskKit.js); key lạ vẫn lưu được nhưng chưa có hình 3D."
+  ],
+  "items": [
+    { "key": "monitors", "label": "Số màn hình", "type": "int", "min": 1, "max": 3, "default": 1 },
+    { "key": "computer", "label": "Máy tính", "type": "select", "default": "pc", "options": [ { "value": "pc", "label": "PC (thùng máy)" }, { "value": "laptop", "label": "Laptop" } ] },
+    { "key": "keyboard", "label": "Bàn phím", "type": "bool", "default": true },
+    { "key": "mouse", "label": "Chuột", "type": "bool", "default": true },
+    { "key": "headset", "label": "Tai nghe", "type": "bool", "default": false },
+    { "key": "lamp", "label": "Đèn bàn", "type": "bool", "default": false },
+    { "key": "phone", "label": "Điện thoại bàn", "type": "bool", "default": false },
+    { "key": "nameplate", "label": "Bảng tên", "type": "bool", "default": true },
+    { "key": "plant", "label": "Chậu cây", "type": "bool", "default": false },
+    { "key": "deskColor", "label": "Màu bàn", "type": "color", "default": "#f4f0e8", "options": [ "#f4f0e8", "#b9966a", "#e8e2d6", "#6b4f3a", "#8fa3b5", "#2f3338" ] }
+  ]
+}

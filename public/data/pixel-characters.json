@@ -1,0 +1,30 @@
+{
+  "_huong_dan": [
+    "Nhân vật pixel 2D (vẽ bằng code: src/pixel/sprites.js): chỉ 2 nhân vật Nữ và Nam; màu/kiểu áo do người dùng tuỳ chỉnh (px*). Nhân vật đầu tiên là mặc định.",
+    "hairStyle: short | spiky | bun | buns | long; style: tee | shirt | jacket | dress; dress: true = váy."
+  ],
+  "characters": [
+    {
+      "id": "px-female",
+      "name": "Nữ",
+      "hair": "#5a3a26",
+      "hairStyle": "long",
+      "skin": "#f8dcc4",
+      "shirt": "#f4f4f2",
+      "pants": "#2f3a4f",
+      "shoes": "#2b2d42",
+      "style": "tee"
+    },
+    {
+      "id": "px-male",
+      "name": "Nam",
+      "hair": "#2a2220",
+      "hairStyle": "short",
+      "skin": "#f1c9a5",
+      "shirt": "#3d7fd6",
+      "pants": "#2f3a4f",
+      "shoes": "#2b2d42",
+      "style": "shirt"
+    }
+  ]
+}

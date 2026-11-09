@@ -3,7 +3,7 @@ dist/
 shots/latest/
 .DS_Store
 .env
-data/
+/data/
 test-results/
 playwright-report/
 public/model/src/

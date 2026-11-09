@@ -1,0 +1,219 @@
+{
+ "_nguon": "Quaternius — Universal Animation Library 1 & 2 (CC0 1.0, quaternius.com). Tạo bằng scripts/build-mocap.mjs; đừng sửa tay.",
+ "fps": 30,
+ "segs": [
+  "pelvis",
+  "spine",
+  "head",
+  "upperL",
+  "upperR",
+  "foreL",
+  "foreR",
+  "thighL",
+  "thighR",
+  "shinL",
+  "shinR",
+  "ankleL",
+  "ankleR"
+ ],
+ "stride": 55,
+ "clips": {
+  "idle": {
+   "rig": "ual1",
+   "offset": 0,
+   "frames": 76,
+   "dur": 2.5,
+   "loop": true,
+   "speed": 0,
+   "src": "Idle_Loop"
+  },
+  "walk": {
+   "rig": "ual1",
+   "offset": 4180,
+   "frames": 41,
+   "dur": 1.3333333730697632,
+   "loop": true,
+   "speed": 1.165,
+   "src": "Walk_Formal_Loop"
+  },
+  "walkCasual": {
+   "rig": "ual1",
+   "offset": 6435,
+   "frames": 41,
+   "dur": 1.3333333730697632,
+   "loop": true,
+   "speed": 0,
+   "src": "Walk_Loop"
+  },
+  "jog": {
+   "rig": "ual1",
+   "offset": 8690,
+   "frames": 29,
+   "dur": 0.9333333373069763,
+   "loop": true,
+   "speed": 1.7891,
+   "src": "Jog_Fwd_Loop"
+  },
+  "sprint": {
+   "rig": "ual1",
+   "offset": 10285,
+   "frames": 21,
+   "dur": 0.6666666865348816,
+   "loop": true,
+   "speed": 1.5174,
+   "src": "Sprint_Loop"
+  },
+  "jumpStart": {
+   "rig": "ual1",
+   "offset": 11440,
+   "frames": 41,
+   "dur": 1.3333333730697632,
+   "loop": false,
+   "speed": 0,
+   "src": "Jump_Start"
+  },
+  "jumpLoop": {
+   "rig": "ual1",
+   "offset": 13695,
+   "frames": 76,
+   "dur": 2.5,
+   "loop": true,
+   "speed": 0,
+   "src": "Jump_Loop"
+  },
+  "jumpLand": {
+   "rig": "ual1",
+   "offset": 17875,
+   "frames": 39,
+   "dur": 1.2666666507720947,
+   "loop": false,
+   "speed": 0,
+   "src": "Jump_Land"
+  },
+  "sitIdle": {
+   "rig": "ual1",
+   "offset": 20020,
+   "frames": 51,
+   "dur": 1.6666666269302368,
+   "loop": true,
+   "speed": 0,
+   "src": "Sitting_Idle_Loop"
+  },
+  "sitTalk": {
+   "rig": "ual1",
+   "offset": 22825,
+   "frames": 89,
+   "dur": 2.933333396911621,
+   "loop": true,
+   "speed": 0,
+   "src": "Sitting_Talking_Loop"
+  },
+  "sitEnter": {
+   "rig": "ual1",
+   "offset": 27720,
+   "frames": 40,
+   "dur": 1.2999999523162842,
+   "loop": false,
+   "speed": 0,
+   "src": "Sitting_Enter"
+  },
+  "sitExit": {
+   "rig": "ual1",
+   "offset": 29920,
+   "frames": 32,
+   "dur": 1.0333333015441895,
+   "loop": false,
+   "speed": 0,
+   "src": "Sitting_Exit"
+  },
+  "talk": {
+   "rig": "ual1",
+   "offset": 31680,
+   "frames": 89,
+   "dur": 2.933333396911621,
+   "loop": true,
+   "speed": 0,
+   "src": "Idle_Talking_Loop"
+  },
+  "dance": {
+   "rig": "ual1",
+   "offset": 36575,
+   "frames": 31,
+   "dur": 1,
+   "loop": true,
+   "speed": 0,
+   "src": "Dance_Loop"
+  },
+  "interact": {
+   "rig": "ual1",
+   "offset": 38280,
+   "frames": 61,
+   "dur": 2,
+   "loop": false,
+   "speed": 0,
+   "src": "Interact"
+  },
+  "pickup": {
+   "rig": "ual1",
+   "offset": 41635,
+   "frames": 26,
+   "dur": 0.8333333134651184,
+   "loop": false,
+   "speed": 0,
+   "src": "PickUp_Table"
+  },
+  "phone": {
+   "rig": "ual2",
+   "offset": 43065,
+   "frames": 89,
+   "dur": 2.933333396911621,
+   "loop": true,
+   "speed": 0,
+   "src": "Idle_TalkingPhone_Loop"
+  },
+  "consume": {
+   "rig": "ual2",
+   "offset": 47960,
+   "frames": 41,
+   "dur": 1.3333333730697632,
+   "loop": false,
+   "speed": 0,
+   "src": "Consume"
+  },
+  "yes": {
+   "rig": "ual2",
+   "offset": 50215,
+   "frames": 76,
+   "dur": 2.5,
+   "loop": false,
+   "speed": 0,
+   "src": "Yes"
+  },
+  "foldArms": {
+   "rig": "ual2",
+   "offset": 54395,
+   "frames": 76,
+   "dur": 2.5,
+   "loop": true,
+   "speed": 0,
+   "src": "Idle_FoldArms_Loop"
+  },
+  "no": {
+   "rig": "ual2",
+   "offset": 58575,
+   "frames": 76,
+   "dur": 2.5,
+   "loop": true,
+   "speed": 0,
+   "src": "Idle_No_Loop"
+  }
+ },
+ "rigs": {
+  "ual1": {
+   "hipH": 0.9014998454861838
+  },
+  "ual2": {
+   "hipH": 0.9014998454861838
+  }
+ }
+}

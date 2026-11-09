@@ -1,0 +1,128 @@
+{
+  "_huong_dan": [
+    "Nhân vật 3D: chỉ dùng nhân vật của dự án my-office (khanh020905/my-office, MIT — src/vendor/my-office/chibi-rig.js), format 'mo'.",
+    "look.style toy|pixar, hair plain|bob|spiky|ponytail|bun|curly, outfit shirt|hoodie|suit, acc glasses|headphones|cap|beanie, shirt/pants/shoes/hairColor/tie. height: chiều cao thật (pixar 1.86, toy 1.74 — đúng kích thước gốc).",
+    "Màu tuỳ chỉnh của người dùng (Tóc/Da/Áo/Quần/Giày) ghi đè lên màu mặc định."
+  ],
+  "characters": [
+    {
+      "id": "mo-nam",
+      "name": "Nam",
+      "format": "mo",
+      "height": 1.86,
+      "speed": 0.95,
+      "look": {
+        "style": "pixar",
+        "hair": "plain",
+        "outfit": "shirt",
+        "shirt": "#5F8FD8",
+        "pants": "#3A4150",
+        "shoes": "#2D2A2E",
+        "hairColor": "#2B1B12"
+      }
+    },
+    {
+      "id": "mo-nu",
+      "name": "Nữ",
+      "format": "mo",
+      "height": 1.86,
+      "speed": 0.95,
+      "look": {
+        "style": "pixar",
+        "hair": "ponytail",
+        "outfit": "shirt",
+        "shirt": "#E76F51",
+        "pants": "#3A4150",
+        "shoes": "#2D2A2E",
+        "hairColor": "#4A2A1A"
+      }
+    },
+    {
+      "id": "mo-nu-bob",
+      "name": "Nữ tóc ngắn",
+      "format": "mo",
+      "height": 1.86,
+      "speed": 0.95,
+      "look": {
+        "style": "pixar",
+        "hair": "bob",
+        "outfit": "hoodie",
+        "shirt": "#8E7CC3",
+        "pants": "#3A4150",
+        "shoes": "#2D2A2E",
+        "hairColor": "#2B1B12"
+      }
+    },
+    {
+      "id": "mo-sep",
+      "name": "Sếp",
+      "format": "mo",
+      "height": 1.86,
+      "speed": 0.9,
+      "look": {
+        "style": "pixar",
+        "hair": "plain",
+        "outfit": "suit",
+        "shirt": "#2B2D42",
+        "pants": "#2B2D42",
+        "shoes": "#1b1b1d",
+        "hairColor": "#1a1a1a",
+        "tie": "#B5323A",
+        "acc": "glasses"
+      }
+    },
+    {
+      "id": "mo-dev",
+      "name": "Dev tai nghe",
+      "format": "mo",
+      "height": 1.86,
+      "speed": 0.95,
+      "look": {
+        "style": "pixar",
+        "hair": "spiky",
+        "outfit": "hoodie",
+        "shirt": "#2A9D8F",
+        "pants": "#3A4150",
+        "shoes": "#2D2A2E",
+        "hairColor": "#1a1a1a",
+        "acc": "headphones"
+      }
+    },
+    {
+      "id": "mo-toy",
+      "name": "Đồ chơi",
+      "format": "mo",
+      "height": 1.74,
+      "speed": 0.95,
+      "look": {
+        "style": "toy",
+        "hair": "plain",
+        "outfit": "hoodie",
+        "shirt": "#F4A261",
+        "pants": "#3A4150",
+        "shoes": "#2D2A2E",
+        "hairColor": "#2B1B12"
+      }
+    },
+    {
+      "id": "mo-guide",
+      "name": "Hướng dẫn viên SYSONE",
+      "format": "mo",
+      "height": 1.86,
+      "speed": 0.95,
+      "hidden": true,
+      "_note": "Đồng phục riêng của hướng dẫn viên (chị Mai): vest xanh SYSONE, sơ mi trắng, khăn/cà vạt cam SYSONE — không có trong danh sách nhân vật nhân viên được chọn.",
+      "look": {
+        "style": "pixar",
+        "hair": "ponytail",
+        "outfit": "suit",
+        "shirt": "#1B3FA0",
+        "pants": "#1B3FA0",
+        "shoes": "#1b1b1d",
+        "hairColor": "#2B1B12",
+        "tie": "#F39A1F",
+        "acc": ""
+      }
+    }
+  ]
+}

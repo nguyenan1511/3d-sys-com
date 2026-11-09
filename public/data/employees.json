@@ -1,0 +1,38 @@
+{
+  "_huong_dan": [
+    "Nhân viên MÔ PHỎNG (nhân vật tự đi lại theo lịch). Hiện để trống: nhân viên thật đăng nhập bằng mã '1151-An' và tự tạo nhân vật.",
+    "Muốn thêm người mô phỏng (ví dụ để trình diễn) thì thêm vào danh sách employees; mẫu đầy đủ ở tests/fixtures/employees-demo.json.",
+    "deskId phải trùng id một bàn trong layout.json; bàn đã có chủ thật thì người mô phỏng tự nhường."
+  ],
+  "defaults": {
+    "shift": {
+      "arrive": "08:00",
+      "leave": "17:30"
+    },
+    "lunch": {
+      "start": "12:00",
+      "duration": 60,
+      "place": "outside"
+    },
+    "breaks": 2,
+    "wc": 2,
+    "speed": 1.25,
+    "jitterMinutes": 6
+  },
+  "departments": [
+    "Team Cộng Tác Viên",
+    "Ban giám đốc",
+    "Phòng Hành chính - Nhân sự",
+    "Phòng Triển khai",
+    "Phòng Tài chính - Kế toán",
+    "Phòng Phân tích nghiệp vụ",
+    "Phòng Phát triển ứng dụng",
+    "Phòng Mobile App",
+    "Phòng Data Backbone",
+    "Phòng Hệ thống",
+    "Team Đối tác",
+    "Phòng Security",
+    "Team Fresher"
+  ],
+  "employees": []
+}
