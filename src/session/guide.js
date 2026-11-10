@@ -84,7 +84,7 @@ export class Guide {
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.45, 0.62, 40), new THREE.MeshBasicMaterial({ color: '#ffb23f', transparent: true, opacity: 0.85, depthWrite: false }));
     ring.rotation.x = -Math.PI / 2; ring.position.set(door.x, 0.08, door.z); ring.renderOrder = 3; this.app.scene.add(ring); this.ring = ring;
     const hint = document.createElement('div'); hint.className = 'gate-hint'; hint.setAttribute('role', 'status');
-    const touch = matchMedia('(max-width: 760px), (pointer: coarse) and (max-width: 1100px)').matches;
+    const touch = matchMedia('(max-width: 760px), (max-height: 500px) and (max-width: 1100px), (pointer: coarse) and (max-width: 1100px)').matches;
     hint.innerHTML = `<b>Chào mừng bạn đến SYSONE!</b><span>${touch ? 'Kéo <b>cần điều khiển</b> ở góc trái (hoặc chạm vào sàn) để' : 'Dùng <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>'} đi qua cổng, vào <b>cửa chính</b> (vòng sáng màu cam) — chị Mai đang chờ ở sảnh.</span>`;
     document.getElementById('appRoot').appendChild(hint); this.hint = hint;
     this.waitingAtGate = true; this.ringT = 0;

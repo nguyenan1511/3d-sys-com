@@ -1,6 +1,16 @@
 // Điểm vào: kiểm tra phiên ở server; chưa đăng nhập thì chỉ hiện màn hình đăng nhập,
 // cảnh 3D và dữ liệu bố cục chỉ được tải sau khi đăng nhập thành công.
+// Be Vietnam Pro (OFL, tự host qua @fontsource — CSP không cho tải font ngoài): chữ tiếng Việt rõ trên điện thoại
+import '@fontsource/be-vietnam-pro/vietnamese-400.css';
+import '@fontsource/be-vietnam-pro/vietnamese-500.css';
+import '@fontsource/be-vietnam-pro/vietnamese-600.css';
+import '@fontsource/be-vietnam-pro/vietnamese-700.css';
+import '@fontsource/be-vietnam-pro/latin-400.css';
+import '@fontsource/be-vietnam-pro/latin-500.css';
+import '@fontsource/be-vietnam-pro/latin-600.css';
+import '@fontsource/be-vietnam-pro/latin-700.css';
 import { api } from './net/api.js';
+import { loading } from './ui/loading.js';
 import { showLogin } from './auth/login.js';
 
 const loginRoot = document.getElementById('login');
@@ -15,6 +25,7 @@ async function boot(notice) {
   }
   loginRoot.hidden = true; loginRoot.innerHTML = '';
   appRoot.hidden = false;
+  loading.step('Đang mở văn phòng…', 2, 6);
   const { startApp } = await import('./main.js');
   await startApp(me, {
     logout: async (reason) => {

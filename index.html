@@ -49,7 +49,15 @@
     <canvas id="map2d" class="map2d" aria-label="Sơ đồ văn phòng 2D" hidden></canvas>
     <div id="modeFade" class="mode-fade" aria-hidden="true"></div>
     <div id="clockOverlay" aria-hidden="true"></div>
-    <div id="loading">Đang dựng mô hình…</div>
+    <div id="loading" role="status" aria-live="polite">
+      <div class="ld-card">
+        <img class="ld-logo" src="/logo/sysone-logo.svg" alt="SYSONE" width="220" height="26">
+        <p class="ld-sub">Văn phòng 33 Dương Quang Đông</p>
+        <div class="ld-bar" aria-hidden="true"><i></i></div>
+        <div class="ld-row"><span class="ld-step">Đang mở văn phòng…</span><span class="ld-pct">0%</span></div>
+        <p class="ld-tip"></p>
+      </div>
+    </div>
     <section id="card" hidden aria-live="polite"></section>
     <div id="hud" hidden></div>
     <nav id="ctrlNav" class="ctrl-nav" aria-label="Điều khiển"><div class="nav-line"><div class="nav-online"></div><span class="nav-sep" aria-hidden="true"></span><div class="nav-keys"></div></div></nav>

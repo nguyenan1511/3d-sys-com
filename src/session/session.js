@@ -20,6 +20,7 @@ import { defaultEquipment, normalizeEquipment } from '../shared/equipment.js';
 import { footprint, seatApproach } from '../model/layoutModel.js';
 import { facingVec } from '../core/util.js';
 import { sound } from '../audio/notify.js';
+import { Props } from '../scene/props.js';
 import { notice } from '../ui/notices.js';
 
 const $ = id => document.getElementById(id);
@@ -155,7 +156,7 @@ export class Session {
     const who = this.isAdmin ? `CEO · ${esc(this.me.admin.username)}` : esc(this.me.employee.display);
     // kiểu agent-office: bảng tên văn phòng bên trái, dock nút + menu ☰ bên phải
     bar.innerHTML = `<div class="project panel"><div class="proj-id"><img src="logo/sysone-logo.svg" alt="SYSONE" class="bar-logo" width="174" height="20">
-        <div class="project-meta"><span class="who">${who}</span><span class="badge">${this.isAdmin ? 'Quản trị' : 'Nhân viên'}</span><span class="addr">33 Dương Quang Đông</span></div></div></div>
+        <div class="project-meta"><span class="who">${who}</span><span class="badge">${this.isAdmin ? 'Quản trị' : 'Nhân viên'}</span><span class="addr">33 Dương Quang Đông</span><span class="hdr-online" title="Số người đang online"><i aria-hidden="true"></i><b>0</b><span class="sr-only"> người đang online</span></span></div></div></div>
       <nav class="dock" aria-label="Văn phòng">
       ${this.isAdmin ? `<button id="btnDash" class="dock-btn">${icon('clipboard')} <span class="lbl">Bảng quản trị</span></button><button id="btnPw" class="dock-btn">${icon('key')} <span class="lbl">Đổi mật khẩu</span></button>` : ''}
       ${this.isAdmin ? '' : `<button id="btnLook" class="dock-btn">${icon('user')} <span class="lbl">Nhân vật của tôi</span></button>`}
@@ -446,8 +447,9 @@ export class Session {
     let box = $('onlineBox');
     if (!box) { box = document.createElement('section'); box.className = 'box'; box.id = 'onlineBox'; $('simBox').parentNode.insertBefore(box, $('simBox')); }
     const list = this.online;
-    box.innerHTML = `<h2>Đang online (${list.length})</h2><ul class="online-list">${list.map(o => `<li><button data-follow="${esc(o.key)}" title="Bấm để camera bám theo"><span class="dot" style="background:${o.kind === 'admin' ? '#202124' : '#2bb673'}"></span>${esc(o.display)}${o.key === this.key ? ' (bạn)' : ''}<span class="muted small">${o.seated ? ` · ngồi ${esc(o.seated)}` : ''}</span></button>${o.key !== this.key ? `<button class="ol-dm" data-dm="${esc(o.key)}" title="Nhắn riêng" aria-label="Nhắn riêng với ${esc(o.display)}">✉</button>` : ''}</li>`).join('')}</ul>`;
+    box.innerHTML = `<h2><span class="ol-lbl">Đang online </span><span class="ol-n">(${list.length})</span></h2><ul class="online-list">${list.map(o => `<li><button data-follow="${esc(o.key)}" title="Bấm để camera bám theo"><span class="dot" style="background:${o.kind === 'admin' ? '#202124' : '#2bb673'}"></span>${esc(o.display)}${o.key === this.key ? ' (bạn)' : ''}<span class="muted small">${o.seated ? ` · ngồi ${esc(o.seated)}` : ''}</span></button>${o.key !== this.key ? `<button class="ol-dm" data-dm="${esc(o.key)}" title="Nhắn riêng" aria-label="Nhắn riêng với ${esc(o.display)}">✉</button>` : ''}</li>`).join('')}</ul>`;
     box.querySelectorAll('[data-follow]').forEach(b => b.onclick = () => this.follow(b.dataset.follow));
+    const ho = document.querySelector('#sessionBar .hdr-online b'); if (ho) ho.textContent = String(list.length);   // (điện thoại: số online trong thẻ logo)
     box.querySelectorAll('[data-dm]').forEach(b => b.onclick = e => { e.stopPropagation(); this.social?.dm(b.dataset.dm); });
   }
   follow(key) {
@@ -479,7 +481,12 @@ export class Session {
       const tc = free && !ls && this.att?.code && this.att.near(a.x, a.z, a.f);
       const mc = free && !ls && this.app.musicCorner?.near(a.x, a.z, a.f);
       const gd = free && !ls && !sofa && this.guide?.near(a.x, a.z, a.f);
-      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
+      // đồ vật dùng được (pha cà phê, máy in, sách, cá, mèo, đèn, game…): tạo khi toà nhà đã dựng xong
+      if (!this.props && this.app.bldRoot && this.app.nav) this.props = new Props(this.app, this);
+      this.props?.update(dt);
+      const pr = free && !ls && !sofa && !tc && !mc && !gd && !this.props?.busy ? this.props?.near(a.x, a.z, a.f, a.yaw) : null;
+      this.nearProp = pr;
+      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
       if (prompt !== this._prompt) { this._prompt = prompt; this.app.setPrompt?.(prompt); }
     }
     if (this.labels.visible) {

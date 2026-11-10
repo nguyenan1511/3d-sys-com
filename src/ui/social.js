@@ -158,7 +158,8 @@ export class Social {
       <button type="button" class="mb-btn mb-mute" aria-label="Tắt tiếng trên máy bạn"></button><input type="range" class="mb-vol" min="0" max="100" step="1" aria-label="Âm lượng trên máy bạn"></div>
       <button type="button" class="mb-unblock" hidden>${icon('volume', 14)} Bấm để nghe nhạc cùng mọi người</button><p class="mb-err" hidden></p></div>
       <button type="button" class="mb-btn mb-toggle" aria-expanded="true"></button>`;
-    root.appendChild(el);
+    // cùng hàng, ngay bên trái nút Chat (máy tính lẫn điện thoại)
+    if (this.bar) this.bar.prepend(el); else root.appendChild(el);
     const q = c => el.querySelector(c);
     q('.mb-play').onclick = () => this.call('/api/v1/music/control', { action: this.musicState.paused ? 'resume' : 'pause' });
     q('.mb-stop').onclick = () => this.call('/api/v1/music/control', { action: 'stop' });
@@ -173,7 +174,7 @@ export class Social {
       el.classList.toggle('collapsed', c); localStorage.setItem('sysone.musicbar', c ? '0' : '1');
       const t = q('.mb-toggle'); t.innerHTML = icon(c ? 'chevDown' : 'chevUp', 15); t.title = c ? 'Mở thanh nhạc' : 'Thu gọn thanh nhạc'; t.setAttribute('aria-label', t.title); t.setAttribute('aria-expanded', String(!c));
     };
-    { const v = localStorage.getItem('sysone.musicbar'); setCollapsed(v === '0' || (v === null && matchMedia('(max-width: 760px)').matches)); } // (điện thoại: mặc định thu gọn)
+    { const v = localStorage.getItem('sysone.musicbar'); setCollapsed(v === '0' || (v === null && matchMedia('(max-width: 760px), (max-height: 500px) and (max-width: 1100px)').matches)); } // (điện thoại: mặc định thu gọn)
     q('.mb-toggle').onclick = e => { e.stopPropagation(); setCollapsed(!el.classList.contains('collapsed')); };
     el.addEventListener('click', e => { if (el.classList.contains('collapsed') && !e.target.closest('.mb-toggle')) setCollapsed(false); });
     setInterval(() => this.tickBar(), 500);

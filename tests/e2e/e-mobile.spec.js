@@ -50,3 +50,36 @@ test('điện thoại: bố cục gọn, cần điều khiển đi được, kh�
   await expect.poll(() => p.evaluate(() => document.getElementById('panel').classList.contains('collapsed'))).toBe(true);
   await ctx.close();
 });
+
+// Các khối nổi không đè nhau / không tràn màn hình (iPhone SE dọc và iPhone xoay ngang); mở Bảng công từ tấm bảng
+// điều khiển thì tấm tự đóng, bảng công nằm gọn trong màn hình và cuộn được.
+const overlaps = p => p.evaluate(() => {
+  const vis = e => { const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden' || +cs.opacity < 0.05) return false; const r = e.getBoundingClientRect(); return r.width > 4 && r.height > 4; };
+  const els = [...document.querySelectorAll('#bar .project, .social-bar, #panelToggle, .ctrl-nav #onlineBox, .music-bar, .minimap, .gate-hint, .guide-card, #hudPrompt, .touch-ui .joy, .touch-ui .tbtn')].filter(vis);
+  const out = [], vw = innerWidth, vh = innerHeight;
+  for (const e of els) { const r = e.getBoundingClientRect(); if (r.left < -1 || r.top < -1 || r.right > vw + 1 || r.bottom > vh + 1) out.push('tràn: ' + e.className); }
+  for (let i = 0; i < els.length; i++) for (let j = i + 1; j < els.length; j++) {
+    const a = els[i].getBoundingClientRect(), b = els[j].getBoundingClientRect();
+    if (Math.min(a.right, b.right) - Math.max(a.left, b.left) > 3 && Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 3 && !els[i].contains(els[j]) && !els[j].contains(els[i])) out.push(`đè: ${els[i].className} × ${els[j].className}`);
+  }
+  return out;
+});
+for (const name of ['iPhone SE', 'iPhone 14 landscape']) {
+  test(`điện thoại (${name}): không khối nào đè nhau; bảng công mở gọn, tấm bảng điều khiển tự đóng`, async ({ browser }) => {
+    const { defaultBrowserType: _d, ...dev } = devices[name]; void _d;
+    const ctx = await browser.newContext(dev);
+    await ctx.addInitScript(() => { window.__MAXFPS = 12; window.__PIXEL_RATIO = 0.6; window.__RENDER_EVERY_MS = 2000; window.__NO_GUIDE = true; });
+    const p = await ctx.newPage();
+    await loginEmployeeUI(p, `${uniqueCode()}-Mobi`); await waitScene(p); await finishAvatar(p);
+    await p.waitForTimeout(800);
+    expect(await overlaps(p)).toEqual([]);
+    await p.tap('#panelToggle');
+    await expect.poll(() => p.evaluate(() => document.getElementById('panel').classList.contains('collapsed'))).toBe(false);
+    await p.getByText('Bảng công của tôi').first().tap({ force: true });
+    await p.locator('.ts-pop.show').waitFor();
+    await expect.poll(() => p.evaluate(() => document.getElementById('panel').classList.contains('collapsed'))).toBe(true);
+    const r = await p.locator('.ts-pop').boundingBox(), vp = p.viewportSize();
+    expect(r.y).toBeGreaterThanOrEqual(0); expect(r.y + r.height).toBeLessThanOrEqual(vp.height + 1);
+    await ctx.close();
+  });
+}

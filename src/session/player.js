@@ -3,6 +3,7 @@
 // Chuyển động có quán tính (tăng/giảm tốc), quay người có giới hạn, nhảy có nhún lấy đà và tiếp đất,
 // ngồi thì đi tới trước ghế, quay người rồi mới ngồi. Mọi kích thước theo tỉ lệ nhân vật (layout.json → scale).
 import { CEO_LOOK } from '../shared/departments.js';
+import { PROP_ACTS } from '../shared/propActs.js';
 import { smokeAllowed, NO_SMOKING } from '../shared/rules.js';
 import { angDiff, facingVec, deg2yaw } from '../core/util.js';
 import { characterDef } from '../agents/glbCharacters.js';
@@ -25,7 +26,7 @@ export class Player {
     // nhảy cao ~0.57·H, lên đỉnh trong 0.36 s (rơi nhanh, dứt khoát)
     const H = 1.5 * cs; this.H = H;
     this.CR = 1.5 * Math.max(cs, 0.9); // thước camera/tốc độ: nhân vật nhỏ nhưng camera vẫn xa, đi không chậm
-    this.WALK = 2.3 * this.CR; this.RUN = 3.75 * this.CR; this.STRIDE = 0.42 * cs;
+    this.WALK = 2.8 * this.CR; this.RUN = 4.2 * this.CR; this.STRIDE = 0.42 * cs;
     const apex = 0.36, jh = 0.57 * H; this.JUMP_V = 2 * jh / apex; this.GJ = this.JUMP_V / apex;
     this.R = Math.min(0.26 * cs, 0.15); // (thân tròn ≤ 0,15 m: đi lọt mọi lối mà lưới đi lại cho phép — lưới tính thân 0,2 m từ tâm ô) this.BODY0 = 0.2; this.BODY1 = 1.7 * cs; // thân va chạm: từ 0.2 m trên chân (bước lên bậc 17 cm được)
     const e = session.me.employee || { look: CEO_LOOK, display: `CEO (${session.me.admin?.username || ''})` }; // CEO: nhân vật cố định mặc vest
@@ -51,7 +52,7 @@ export class Player {
     if (MOVE[k]) { this.keys[MOVE[k]] = down; e.preventDefault(); if (down) { this.follow(); this.stopPath(); } return; }
     if (!down || e.repeat) return;
     if (k === ' ') { e.preventDefault(); this.jump(); return; }
-    if (k === 'e') { e.preventDefault(); const at = this.session.att; if (!this.seated && !this.sofa && !this.seq && at?.code && at.near(this.agent.x, this.agent.z, this.agent.f)) { at.open(); return; } if (!this.seated && !this.sofa && !this.seq && this.app.musicCorner?.near(this.agent.x, this.agent.z, this.agent.f)) { this.session.social?.openMusic(); return; } const g = this.session.guide; if (!this.seated && !this.sofa && !this.seq && g?.near(this.agent.x, this.agent.z, this.agent.f)) { g.talk(); return; } if (!this.seated && this.session.openLift()) return; this.toggleSit(); return; }
+    if (k === 'e') { e.preventDefault(); const at = this.session.att; if (!this.seated && !this.sofa && !this.seq && at?.code && at.near(this.agent.x, this.agent.z, this.agent.f)) { at.open(); return; } if (!this.seated && !this.sofa && !this.seq && this.app.musicCorner?.near(this.agent.x, this.agent.z, this.agent.f)) { this.session.social?.openMusic(); return; } const g = this.session.guide; if (!this.seated && !this.sofa && !this.seq && g?.near(this.agent.x, this.agent.z, this.agent.f)) { g.talk(); return; } if (!this.seated && this.session.openLift()) return; const pr = !this.seated && !this.sofa && !this.seq && this.session.nearProp; if (pr && this.session.props?.use(pr)) return; this.toggleSit(); return; }
     if (k === 'escape') { this.setAct(null); return; }
     if (k === 'c') { this.follow(); this.app.rig.recenter = true; return; }
     if ((k === 'v' || k === 'c') && this.app.mode2d) return; // 2D: không có góc nhìn thứ nhất / camera sau lưng
@@ -70,8 +71,9 @@ export class Player {
     this.app.showFloor(null, false);
     // camera kiểu agent-office: sau lưng, cách ~3.75 lần chiều cao, nhìn chếch xuống 0.42 rad
     // góc nhìn thứ ba ngang vai, luôn có trần nhà (không cắt trần/tầng trên khi đi trong nhà)
-    rig.follow = this.agent; rig.G.r = rig.S.r = 7.6 * this.CR; rig.G.ph = rig.S.ph = Math.PI / 2 - 0.3; // (xa và cao hơn: thấy rõ xung quanh)
+    rig.follow = this.agent; rig.G.r = rig.S.r = 7.6 * this.CR; rig.G.ph = rig.S.ph = Math.PI / 2 - 0.38; // (như hangmu: cách ~7,8 lần chiều cao, chếch xuống ~22°) // (xa và cao hơn: thấy rõ xung quanh)
     rig.S.th = rig.G.th = this.agent.yaw; rig.camDist = null; this.app.autoCut = false;
+    rig.pickOpenStart?.(this.agent);   // (sau lưng là tường: quay camera sang hướng thoáng gần nhất ngay từ đầu)
     if (this.app.cutFloor() !== null) this.app.showFloor(null, false); // bỏ cắt tầng còn sót (từ lúc chọn chỗ/xem tầng)
     this.app.onFollowChange?.(true);
   }
@@ -205,7 +207,9 @@ export class Player {
     a.animT += dt; a.actT += dt;
     if (a.act === 'wave' && a.actT > 2.6) this.setAct(null);
     if (this.seq) { this.runSeq(dt); this.send(); return; }
-    const K = this.keys, f = (K.f ? 1 : 0) - (K.b ? 1 : 0), r = (K.r ? 1 : 0) - (K.l ? 1 : 0);
+    const K = this.keys, st0 = this.stick, analog = st0 && Math.hypot(st0.x, st0.y) > 0.08;
+    // cần điều khiển trên điện thoại: analog (nghiêng ít đi chậm); bàn phím: −1 / 0 / 1
+    const f = analog ? st0.y : (K.f ? 1 : 0) - (K.b ? 1 : 0), r = analog ? st0.x : (K.r ? 1 : 0) - (K.l ? 1 : 0);
     a.moveFwd = f > 0; // camera chỉ tự xoay theo khi đi tới, tránh đi vòng tròn khi đi ngang
     if (this.sofa) { if (f || r) this.standSofa(); a.walkAmt = 0; this.send(); return; } // đang xem TV: muốn đi thì đứng dậy
     if (this.seated) {
@@ -213,7 +217,7 @@ export class Player {
       if ((f || r) && !this._standing) { this._standing = true; Promise.resolve(this.session.stand()).finally(() => { this._standing = false; }); }
       a.walkAmt = 0; this.send(); return;
     }
-    // đi theo hướng camera, tốc độ đều, không quán tính (kiểu agent-office); nhân vật quay mặt theo hướng đi
+    // đi theo hướng camera; tăng/giảm tốc mượt và quay mặt dần theo hướng đi (như hangmu.online: tăng tốc 14, quay 12 rad/s)
     const th = rig.S.th, fx = -Math.sin(th), fz = -Math.cos(th), rx = Math.cos(th), rz = -Math.sin(th);
     let mx = fx * f + rx * r, mz = fz * f + rz * r;
     let moving = Math.hypot(mx, mz) > 0.01;
@@ -226,10 +230,12 @@ export class Player {
       if (st) { mx = st.x; mz = st.z; moving = true; run = st.run; }
     }
     const top = (run ? this.RUN : this.WALK) * sk;
-    if (moving) { const len = Math.hypot(mx, mz); mx /= len; mz /= len; }
-    const ctrl = this.onGround ? 1 : 0.6; // trên không vẫn lái được, nhẹ hơn
-    this.vx = moving ? mx * top * ctrl + this.vx * (1 - ctrl) : (this.onGround ? 0 : this.vx * 0.98);
-    this.vz = moving ? mz * top * ctrl + this.vz * (1 - ctrl) : (this.onGround ? 0 : this.vz * 0.98);
+    let mag = 1;
+    if (moving) { const len = Math.hypot(mx, mz); if (analog && !this.path) mag = Math.min(1, len); mx /= len; mz /= len; }
+    const acc = Math.min(1, (this.onGround ? 14 : 5) * dt); // (trên không vẫn lái được, nhẹ hơn)
+    this.vx += ((moving ? mx * top * mag : 0) - this.vx) * acc;
+    this.vz += ((moving ? mz * top * mag : 0) - this.vz) * acc;
+    if (!moving && Math.hypot(this.vx, this.vz) < 0.02) this.vx = this.vz = 0;
     const R = this.R, b0 = this.BODY0, b1 = this.BODY1;
     const dx = this.vx * dt, dz = this.vz * dt, before = { x: a.x, z: a.z };
     // đang lọt sẵn trong vật cản (vừa được đặt/đứng dậy sát bàn): cho đi ra, không kẹt cứng
@@ -242,8 +248,8 @@ export class Player {
     if (this.path) this.stuckFor = moved < top * dt * 0.2 ? this.stuckFor + dt : 0;
     if (this.path && this.stuckFor > 1) this.stopPath('stuck');
     a.walkPhase += moved / this.STRIDE * Math.PI;
-    if (!rig.fp && speed > 0.05 * this.cs && moving) a.yaw += angDiff(a.yaw, Math.atan2(-mx, -mz)) * Math.min(1, dt * 14);
-    if (moving && (a.act === 'dance' || a.act === 'wave')) this.setAct(null);
+    if (!rig.fp && speed > 0.05 * this.cs && moving) a.yaw += angDiff(a.yaw, Math.atan2(-mx, -mz)) * Math.min(1, dt * 12);
+    if (moving && (a.act === 'dance' || a.act === 'wave' || PROP_ACTS.includes(a.act)) && !this.path) this.setAct(null);   // (đi đi: thôi dùng đồ vật)
     if (a.act === 'smoke' && !smokeAllowed(a.x, a.z)) { this.setAct(null); this.session.toast(NO_SMOKING, true); } // đi vào toà nhà thì dập thuốc
     a.walkAmt = Math.min(2, speed / (this.WALK * sk)) * (this.onGround ? 1 : 0.3);
     // nhảy: nhún lấy đà -> bật -> rơi -> nhún khi tiếp đất
@@ -283,7 +289,7 @@ export class Player {
     const key = `${a.f}:${Math.round(x / 0.2)}:${Math.round(z / 0.2)}`, c = this._camOk || (this._camOk = new Map());
     if (c.has(key)) return c.get(key);
     const t = this._camT || (this._camT = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; return this; } }), probe = { ...a, x, z }, need = rig.armNeed(a);
-    t.set(x, a.y + 0.65 * this.H, z);
+    t.set(x, a.y + 1.15 * this.H, z);
     let ok = false;
     for (let q = 0; q < 12 && !ok; q++) ok = rig.bestArm(t, q * Math.PI / 6, Math.PI / 2 - 0.5, 10, probe, need).f >= need;
     c.set(key, ok); return ok;

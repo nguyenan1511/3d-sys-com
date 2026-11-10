@@ -46,6 +46,24 @@ Extend it instead of adding a controls library on top (two controllers fighting 
     room. It is part of `walkable()`.
   - Measured in testing: 300 random spots across 3 floors gave 0 walls or furniture between the camera and the
     character, the camera was never inside a wall, and the camera costs about 0.25 ms per frame.
+- **Follow camera = hangmu.online model** (user request, 2026-11-10):
+  - FOV 55; fixed distance ≈ 7.6 × character size (`camR`); default pitch ~22° down.
+  - Look target at **1.15 × character height** (above the head), so the character sits in the lower part of the frame.
+  - The target snaps to the character every frame (no lag, `S.t.copy(G.t)`). If the target ends up inside a roof or
+    beam box, lower it to just under that box.
+  - Walls pull the camera in immediately (farthest valid point); it eases back out at `exp(-dt*8)`.
+  - Furniture does not move the camera.
+  - When the user's pitch leaves less room than `armNeed`: the camera rises a little. If that lasts ≥0.5 s and the
+    user hasn't orbited in the last 2.5 s, it turns to the nearest direction with comfortable room (`openDir`, ≥60% of
+    the wanted distance).
+  - `follow()` calls `pickOpenStart()` so the camera never starts facing a wall.
+  - Drag sensitivity matches hangmu: yaw 0.006, pitch 0.004 rad/px.
+- **Movement = hangmu model**:
+  - acceleration `v += (target − v)·min(1, 14·dt)`, so movement starts and stops smoothly;
+  - heading turns at 12 rad/s;
+  - the mobile joystick is analog (`player.stick {x,y}`): a small tilt walks slowly, past 0.92 it runs.
+- **Pitfall that bit twice**: never put a `//` comment in the middle of a line before code (`for (...) // note { body }`
+  comments out the body). After scripted edits, grep for `//` followed by code.
 - **Inertia**: `coast(dt, phLim)` applies `vth/vph` (rad/s) after release and decays them with `exp(-dt*6)`.
   - Coast only after a real drag (`moved > 6` px) when the pointer was still moving at release.
   - Disable it for `prefers-reduced-motion`, walk mode and first person.

@@ -495,6 +495,14 @@ export class AvatarSystem {
     for (const p of this.parts) { p.mesh.count = n * (p.side ? 2 : 1); p.mesh.visible = n > 0; if (p.outline) { p.outline.count = p.mesh.count; p.outline.visible = n > 0 && OUTLINE.on; } }
     this.glb.begin(); this.pixel.begin(); this.vrm.begin(); this.rigged.begin(); this.mo.begin();
     let instUsed = 0; // số người vẽ bằng chibi dùng chung mesh (còn lại: chibi my-office, pixel…)
+    // đầu tự quay nhìn người ở gần (mỗi 0,3 s): người gần nhất trong 2,5 m, phía trước (±100°)
+    { const now = performance.now(); if (now - (this._lookT || 0) > 300) { this._lookT = now;
+      for (let i = 0; i < n; i++) { const a = agents[i]; if (!a) continue; let best = 6.25, yaw = 0;
+        for (let j = 0; j < n; j++) { const b = agents[j]; if (!b || b === a || !b.visible || (b.f ?? 0) !== (a.f ?? 0)) continue;
+          const dx = b.x - a.x, dz = b.z - a.z, d2 = dx * dx + dz * dz; if (d2 > best || d2 < 0.04) continue;
+          let rel = Math.atan2(-dx, -dz) - a.yaw; rel = ((rel + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+          if (Math.abs(rel) > 1.75) continue; best = d2; yaw = Math.max(-0.9, Math.min(0.9, rel)); }
+        a._lookYaw = yaw; } } }
     for (let i = 0; i < n; i++) {
       const a = agents[i];
       const show = a && a.visible && !a._fpHide && !(hiddenY != null && a.y > hiddenY);

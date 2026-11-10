@@ -5,26 +5,11 @@ import * as THREE from 'three';
 import { logoStitch } from './logoPatch.js';
 if (typeof document !== 'undefined') logoStitch(); // tải sẵn logo gốc (sprite 2D nướng từ nhân vật 3D cũng có logo)
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { makeChibi, chibiPose, applyChibiPose, disposeChibi } from '../vendor/my-office/chibi-rig.js';
+import { makeChibi, applyChibiPose, disposeChibi } from '../vendor/my-office/chibi-rig.js';
+import { Motion } from './actions.js';
 
 const HEIGHT = { toy: 1.74, pixar: 1.86 }; // chiều cao rig (đơn vị của rig)
 const LEG_R = { toy: 0.105, pixar: 0.1 }, HIP = { toy: 0.44, pixar: 0.58 };
-
-/** Tên động tác của rig theo trạng thái agent. */
-function animOf(a) {
-  const sit = (a.sit || 0) > 0.5;
-  switch (a.act) {
-    case 'wave': return 'hand';
-    case 'drink': return 'coffee';
-    case 'phone': return 'phone';
-    case 'dance': return 'celebrate';
-    case 'smoke': return 'think';
-  }
-  if (sit) return { type: 'type', cup: 'coffee', pour: 'coffee', eat: 'eat', talk: 'laugh' }[a.anim] || 'idle';
-  if ((a.walkAmt || 0) > 0.15) return 'walk';
-  if (a.anim === 'talk') return 'think';
-  return 'idle';
-}
 
 /** Cấu hình rig từ ngoại hình: def.look (mặc định của nhân vật) + màu tuỳ chỉnh 3D của người dùng. */
 export function moConfig(def, el = {}, name = '') {
@@ -112,19 +97,19 @@ export class MoInstance {
     const look = this.look, k = (this.def.height || 1.5) * s / HEIGHT[look];
     this.group.position.set(a.x, a.y + (a.jumpH || 0), a.z); this.group.rotation.y = a.yaw; this.group.scale.setScalar(k);
     this.t += dt;
-    const anim = animOf(a), sit = (a.sit || 0) > 0.5;
     // ghế/bàn: rig coi mặt ghế ở 0.49 (đơn vị rig, nhân với 1/scale) → chọn scale để hông ngồi đúng độ cao ghế thật
     const W = Math.max(0.3, (seatHip / k - LEG_R[look]) / 0.49);
     this.blinkAt -= dt; if (this.blinkAt < 0) { this.blink = 0.14; this.blinkAt = 2 + Math.random() * 4; } this.blink = Math.max(0, this.blink - dt);
-    const ph = anim === 'walk' ? (a._g?.ph ?? a.walkPhase ?? 0) / 9 : this.t; // một chu kỳ bước của rig = 2π/9
-    const p = chibiPose(this.P, anim, ph, { sit, scale: 1 / W, blink: this.blink > 0 });
-    const y = applyChibiPose(this.P, p, dt);
+    // chuyển động tự nhiên (src/agents/actions.js): trộn đứng/đi/ngồi + động tác + cử chỉ vặt, lọc lò xo; rig chỉ việc đặt
+    this.motion ||= new Motion();
+    const p = this.motion.pose(this.P, a, Math.min(dt, 0.1), { scale: 1 / W, blink: this.blink > 0 });
+    const y = applyChibiPose(this.P, p, 1);   // (dt = 1: đặt thẳng — đã lọc lò xo ở trên)
     this.root.position.y = y;
-    // điểm khói thuốc (hiệu ứng khói chạy theo miệng và tay)
+    // điểm khói thuốc (hiệu ứng khói chạy theo miệng và đầu điếu thuốc)
     if (a.act === 'smoke') {
       this.group.updateMatrixWorld(true);
       a._mouth = (a._mouth || new THREE.Vector3()); this.P.head.getWorldPosition(a._mouth);
-      a._tip = (a._tip || new THREE.Vector3()); this.P.armR.hand.getWorldPosition(a._tip);
+      a._tip = (a._tip || new THREE.Vector3()); (this.P.cigTip || this.P.armR.hand).getWorldPosition(a._tip);
     }
   }
 }

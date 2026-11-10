@@ -186,7 +186,8 @@ export class CameraRig {
     let f = this.rayCOL(t, d, maxD, true);
     // tia song song từ đầu và chân nhân vật (lan can, bờ tường thấp không được che mất chân) và hai mép ống kính
     const rx = Math.cos(th), rz = -Math.sin(th), w = 0.12, H = a ? (a.camH ?? 0.375) / 0.5 : 0.75;
-    for (const [sx, sy] of [[1, 0], [-1, 0], [0, 0.3 * H], [0, -0.45 * H]]) { o.set(t.x + rx * sx * w, t.y + sy, t.z + rz * sx * w); f = Math.min(f, this.rayCOL(o, d, f, true)); }
+    // (tâm nhìn ở 1,15H: đầu ≈ −0,2H, chân ≈ −1,0H)
+    for (const [sx, sy] of [[1, 0], [-1, 0], [0, -0.2 * H], [0, -1.0 * H]]) { o.set(t.x + rx * sx * w, t.y + sy, t.z + rz * sx * w); f = Math.min(f, this.rayCOL(o, d, f, true)); }
     f = Math.max(0, f - 0.18);
     if (this.clamp && d.y > 0.02) { q.set(t.x + d.x * f, t.y + d.y * f, t.z + d.z * f); const y0 = q.y; this.clamp(q); if (q.y < y0 - 1e-3) f = Math.max(0, (q.y - t.y) / d.y); }
     if (this.world.sameSpace && a) for (let i = 0; i < 24 && f > 0.3; i++) { q.set(t.x + d.x * f, t.y + d.y * f, t.z + d.z * f); if (this.world.sameSpace(a, q)) break; f -= 0.2; }
@@ -197,16 +198,15 @@ export class CameraRig {
    * cho tới khi đủ chỗ. Trả về { f, ph }.
    */
   bestArm(t, th, ph, want, a, need) {
-    // tốt: đủ chỗ VÀ bàn ghế, cây cảnh không che mặt/chân nhân vật. Không có góc nào tốt thì lấy góc rộng chỗ nhất.
+    // như hangmu.online: chỉ tường / vách / trần kéo camera lại; khi bị ép quá sát (< need) mới nâng camera lên dần
     let f = this.armFree(t, th, ph, want, a), best = ph;
-    if (f >= need && !this.furnitureBlocks(t, th, ph, Math.min(want, f), a)) return { f, ph };
-    let good = null;
+    if (f >= need) return { f, ph };
     for (let el = PH(ph) + 0.1; el <= 1.4 + 1e-6; el += 0.1) {
       const p2 = PH(el), f2 = this.armFree(t, th, p2, want, a);
       if (f2 > f + 0.05) { f = f2; best = p2; }
-      if (f2 >= need && !this.furnitureBlocks(t, th, p2, Math.min(want, f2), a)) { good = { f: f2, ph: p2 }; break; }
+      if (f2 >= need) break;
     }
-    return good || { f, ph: best };
+    return { f, ph: best };
   }
   /**
    * Đồ đạc thấp (bàn, ghế, quầy, chậu cây) có che đầu hoặc chân nhân vật khi camera ở (th, ph, cách r) không.
@@ -241,6 +241,26 @@ export class CameraRig {
     const { f } = this.bestArm(this.S.t, th, ph, Math.max(need, this.S.r), a, need);
     return f >= need || f >= cur - 0.05;
   }
+  /** Hướng thoáng gần th nhất có khoảng trống thoải mái (≥ 60% khoảng cách mong muốn); không có thì hướng rộng nhất
+   *  (phải rộng hơn hẳn hiện tại); null nếu không có hướng nào tốt hơn. */
+  openDir(t, th0, ph, r, a, need, cur = 0) {
+    const goal = Math.min(r, Math.max(need * 2, r * 0.6));
+    let best = null, bf = Math.max(cur * 1.6, cur + 0.8);
+    for (let k = 1; k <= 12; k++) for (const sg of [1, -1]) {
+      const th = th0 + sg * k * Math.PI / 12, f = this.armFree(t, th, ph, r, a);
+      if (f >= goal) return th;
+      if (f > bf) { bf = f; best = th; }
+    }
+    return best;
+  }
+  /** Bắt đầu bám nhân vật: sau lưng chật thì chọn ngay hướng thoáng gần sau lưng nhất. */
+  pickOpenStart(a) {
+    const H = (a.camH ?? 0.375) / 0.5, t = this._t.set(a.x, a.y + 1.15 * H, a.z), need = this.armNeed(a);
+    const f = this.armFree(t, this.S.th, this.S.ph, this.S.r, a);
+    if (f >= need) return;
+    const th = this.openDir(t, this.S.th, this.S.ph, this.S.r, a, need, f);
+    if (th !== null) { this.S.th = this.G.th = th; this.camDist = null; }
+  }
   /** Khoảng cách tối thiểu để thấy trọn nhân vật thoải mái. */
   armNeed(a) { const R = a.camR ?? (a.camH ?? 0.375) / 0.5; return LIM.fR[0] * R * 0.8; }
 
@@ -264,10 +284,18 @@ export class CameraRig {
       if (this.camera.fov !== 70) { this.camera.fov = 70; this.camera.updateProjectionMatrix(); }
       return;
     }
-    if (this.camera.fov !== 60) { this.camera.fov = 60; this.camera.updateProjectionMatrix(); }
+    // camera kiểu hangmu.online: góc nhìn 55°, khoảng cách cố định theo góc người dùng kéo, nhìn vào điểm trên đầu nhân vật
+    // (nhân vật nằm ở phần dưới khung hình, thấy rộng phía trước), bám cứng theo nhân vật — không trễ
+    const fovT = 55;
+    if (Math.abs(this.camera.fov - fovT) > 0.01) { this.camera.fov = fovT; this.camera.updateProjectionMatrix(); }
     // tâm nhìn: ngang vai, bám theo nhân vật mượt (nhảy thì chỉ nhấc nửa, đỡ rung)
-    G.t.set(a.x, a.y + 0.65 * H + lift + (a.jumpH || 0) * 0.5, a.z);
-    S.t.lerp(G.t, 1 - Math.exp(-dt * 14));
+    G.t.set(a.x, a.y + 1.15 * H + lift + (a.jumpH || 0) * 0.5, a.z);
+    // tâm nhìn lọt vào trong mái / dầm / giàn thấp: hạ xuống ngay dưới khối đó (không thấp hơn ngang vai)
+    for (const c of this.world.COL) {
+      if (c.low || (c.gate && this.world.gateOpen())) continue;
+      if (G.t.x > c.x0 && G.t.x < c.x1 && G.t.z > c.z0 && G.t.z < c.z1 && G.t.y > c.y0 && G.t.y < c.y1) G.t.y = Math.max(a.y + 0.65 * H + lift, c.y0 - 0.05);
+    }
+    S.t.copy(G.t);
     if (this.recenter) { this.stopCoast(); S.th += angDiff(S.th, a.yaw) * Math.min(1, dt * 6); if (Math.abs(angDiff(S.th, a.yaw)) < 0.02) this.recenter = false; }
     else this.coast(dt, [PH(LIM.fEl[1]), PH(LIM.fEl[0])]);
     G.ph = clamp(G.ph, PH(LIM.fEl[1]), PH(LIM.fEl[0])); G.r = clamp(G.r, LIM.fR[0] * R, LIM.fR[1] * R);
@@ -282,9 +310,14 @@ export class CameraRig {
       const b = this.bestArm(t, S.th, S.ph, S.r, a, Math.min(S.r, need));
       this.aPhGoal = b.ph;
       // chật kín mọi phía ở góc này (rất hiếm, vd. bị đặt sát góc tường): xoay sang hướng thoáng nhất gần nhất
-      if (b.f < need * 0.5 && !this.drag && !this.recenter && this.escapeTh == null) {
-        let best = null, bf = b.f + 0.3;
-        for (let k = 1; k <= 12; k++) for (const sg of [1, -1]) { const th = S.th + sg * k * Math.PI / 12, x = this.bestArm(t, th, S.ph, S.r, a, need).f - k * 0.03; if (x > bf) { bf = x; best = th; } }
+      // bị tường ép chật (dưới mức cần) liên tục ~0,5 s, người dùng không xoay camera trong 2,5 s: xoay êm sang hướng thoáng
+      // gần nhất (đang kéo / vừa kéo thì để yên — không "giật về")
+      const fUser = this.armFree(t, S.th, S.ph, S.r, a);   // (ở góc người dùng chọn — không tính phần tự nâng)
+      this.crampT = fUser < need * 0.95 ? (this.crampT || 0) + 0.08 : 0;
+      const idle = !this.drag && !this.recenter && performance.now() - this.lastUserOrbit > 2500;
+      if (this.crampT >= 0.5 && idle && this.escapeTh == null) {
+        this.crampT = 0;
+        const best = this.openDir(t, S.th, S.ph, S.r, a, need, fUser);
         if (best !== null) this.escapeTh = best;
       }
     }
@@ -293,14 +326,14 @@ export class CameraRig {
     if (this.aPh == null) this.aPh = this.aPhGoal;
     const up = this.aPhGoal < this.aPh;
     this.aPh += (this.aPhGoal - this.aPh) * (1 - Math.exp(-dt * (up ? 9 : 2.5)));
-    const ph = Math.min(S.ph, this.aPh);
-    const free = this.armFree(t, S.th, ph, S.r, a);
+    const ph = Math.min(S.ph, this.aPh), reach = S.r;
+    const free = this.armFree(t, S.th, ph, reach, a);
     this.lastFree = free;
     // khoảng cách: vướng thì kéo lại gần nhanh mà mượt; thông rồi lùi ra từ từ (không giật, không "thở")
-    const want = Math.min(S.r, free);
-    if (this.camDist === null) this.camDist = want;
-    else if (want < this.camDist) this.camDist = Math.max(want, this.camDist + (want - this.camDist) * (1 - Math.exp(-dt * 20)));
-    else this.camDist = Math.min(want, this.camDist + (want - this.camDist) * (1 - Math.exp(-dt * 2.2)) + dt * 0.15);
+    const want = Math.min(reach, free);
+    // vướng thì kéo lại ngay (như hangmu: lấy điểm xa nhất còn hợp lệ), thông rồi lùi ra nhanh mà êm
+    if (this.camDist === null || want < this.camDist) this.camDist = want;
+    else this.camDist = Math.min(want, this.camDist + (want - this.camDist) * (1 - Math.exp(-dt * 8)) + dt * 0.3);
     const r = this.camDist, sp = Math.sin(ph);
     this.camera.position.set(t.x + r * sp * Math.sin(S.th), t.y + r * Math.cos(ph), t.z + r * sp * Math.cos(S.th));
     this.camera.lookAt(t);

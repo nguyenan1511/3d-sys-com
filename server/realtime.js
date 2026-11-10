@@ -7,7 +7,8 @@ import { displayOf } from '../src/shared/identity.js';
 
 const LIMIT = { x: [-16, 16], y: [-1, 12], z: [-11, 31] };
 import { smokeAllowed } from '../src/shared/rules.js';
-const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'jump', 'tv']); // tv: ngồi sofa xem TV
+import { PROP_ACTS } from '../src/shared/propActs.js';
+const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'jump', 'tv', ...PROP_ACTS]); // tv: ngồi sofa xem TV; còn lại: dùng đồ vật
 const okNum = (v, [a, b]) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b;
 
 export class Hub {

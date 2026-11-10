@@ -659,7 +659,8 @@ export function wearHat(P) {
 
 // Two-bone IK in the sagittal plane: rotations [shoulderX, shoulderZ, elbowX] that put the hand on a point
 // (x sideways, y up, z forward, in root space). Negative X swings forward; the elbow only bends forward.
-function armIK(D, side, tx, ty, tz, lean) {
+// (SYSONE: exported for src/agents/actions.js — phone to the ear)
+export function armIK(D, side, tx, ty, tz, lean) {
   const sy = D.hipY + D.shY * Math.cos(lean), sz = D.shY * Math.sin(lean), sxp = side * D.shX;
   const dx = tx - sxp, dy = ty - sy, dz = tz - sz;
   const a = D.upper, b = D.fore + D.handR * 0.6;

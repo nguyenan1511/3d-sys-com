@@ -17,8 +17,8 @@ export class Minimap {
     this.cv = el.querySelector('canvas'); this.ctx = this.cv.getContext('2d'); this.ctx.scale(2, 2);
     this.label = el.querySelector('.mm-floor');
     const tog = el.querySelector('.mm-tog');
-    const setCollapsed = c => { el.classList.toggle('collapsed', c); tog.innerHTML = icon(c ? 'plus' : 'minus', 14); tog.title = c ? 'Mở bản đồ nhỏ' : 'Thu gọn bản đồ nhỏ'; tog.setAttribute('aria-expanded', String(!c)); try { localStorage.setItem('sysone.minimap', c ? '0' : '1'); } catch { /* */ } };
-    { const v = localStorage.getItem('sysone.minimap'); setCollapsed(v === '0' || (v === null && matchMedia('(max-width: 760px)').matches)); } // (điện thoại: mặc định thu gọn)
+    const setCollapsed = c => { el.classList.toggle('collapsed', c); tog.innerHTML = icon(c ? 'map' : 'minus', c ? 17 : 14);   /* (thu gọn: biểu tượng bản đồ — bấm để mở) */ tog.title = c ? 'Mở bản đồ nhỏ' : 'Thu gọn bản đồ nhỏ'; tog.setAttribute('aria-expanded', String(!c)); try { localStorage.setItem('sysone.minimap', c ? '0' : '1'); } catch { /* */ } };
+    { const v = localStorage.getItem('sysone.minimap'); setCollapsed(v === '0' || (v === null && matchMedia('(max-width: 760px), (max-height: 500px) and (max-width: 1100px)').matches)); } // (điện thoại: mặc định thu gọn)
     tog.onclick = () => setCollapsed(!el.classList.contains('collapsed'));
     // bấm lên bản đồ: tự đi tới (trên tầng đang xem)
     this.cv.addEventListener('click', e => {

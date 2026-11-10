@@ -36,6 +36,7 @@ import { OUTLINE } from './agents/toon.js';
 import { icon } from './ui/icons.js';
 import { Minimap } from './ui/minimap.js';
 import { QuickTravel } from './ui/quickTravel.js';
+import { loading } from './ui/loading.js';
 import { TouchControls, isTouchUI } from './ui/touchControls.js';
 import { NameTags } from './ui/nameTags.js';
 import { departmentOfDesk } from './shared/departments.js';
@@ -50,7 +51,20 @@ const $ = id => document.getElementById(id);
 const params = new URLSearchParams(location.search);
 const BASE = import.meta.env.BASE_URL;
 const isMobile = matchMedia('(pointer: coarse)').matches && Math.min(screen.width, screen.height) < 820;
-const QUALITY = params.get('q') || (isMobile ? 'low' : 'high');
+// Chất lượng (học từ hangmu.online): mặc định CAO — kể cả điện thoại (màn Retina vẽ ở 2–2,5×, có khử răng cưa); chỉ hạ
+// khi máy yếu thật (tiết kiệm dữ liệu, RAM ≤ 4 GB, ≤ 2 nhân, GPU đời cũ / phần mềm) hoặc phiên này đã tự hạ vì khung hình tụt.
+const WEAK_GPU = /swiftshader|llvmpipe|software|mali-[2-4]\d\d|mali-t[0-9]{3}|mali-g(31|51|52|57)\b|adreno \(tm\) [2-5]\d\d|powervr|intel\(r\) (hd|uhd) graphics( [0-9]{3})?$|intel\(r\) hd graphics [2-5]\d{3}/i;
+function gpuName() { try { const g = document.createElement('canvas').getContext('webgl'); if (!g) return 'none'; const e = g.getExtension('WEBGL_debug_renderer_info'); const n = e ? g.getParameter(e.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER); g.getExtension('WEBGL_lose_context')?.loseContext(); return String(n); } catch { return ''; } }
+function detectQuality() {
+  const q = params.get('q'); if (q === 'low' || q === 'high') return q;
+  try { if (sessionStorage.getItem('sysone.quality') === 'low') return 'low'; } catch { /* */ }
+  const n = navigator;
+  return n.connection?.saveData || (n.deviceMemory !== undefined && n.deviceMemory <= 4) || (n.hardwareConcurrency !== undefined && n.hardwareConcurrency <= 2) || WEAK_GPU.test(gpuName()) ? 'low' : 'high';
+}
+const QUALITY = detectQuality();
+const DPR = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2.5);
+/** Độ phân giải tối đa: cao → 2,5× (điện thoại) / 2× (máy tính); thấp → 1,5×. */
+const PR_MAX = QUALITY === 'low' ? Math.min(DPR, 1.5) : Math.min(DPR, isMobile ? 2.5 : 2);
 
 async function getJson(path) {
   const r = await fetch(`${BASE}${path}`, { cache: 'no-cache' });
@@ -70,8 +84,10 @@ function padEmployees(data, n) {
 }
 
 export async function startApp(me, hooks = {}) {
+  loading.step('Đang tải dữ liệu văn phòng…', 6, 30);
   const [, layout, empRaw, seatsRes, equipRes, lookRes, chars] = await Promise.all([loadCarKit(), getJson('data/layout.json'), getJson('data/employees.json'), api('GET', '/api/seats'), api('GET', '/api/equipment'), api('GET', '/api/appearance'), getJson('data/characters.json').catch(() => ({ characters: [] }))]);
   setCharacterDefs(chars.characters);
+  loading.step('Đang dựng toà nhà 3 tầng…', 30, 62);
   setPixelSpecs((await getJson('data/pixel-characters.json').catch(() => ({ characters: [] }))).characters);
   if (me.employee?.look?.model) loadTemplate(me.employee.look.model); // tải sớm model của chính mình
   if (!seatsRes.ok || !equipRes.ok || !lookRes.ok) throw new Error(seatsRes.error || equipRes.error || lookRes.error);
@@ -89,12 +105,12 @@ export async function startApp(me, hooks = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: QUALITY !== 'low', powerPreference: 'high-performance', preserveDrawingBuffer: params.has('shot') }); // (alpha: màn hình TV khoét lỗ cho video YouTube bên dưới — scene/tvVideo.js)
   // ?pr=0.6: vẽ ở độ phân giải thấp hơn (máy yếu; kiểm thử trên GPU giả lập)
   const PR = +(params.get('pr') || window.__PIXEL_RATIO || 0);
-  renderer.setPixelRatio(PR > 0 ? Math.min(2, PR) : Math.min(window.devicePixelRatio || 1, QUALITY === 'low' ? 1 : layout.world === 'sysone-mo' ? 1.5 : 2)); // (toà nhà lớn: tối đa 1,5× — màn Retina vẫn nét, bớt gần một nửa điểm ảnh phải tô)
+  renderer.setPixelRatio(PR > 0 ? Math.min(2, PR) : PR_MAX); // (tự hạ nếu khung hình tụt — xem "độ phân giải tự điều chỉnh" trong vòng vẽ)
   // không có GPU (máy ảo, CI, trình duyệt rơi về SwiftShader): mọi khung hình do CPU vẽ — chạy nhẹ như my-office (scene/renderer.js):
   // độ phân giải thấp, không bóng đổ, tắt đèn phòng (chỉ còn nắng + bầu trời + ánh sáng môi trường)
   const SOFT_GL = (() => { try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''); } catch { return false; } })();
   if (SOFT_GL && !PR) renderer.setPixelRatio(0.5);
-  renderer.shadowMap.enabled = QUALITY !== 'low' && !SOFT_GL; renderer.shadowMap.type = THREE.PCFShadowMap;
+  renderer.shadowMap.enabled = QUALITY !== 'low' && !SOFT_GL && !isMobile; renderer.shadowMap.type = THREE.PCFShadowMap; // (điện thoại: không bóng đổ — dành sức cho độ phân giải cao)
   renderer.localClippingEnabled = true;
   // thế giới văn phòng của my-office (layout.world = 'my-office'): dùng cảnh của nó làm cảnh chính
   const MYOFFICE = layout.world === 'my-office';
@@ -168,6 +184,7 @@ export async function startApp(me, hooks = {}) {
   let hoverDesk = null;
 
   // ---------- mô phỏng ----------
+  loading.step('Đang đưa mọi người vào văn phòng…', 62, 80);
   let sim = new Simulation(model, nav, staff, { start: params.get('t') || '07:30' });
   let avatars = new AvatarSystem(scene, Math.max(1, sim.agents.length), QUALITY, { scale: model.cs, seatH: layout.scale?.seatHip ?? 0.53 * model.fs, moStaff: characterDef('mo-nam') });
   avatars.setColors(sim.agents);
@@ -230,8 +247,8 @@ export async function startApp(me, hooks = {}) {
       panel.renderCard(); panel.renderList(false);
     },
     jump(t) {
-      $('loading').textContent = 'Đang tua…'; $('loading').hidden = false;
-      setTimeout(() => { sim.advanceTo(t); $('loading').hidden = true; }, 20);
+      loading.flash('Đang tua…');
+      setTimeout(() => { sim.advanceTo(t); loading.hideFlash(); }, 20);
     },
     importCsv(text, name) {
       const parsed = parseSeatingCsv(text);
@@ -309,6 +326,7 @@ export async function startApp(me, hooks = {}) {
   if (tv) { const fitTv = () => tv.setSize(canvas.clientWidth || 680, canvas.clientHeight || 480); new ResizeObserver(fitTv).observe(canvas); fitTv(); tv.place(); }
   app.onMusic = st => { ctx.music?.set(st.on && !st.paused); tv?.setActive(!!st.on); if (session.tv) session.tv.yt = !!st.on; };
   app.musicCorner = ctx.music || null;
+  app.bldRoot = bld ? bld.root : null;   // (đồ vật my-office → toạ độ thế giới: src/scene/props.js)
   const deskInfo = BIG ? new DeskInfoBoards(scene, model) : null; // bảng thông tin làm việc trong ngày trên mỗi bàn có chủ
   app.deskInfoSig = id => deskInfo?.items.get(id)?.sig || ''; // (kiểm thử) nội dung bảng trên bàn
   if (session.isAdmin && !localStorage.getItem('sysone.view')) VIEW.mode = '3d'; // CEO mặc định xem 3D (bản 2D đang ẩn: luôn 3D — pixel/billboard.js ENABLE_2D)
@@ -497,12 +515,32 @@ export async function startApp(me, hooks = {}) {
 
   // ---------- vòng lặp ----------
   let lastDraw = 0;
+  // ---- độ phân giải tự điều chỉnh (kiểu PerformanceMonitor): khung hình tụt (< 40 /s trong ~2 s) thì hạ từng bậc 0,25×
+  // (thấp nhất 1×); ổn định lâu (> 57 /s trong ~5 s) thì nâng lại tới mức tối đa. Đổi qua lại quá 3 lần thì đứng yên.
+  // Đã ở 1× mà vẫn chậm: ghi nhớ "chất lượng thấp" cho phiên này (lần tải sau tắt khử răng cưa).
+  const adapt = { low: 0, high: 0, flips: 0, last: 0 };
+  function adaptPR(f) {
+    if (PR > 0 || SOFT_GL || window.__RENDER_EVERY_MS || (+(params.get('maxfps') || window.__MAXFPS || 0)) || document.hidden) return;
+    const cur = renderer.getPixelRatio();
+    adapt.low = f < 40 ? adapt.low + 1 : 0; adapt.high = f > 57 ? adapt.high + 1 : 0;
+    if (adapt.low >= 4) {
+      adapt.low = 0;
+      if (cur > 1.01) { renderer.setPixelRatio(Math.max(1, cur - 0.25)); resize(); if (adapt.last > 0) adapt.flips++; adapt.last = -1; }
+      else if (f < 30) { try { sessionStorage.setItem('sysone.quality', 'low'); } catch { /* */ } }
+    } else if (adapt.high >= 10 && cur < PR_MAX - 0.01 && adapt.flips < 3) {
+      adapt.high = 0; renderer.setPixelRatio(Math.min(PR_MAX, cur + 0.25)); resize(); if (adapt.last < 0) adapt.flips++; adapt.last = 1;
+    }
+  }
   let last = performance.now(), fps = 60, frames = 0, perfT = 0, cutCheck = 0;
   // bản đồ nhỏ góc dưới bên phải (cảnh 3D)
   const minimap = session.player ? new Minimap($('appRoot'), app) : null;
   if (session.player && isTouchUI()) app.touch = new TouchControls(app, session); // điện thoại: cần điều khiển + nút Tương tác / Nhảy / Về bàn
   // nhãn tên + phòng ban trên đầu mọi người (thay nhãn cũ của người online)
   const tags = new NameTags(scene, canvas.parentElement); session.remote.tags.visible = false;
+  { // nhãn tên không nhìn xuyên tường: đoạn camera → điểm có vướng tường/vách (bỏ qua đồ đạc thấp) không
+    const o = new THREE.Vector3(), d = new THREE.Vector3();
+    tags.blocked = (x, y, z) => { if (!rig.rayCOL) return false; o.copy(camera.position); d.set(x - o.x, y - o.y, z - o.z); const L = d.length(); if (L < 0.3) return false; d.multiplyScalar(1 / L); return rig.rayCOL(o, d, L, true) < L - 0.2; };
+  }
   { const fit = () => tags.setSize(canvas.clientWidth || 680, canvas.clientHeight || 480); new ResizeObserver(fit).observe(canvas); fit(); }
   const deptOfCode = code => { if (!code) return ''; for (const st of session.seats.values()) if (st.owner?.code === code) return departmentOfDesk(st.deskId)?.name || ''; return ''; };
   const myDept = () => session.isAdmin ? 'Ban giám đốc' : (session.me.employee?.department || deptOfCode(session.me.employee?.code));
@@ -624,21 +662,23 @@ export async function startApp(me, hooks = {}) {
     if (!drawNow) scene.updateMatrixWorld();
     else if (!(app.dashboard && !app.dashboard.el.hidden)) { lastDraw = now; renderer.render(scene, camera); tags.render(scene, camera); tv?.render(camera); } // bảng quản trị phủ gần kín màn hình: không vẽ cảnh 3D bên dưới
     frames++; perfT += rdt;
-    if (perfT > 0.5) { fps = frames / perfT; frames = 0; perfT = 0; const i = renderer.info.render; $('perf').textContent = `${fps.toFixed(0)} khung hình/giây · ${i.calls} draw call · ${(i.triangles / 1000).toFixed(0)}k tam giác · ${sim.agents.length} nhân viên · chất lượng ${QUALITY === 'low' ? 'thấp' : 'cao'} (đổi bằng ?q=${QUALITY === 'low' ? 'high' : 'low'})`; }
+    if (perfT > 0.5) { fps = frames / perfT; frames = 0; perfT = 0; adaptPR(fps); const i = renderer.info.render; $('perf').textContent = `${fps.toFixed(0)} khung hình/giây · ${i.calls} draw call · ${(i.triangles / 1000).toFixed(0)}k tam giác · ${sim.agents.length} nhân viên · chất lượng ${QUALITY === 'low' ? 'thấp' : 'cao'} (đổi bằng ?q=${QUALITY === 'low' ? 'high' : 'low'})`; }
     panel.tick(now);
     requestAnimationFrame(frame);
   }
   rig.go(params.get('view') || 'A'); rig.snap();
   // biên dịch sẵn shader của mọi vật liệu trong cảnh (song song nếu GPU hỗ trợ) trước khi bỏ màn hình chờ: tránh khựng
   // nhiều giây ở khung hình đầu (máy yếu / GPU giả lập phải biên dịch hàng chục chương trình shader một lúc)
-  try { $('loading').textContent = 'Đang chuẩn bị đồ hoạ…'; if (renderer.extensions.has('KHR_parallel_shader_compile')) await renderer.compileAsync(scene, camera); else renderer.compile(scene, camera); } catch (e) { console.warn('compileAsync', e); }
+  try { loading.step('Đang chuẩn bị đồ hoạ…', 82, 97); if (renderer.extensions.has('KHR_parallel_shader_compile')) await renderer.compileAsync(scene, camera); else renderer.compile(scene, camera); } catch (e) { console.warn('compileAsync', e); }
   session.start();
-  $('loading').hidden = true;
+  loading.done();
   requestAnimationFrame(frame);
 
   // ---------- API cho script chụp ảnh / kiểm thử ----------
   window.__app = {
     app, ready: true, session, deskState,
+    get avatars() { return avatars; },   // (kiểm thử: rig từng nhân vật)
+    get pixelRatio() { return renderer.getPixelRatio(); }, quality: QUALITY,   // (kiểm thử: độ phân giải đang vẽ)
     /** (kiểm thử) các vật tia từ điểm màn hình (x, y) chạm vào: tên, nhóm cha, độ cao. */
     rayHits(x, y, n = 6, maxY = Infinity) {
       const r = canvas.getBoundingClientRect(); ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);
@@ -661,9 +701,8 @@ export async function startApp(me, hooks = {}) {
 
 // lỗi dựng cảnh: hiện ngay trên khung 3D
 window.addEventListener('unhandledrejection', e => {
-  const l = $('loading'); if (!l) return;
-  l.hidden = false; l.style.color = '#8a2417';
-  l.textContent = `Không dựng được mô hình: ${e.reason?.message || e.reason}`;
+  if (!$('loading')) return;
+  loading.error(`Không dựng được mô hình: ${e.reason?.message || e.reason}`);
 });
 
 /**
