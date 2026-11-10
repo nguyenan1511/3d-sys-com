@@ -301,7 +301,9 @@ export class Motion {
         p.armR = [p.armR[0] - 0.3 + Math.sin(T * 3) * 0.25, p.armR[1], p.armR[2]]; p.mouth = 'smile';
         return p;
       }
-      case 'game': { const p = chibiPose(P, 'gamepad', T, sitO); return p; }   // máy arcade / tay cầm: nghiêng người theo game
+      case 'game': { const p = chibiPose(P, 'gamepad', T, sitO); return p; }
+      case 'cue': { P.stroke = 0.5 + Math.sin(T * 1.6) * 0.45; const p = chibiPose(P, 'cue', T, sitO); return p; }   // bi-a: cúi người trên cơ, kéo cơ ra vào
+      case 'sing': { const p = chibiPose(P, 'sing', T, sitO); return p; }   // karaoke: cầm mic, đung đưa theo nhạc   // máy arcade / tay cầm: nghiêng người theo game
       default: return null;
     }
   }

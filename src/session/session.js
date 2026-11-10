@@ -21,6 +21,8 @@ import { footprint, seatApproach } from '../model/layoutModel.js';
 import { facingVec } from '../core/util.js';
 import { sound } from '../audio/notify.js';
 import { Props } from '../scene/props.js';
+import { Karaoke } from './karaoke.js';
+import { Billiards } from './billiards.js';
 import { notice } from '../ui/notices.js';
 
 const $ = id => document.getElementById(id);
@@ -68,6 +70,8 @@ export class Session {
     this.guide = app.big && this.player ? new Guide(this) : null;
     this.rt = new Realtime();
     this.social = new Social(this); // chat nội bộ + loa công ty
+    this.ktv = app.big && this.player ? new Karaoke(this) : null;
+    this.bil = app.big && this.player ? new Billiards(this) : null;   // bàn bi-a 2 người (phòng giải trí)   // phòng karaoke (buồng ở tầng trệt)
     this.att = app.big ? new Attendance(this) : null; // chấm công: máy ở sảnh, bản ghi trong ngày
     this.listeners = new Set();
   }
@@ -484,9 +488,14 @@ export class Session {
       // đồ vật dùng được (pha cà phê, máy in, sách, cá, mèo, đèn, game…): tạo khi toà nhà đã dựng xong
       if (!this.props && this.app.bldRoot && this.app.nav) this.props = new Props(this.app, this);
       this.props?.update(dt);
-      const pr = free && !ls && !sofa && !tc && !mc && !gd && !this.props?.busy ? this.props?.near(a.x, a.z, a.f, a.yaw) : null;
+      this.ktv?.update(); this.bil?.update(dt);
+      const kt = free && !ls && !sofa && !tc && !mc && !gd && this.ktv && !this.ktv.inRoom && this.ktv.near(a.x, a.z, a.f);
+      this.nearKtv = kt;
+      const bl = free && !ls && !sofa && !tc && !mc && !gd && !kt && this.bil && !this.bil.mine && this.bil.near(a.x, a.z, a.f) && this.bil.prompt() ? true : false;
+      this.nearBil = bl;
+      const pr = free && !ls && !sofa && !tc && !mc && !gd && !kt && !bl && !this.props?.busy && !this.bil?.mine && !this.ktv?.inRoom ? this.props?.near(a.x, a.z, a.f, a.yaw) : null;
       this.nearProp = pr;
-      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
+      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : kt ? this.ktv.prompt() : bl ? this.bil.prompt() : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
       if (prompt !== this._prompt) { this._prompt = prompt; this.app.setPrompt?.(prompt); }
     }
     if (this.labels.visible) {

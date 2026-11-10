@@ -52,7 +52,7 @@ export class Player {
     if (MOVE[k]) { this.keys[MOVE[k]] = down; e.preventDefault(); if (down) { this.follow(); this.stopPath(); } return; }
     if (!down || e.repeat) return;
     if (k === ' ') { e.preventDefault(); this.jump(); return; }
-    if (k === 'e') { e.preventDefault(); const at = this.session.att; if (!this.seated && !this.sofa && !this.seq && at?.code && at.near(this.agent.x, this.agent.z, this.agent.f)) { at.open(); return; } if (!this.seated && !this.sofa && !this.seq && this.app.musicCorner?.near(this.agent.x, this.agent.z, this.agent.f)) { this.session.social?.openMusic(); return; } const g = this.session.guide; if (!this.seated && !this.sofa && !this.seq && g?.near(this.agent.x, this.agent.z, this.agent.f)) { g.talk(); return; } if (!this.seated && this.session.openLift()) return; const pr = !this.seated && !this.sofa && !this.seq && this.session.nearProp; if (pr && this.session.props?.use(pr)) return; this.toggleSit(); return; }
+    if (k === 'e') { e.preventDefault(); const at = this.session.att; if (!this.seated && !this.sofa && !this.seq && at?.code && at.near(this.agent.x, this.agent.z, this.agent.f)) { at.open(); return; } if (!this.seated && !this.sofa && !this.seq && this.app.musicCorner?.near(this.agent.x, this.agent.z, this.agent.f)) { this.session.social?.openMusic(); return; } const g = this.session.guide; if (!this.seated && !this.sofa && !this.seq && g?.near(this.agent.x, this.agent.z, this.agent.f)) { g.talk(); return; } if (!this.seated && this.session.openLift()) return; if (!this.seated && !this.sofa && !this.seq && this.session.nearKtv) { this.session.ktv.join(); return; } if (!this.seated && !this.sofa && !this.seq && this.session.nearBil) { this.session.bil.join(); return; } const pr = !this.seated && !this.sofa && !this.seq && this.session.nearProp; if (pr && this.session.props?.use(pr)) return; this.toggleSit(); return; }
     if (k === 'escape') { this.setAct(null); return; }
     if (k === 'c') { this.follow(); this.app.rig.recenter = true; return; }
     if ((k === 'v' || k === 'c') && this.app.mode2d) return; // 2D: không có góc nhìn thứ nhất / camera sau lưng
@@ -249,7 +249,7 @@ export class Player {
     if (this.path && this.stuckFor > 1) this.stopPath('stuck');
     a.walkPhase += moved / this.STRIDE * Math.PI;
     if (!rig.fp && speed > 0.05 * this.cs && moving) a.yaw += angDiff(a.yaw, Math.atan2(-mx, -mz)) * Math.min(1, dt * 12);
-    if (moving && (a.act === 'dance' || a.act === 'wave' || PROP_ACTS.includes(a.act)) && !this.path) this.setAct(null);   // (đi đi: thôi dùng đồ vật)
+    if (moving && (a.act === 'dance' || a.act === 'wave' || (PROP_ACTS.includes(a.act) && a.act !== 'sing' && a.act !== 'cue')) && !this.path) this.setAct(null);   // (đi đi: thôi dùng đồ vật)
     if (a.act === 'smoke' && !smokeAllowed(a.x, a.z)) { this.setAct(null); this.session.toast(NO_SMOKING, true); } // đi vào toà nhà thì dập thuốc
     a.walkAmt = Math.min(2, speed / (this.WALK * sk)) * (this.onGround ? 1 : 0.3);
     // nhảy: nhún lấy đà -> bật -> rơi -> nhún khi tiếp đất

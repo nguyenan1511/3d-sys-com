@@ -29,7 +29,7 @@ export function securityHeaders({ production = false, secure = false } = {}) {
     res.set('Referrer-Policy', 'same-origin');
     res.set('X-Frame-Options', 'SAMEORIGIN');
     res.set('Cross-Origin-Opener-Policy', 'same-origin');
-    res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), autoplay=(self "https://www.youtube.com")');
+    res.set('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(), payment=(), autoplay=(self "https://www.youtube.com")');
     if (secure) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     // CSP chỉ bật khi chạy bản build (dev: Vite chèn script nội tuyến để nạp lại nóng)
     // (YouTube: trình phát nhúng cho loa công ty — script API, iframe, ảnh thu nhỏ)

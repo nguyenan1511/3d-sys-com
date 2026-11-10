@@ -26,6 +26,8 @@ export class Realtime {
     };
   }
   get connected() { return this.ws && this.ws.readyState === 1; }
+  /** Gửi một tin bất kỳ (karaoke, bắt tay WebRTC…). */
+  send(obj) { if (this.connected) this.ws.send(JSON.stringify(obj)); }
   /** Gửi vị trí (tối đa 6 lần/giây). */
   sendPos(p) {
     const now = performance.now();
