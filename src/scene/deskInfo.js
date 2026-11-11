@@ -35,6 +35,8 @@ function drawCard(c, info) {
 export class DeskInfoBoards {
   constructor(scene, model) {
     this.model = model; this.group = new THREE.Group(); this.group.name = 'deskInfo'; scene.add(this.group);
+    // mỗi tầng một nhóm con (userData.floor): main.js ẩn cả nhóm khi tầng đó bị sàn che hết (camera ở tầng khác, trong nhà)
+    this.floors = new Map(model.floors.map(f => { const g = new THREE.Group(); g.name = `deskInfo-floor-${f.id}`; g.userData.floor = f.id; this.group.add(g); return [f.id, g]; }));
     this.items = new Map(); this.t = 0; this.simArrive = new Map();
     this.standM = new THREE.MeshStandardMaterial({ color: '#2b2f36', roughness: 0.4, metalness: 0.4 });
   }
@@ -44,7 +46,7 @@ export class DeskInfoBoards {
     const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
     const g = new THREE.Group(), fs = this.model.fs || 1, ry = deg2yaw(d.facing || 0), w = (d.w || 1.5) * fs, dd = (d.d || 0.74) * fs;
     // góc bàn phía ghế, bên phải người ngồi; mặt bảng quay ra sau lưng người ngồi (lối đi), hơi ngửa
-    g.position.set(d.x, this.model.floorY(d.floor) + 0.765 * fs, d.z); g.rotation.y = ry; this.group.add(g);
+    g.position.set(d.x, this.model.floorY(d.floor) + 0.765 * fs, d.z); g.rotation.y = ry; (this.floors.get(d.floor) || this.group).add(g);
     const inner = new THREE.Group(); inner.position.set(w / 2 - 0.2, 0, dd / 2 - 0.1); inner.rotation.y = Math.PI; g.add(inner);
     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.012, 0.09), this.standM); foot.position.set(0, 0.006, 0); inner.add(foot);
     const post = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.02), this.standM); post.position.set(0, 0.06, 0.02); inner.add(post);

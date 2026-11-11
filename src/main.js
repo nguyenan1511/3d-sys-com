@@ -1,4 +1,6 @@
 import { setOfficeFromLayout } from './shared/rules.js';
+import { MODES, getMode, REAL_ENABLED } from './core/mode.js';
+const MODE = getMode(), REAL_MODE = __REAL_SYS__ && REAL_ENABLED && MODE === 'real'; // (__REAL_SYS__: cờ build — tắt thì mã Real SYS bị loại khỏi gói)
 import { buildMyOffice, buildMyCity, updateMyOffice } from './myoffice/boot.js';
 import { setWorldView } from './ui/camera.js';
 import { loadCarKit } from './scene/carKit.js';
@@ -20,6 +22,10 @@ import { buildHouse, buildFence } from './scene/house.js';
 import { buildNeighbors, buildStreet, XL, XR, setStreetSpan, spreadNeighbors } from './scene/street.js';
 import { buildSign } from './scene/logo.js';
 import { buildInterior } from './interior/interior.js';
+import { MatrixFreezer } from './scene/freeze.js';
+import { FloorCuller } from './scene/floorCull.js';
+import { disposeObject } from './scene/dispose.js';
+import { releaseGeometryRam } from './scene/releaseRam.js';
 import { buildDesk, NameplateAtlas } from './interior/deskKit.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildCeilings } from './interior/ceiling.js';
@@ -66,11 +72,26 @@ const DPR = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2.5);
 /** Độ phân giải tối đa: cao → 2,5× (điện thoại) / 2× (máy tính); thấp → 1,5×. */
 const PR_MAX = QUALITY === 'low' ? Math.min(DPR, 1.5) : Math.min(DPR, isMobile ? 2.5 : 2);
 
+/** Thử lại khi mạng chập chờn: lỗi kết nối, quá thời gian, máy chủ quá tải (5xx/429) — tối đa 3 lần, chờ tăng dần. */
+async function retry(fn, bad, tries = 3) {
+  for (let i = 1; ; i++) {
+    let r, err = null;
+    try { r = await fn(); } catch (e) { err = e; }
+    if (!err && !bad(r)) return r;
+    if (i >= tries) { if (err) throw err; return r; }
+    await new Promise(ok => setTimeout(ok, 600 * i * i));
+  }
+}
+const transient = st => st === 0 || st === 408 || st === 429 || st >= 500;
 async function getJson(path) {
-  const r = await fetch(`${BASE}${path}`, { cache: 'no-cache' });
+  const r = await retry(async () => {
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 25000); // (mạng treo: bỏ sau 25 s rồi thử lại)
+    try { return await fetch(`${BASE}${path}`, { cache: 'no-cache', signal: ctl.signal }); } finally { clearTimeout(t); }
+  }, r => transient(r.status));
   if (!r.ok) throw new Error(`Không tải được ${path} (${r.status})`);
   try { return await r.json(); } catch (e) { throw new Error(`${path} không phải JSON hợp lệ: ${e.message}`); }
 }
+const apiGet = path => retry(() => api('GET', path), r => transient(r.status));
 
 /** ?n=40: thêm nhân viên giả để thử tải (không có dữ liệu cá nhân thật). */
 function padEmployees(data, n) {
@@ -85,7 +106,7 @@ function padEmployees(data, n) {
 
 export async function startApp(me, hooks = {}) {
   loading.step('Đang tải dữ liệu văn phòng…', 6, 30);
-  const [, layout, empRaw, seatsRes, equipRes, lookRes, chars] = await Promise.all([loadCarKit(), getJson('data/layout.json'), getJson('data/employees.json'), api('GET', '/api/seats'), api('GET', '/api/equipment'), api('GET', '/api/appearance'), getJson('data/characters.json').catch(() => ({ characters: [] }))]);
+  const [, layout, empRaw, seatsRes, equipRes, lookRes, chars] = await Promise.all([loadCarKit(), __REAL_SYS__ && REAL_MODE ? import('./data/layout.real.json').then(m => m.default) : getJson(MODES[MODE].layout), getJson('data/employees.json'), apiGet(`/api/seats?mode=${MODE}`), apiGet('/api/equipment'), apiGet('/api/appearance'), getJson('data/characters.json').catch(() => ({ characters: [] }))]);
   setCharacterDefs(chars.characters);
   loading.step('Đang dựng toà nhà 3 tầng…', 30, 62);
   setPixelSpecs((await getJson('data/pixel-characters.json').catch(() => ({ characters: [] }))).characters);
@@ -93,6 +114,12 @@ export async function startApp(me, hooks = {}) {
   if (!seatsRes.ok || !equipRes.ok || !lookRes.ok) throw new Error(seatsRes.error || equipRes.error || lookRes.error);
   let empData = params.get('n') ? padEmployees(empRaw, +params.get('n')) : empRaw;
   const model = buildModel(layout);
+  // nhân viên mô phỏng gán sẵn bàn của chế độ kia (mã bàn khác nhau): bỏ bàn, để mô phỏng tự xếp
+  if (REAL_MODE && empData.employees?.length) { // (phòng họp cũng khác mã: dời cuộc họp sang phòng họp tầng 1 của mặt bằng thật)
+    const room0 = [...model.meetingRooms.keys()][0];
+    empData = { ...empData, employees: empData.employees.map(e => ({ ...e, deskId: e.deskId && !model.deskById.has(e.deskId) ? undefined : e.deskId, meetings: (e.meetings || []).map(m => model.meetingRooms.has(m.room) || !room0 ? m : { ...m, room: room0 }) })) };
+  }
+  seatsRes.seats = (seatsRes.seats || []).filter(s => model.deskById.has(s.deskId)); // (server giữ chỗ của cả hai chế độ)
   setOfficeFromLayout(layout);
   const nav = new Navigator(model);
   // nhân viên mô phỏng nhường bàn cho chủ chỗ thật
@@ -112,10 +139,24 @@ export async function startApp(me, hooks = {}) {
   if (SOFT_GL && !PR) renderer.setPixelRatio(0.5);
   renderer.shadowMap.enabled = QUALITY !== 'low' && !SOFT_GL && !isMobile; renderer.shadowMap.type = THREE.PCFShadowMap; // (điện thoại: không bóng đổ — dành sức cho độ phân giải cao)
   renderer.localClippingEnabled = true;
+  // GPU bị thu hồi (máy hết bộ nhớ đồ hoạ, driver khởi động lại, điện thoại chuyển app lâu): three.js tự dựng lại khi trình
+  // duyệt trả ngữ cảnh; trong lúc chờ báo cho người dùng, quá 10 s không về thì mời tải lại trang
+  let glLostT = 0, ramReleased = 0; // (ramReleased: số mesh đã bỏ bản trong RAM — xem releaseRam bên dưới)
+  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); loading.flash('Đang khôi phục đồ hoạ…'); clearTimeout(glLostT); glLostT = setTimeout(() => loading.error('Mất kết nối với bộ xử lý đồ hoạ (GPU).', { hint: 'Đóng bớt tab / ứng dụng nặng rồi bấm Thử lại.' }), 10000); });
+  canvas.addEventListener('webglcontextrestored', () => {
+    clearTimeout(glLostT);
+    // hình tĩnh đã bỏ bản trong RAM (scene/releaseRam.js) không nạp lại lên GPU được: tải lại trang (giữ phiên đăng nhập)
+    if (ramReleased) { loading.flash('Đang tải lại văn phòng…'); setTimeout(() => location.reload(), 300); return; }
+    loading.hideFlash();
+  });
   // thế giới văn phòng của my-office (layout.world = 'my-office'): dùng cảnh của nó làm cảnh chính
   const MYOFFICE = layout.world === 'my-office';
   // ngôi nhà SYSONE 3 tầng với nội thất my-office (layout.world = 'sysone-mo', scripts/import-sysone-layout.mjs)
   const BIG = layout.world === 'sysone-mo';
+  // chế độ Real SYS: đúng mặt bằng thật (layout.real.json, scripts/build-real-layout.mjs) — nội thất dựng từ layout
+  const REAL = __REAL_SYS__ && REAL_ENABLED && layout.world === 'sysone-real';
+  // (Real SYS tắt: không import — mã vỏ nhà thật không nằm trong gói build)
+  const realShell = __REAL_SYS__ && REAL ? await import('./scene/realShell.js') : null, inRealBuilding = (...a) => realShell.inBuilding(...a);
   if (BIG) setStreetSpan(-24.6, 25.1); // toà nhà rộng: con đường dài thêm, nhà hàng xóm dời ra hai bên
   const scene = MYOFFICE ? buildMyOffice(renderer, { plan: layout.plan || 'hq' }) : new THREE.Scene();
   if (!MYOFFICE) scene.background = new THREE.Color(0xe7edf3);
@@ -134,20 +175,20 @@ export async function startApp(me, hooks = {}) {
   if (!MYOFFICE) scene.add(ctx.house, ctx.roofG, ctx.interior);
   if (!MYOFFICE && !CITY) scene.add(ctx.nb, ctx.st); // (dựng nhưng không hiện khi có thành phố — giữ cho các phần khác dùng)
   const clipPlanes = [new THREE.Plane(new THREE.Vector3(1, 0, 0), -XL), new THREE.Plane(new THREE.Vector3(-1, 0, 0), XR)];
-  if (BIG) buildSysoneShell(ctx); else buildHouse(ctx, model);
-  const gate = buildFence(ctx, BIG ? { lot: { x0: -13.3, x1: 13.2, z0: -14.6 } } : {});
+  if (BIG) buildSysoneShell(ctx); else if (REAL) realShell.buildRealShell(ctx, model); else buildHouse(ctx, model);
+  const gate = buildFence(ctx, BIG ? { lot: { x0: -13.3, x1: 13.2, z0: -14.6 } } : REAL ? { lot: { x0: -6.4, x1: 6.4, z0: -13.4 } } : {});
   const nbCol = ctx.COL.length;
   buildNeighbors(ctx);
-  if (BIG) spreadNeighbors(ctx, nbCol, -10, 10);
+  if (BIG) spreadNeighbors(ctx, nbCol, -10, 10); else if (REAL) spreadNeighbors(ctx, nbCol, -3.1, 3.1);
   const street = buildStreet(ctx, clipPlanes);
   const bld = BIG ? buildMyBuilding(renderer, { offset: SHELL.OFFSET, stripDesks: true }) : null;
   const inter = BIG ? moInterior(ctx, model) : buildInterior(ctx, model);
   if (BIG) ctx.interior.add(inter.deskLayer); // bàn dựng theo dụng cụ (bấm chọn được như nhà cũ)
-  if (!BIG) buildCeilings(ctx, model);
+  if (!BIG && !REAL) buildCeilings(ctx, model); // (Real SYS: trần dựng trong realShell)
   const signInfo = await buildSign(ctx, BASE);
   const baseSide = new THREE.MeshLambertMaterial({ color: 0x7d8186 }), baseTop = new THREE.MeshLambertMaterial({ color: 0xcfd1cc });
   // bệ đế (như sân thượng của my-office: cao hơn mặt đường 0.58 m); có thành phố thì phủ hết khu đất trống giữa phố
-  const BP = CITY ? city.SB : { x0: XL, x1: XR, z0: BIG ? -16 : -10.5, z1: 30.5 };
+  const BP = CITY ? city.SB : { x0: XL, x1: XR, z0: BIG ? -16 : REAL ? -13.6 : -10.5, z1: 30.5 };
   const basePlate = new THREE.Mesh(new THREE.BoxGeometry(BP.x1 - BP.x0, 0.57, BP.z1 - BP.z0), [baseSide, baseSide, baseTop, baseSide, baseSide, baseSide]);
   basePlate.position.set((BP.x0 + BP.x1) / 2, -0.315, (BP.z0 + BP.z1) / 2); basePlate.receiveShadow = true; if (!MYOFFICE) scene.add(basePlate);
   if (CITY) scene.add(buildLotGarden(city.SB, { x0: -3.6, x1: 3.55, z0: -7.5, z1: 9.35 }, [0.15, 2.95], ctx.COL)); // sân vườn quanh nhà
@@ -159,7 +200,8 @@ export async function startApp(me, hooks = {}) {
     sun.position.set(20, 40, 32); sun.castShadow = QUALITY !== 'low';
     sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -32, right: 32, top: 32, bottom: -32, near: 1, far: 120 });
     sun.shadow.bias = -0.0008; sun.shadow.normalBias = 0.03; scene.add(sun);
-    for (const f of model.floors) { const pl = new THREE.PointLight(0xfff0d8, 9, 0, 1.6); pl.position.set(0, f.ceiling - 0.4, -1.5); scene.add(pl); }
+    if (REAL) { for (const f of model.floors) if (!f.open) for (const z of [1.2, -3.8, -8.6]) { const pl = new THREE.PointLight(0xfff0d8, 7, 0, 1.6); pl.position.set(0, f.ceiling - 0.4, z); scene.add(pl); } }
+    else for (const f of model.floors) { const pl = new THREE.PointLight(0xfff0d8, 9, 0, 1.6); pl.position.set(0, f.ceiling - 0.4, -1.5); scene.add(pl); }
   }
 
   // bóng đổ rồi gộp mesh tĩnh
@@ -196,11 +238,16 @@ export async function startApp(me, hooks = {}) {
   const moFL = MYOFFICE ? (layout.nav.areas || []).map(a => ({ x0: a.x0 - 0.2, x1: a.x1 + 0.2, z0: a.z0 - 0.2, z1: a.z1 + 0.2, top: 0 })) : null;
   if (BIG) { // va chạm với đồ đạc và vách của my-office (cùng dữ liệu với lưới đi bộ): người không đi xuyên, camera không xuyên vách
     for (const b of layout.nav.blocked || []) { const y = model.floorY(b.floor); ctx.COL.push({ x0: b.x0, x1: b.x1, z0: b.z0, z1: b.z1, y0: y, y1: y + 1.4, low: true }); }
-    for (const w of layout.walls || []) { if (w.openings?.length) continue; const y = model.floorY(w.floor); ctx.COL.push({ x0: w.x0, x1: w.x1, z0: w.z0, z1: w.z1, y0: y, y1: y + 4.0 }); } // (tường vỏ nhà có cửa: đã có từng đoạn)
+    for (const w of layout.walls || []) { if (w.openings?.length) continue; const y = model.floorY(w.floor); ctx.COL.push({ x0: w.x0, x1: w.x1, z0: w.z0, z1: w.z1, y0: y, y1: y + 4.0, glass: w.material === 'glass' }); } // (tường vỏ nhà có cửa: đã có từng đoạn)
   }
-  const rig = new CameraRig(camera, canvas, { COL: moCOL || ctx.COL, FL: moFL || ctx.FL, gateOpen: () => gateT > 0.5, bounds: BIG ? { z0: -16, z1: 30.2 } : null, fixedFollow: BIG, sameSpace: BIG ? (a, C) => { const r = SHELL.shellFloors().inner.find(q => q.floor === (a.f || 0)); if (!r || a.x < r.x0 || a.x > r.x1 || a.z < r.z0 || a.z > r.z1) return true; return C.x > r.x0 + 0.2 && C.x < r.x1 - 0.2 && C.z > r.z0 + 0.2 && C.z < r.z1 - 0.2; } : null });
+  const rig = new CameraRig(camera, canvas, { COL: moCOL || ctx.COL, FL: moFL || ctx.FL, gateOpen: () => gateT > 0.5, bounds: BIG ? { z0: -16, z1: 30.2 } : REAL ? { z0: -13.2, z1: 30.2 } : null, fixedFollow: BIG || REAL, sameSpace: REAL ? (a, C) => { if (!inRealBuilding(a.x, a.z) || (a.f || 0) >= 3) return true; return inRealBuilding(C.x, C.z, 0.1); } : BIG ? (a, C) => { const r = SHELL.shellFloors().inner.find(q => q.floor === (a.f || 0)); if (!r || a.x < r.x0 || a.x > r.x1 || a.z < r.z0 || a.z > r.z1) return true; return C.x > r.x0 + 0.2 && C.x < r.x1 - 0.2 && C.z > r.z0 + 0.2 && C.z < r.z1 - 0.2; } : null });
   if (MYOFFICE) { const a0 = layout.nav.areas[0]; setWorldView(a0); rig.go('A'); rig.snap?.(); }
   let clampIndoorBig = null;
+  if (REAL) clampIndoorBig = (p, a) => { // trong nhà: camera dưới trần tầng đang đứng
+    if (!a) return; const fl = model.floorById.get(a.f || 0);
+    if (!fl || fl.open || !inRealBuilding(a.x, a.z)) { p.y = Math.max(p.y, a.y + 0.25); return; }
+    p.y = Math.min(fl.ceiling - 0.15, p.y);
+  };
   if (BIG) { // người chơi đang trong nhà: camera bám sau lưng luôn ở trong nhà, dưới trần (không lọt ra ngoài qua ô cửa chính)
     const inner = SHELL.shellFloors().inner;
     clampIndoorBig = (p, a) => {
@@ -232,9 +279,10 @@ export async function startApp(me, hooks = {}) {
   const floorSeg = $('floors');
   for (const f of model.floors) { const b = document.createElement('button'); b.dataset.floor = f.id; b.textContent = f.name; floorSeg.appendChild(b); }
   floorSeg.querySelectorAll('button').forEach(b => b.onclick = () => { app.autoCut = false; rig.follow = null; app.onFollowChange?.(false); const f = b.dataset.floor === 'all' ? null : +b.dataset.floor; setCut(f); if (f !== null && !rig.follow) floorView(f); });
-  function floorView(f) { if (rig.follow) { rig.follow = null; app?.onFollowChange?.(false); } if (BIG) rig.view(0.35, 0.72, 31, [1.15, model.floorY(f) + 0.5, -4.3]); else rig.view(0.35, 0.62, 19, [0, model.floorY(f) + 0.5, -1.4]); }
+  function floorView(f) { if (rig.follow) { rig.follow = null; app?.onFollowChange?.(false); } if (BIG) rig.view(0.35, 0.72, 31, [1.15, model.floorY(f) + 0.5, -4.3]); else if (REAL) rig.view(0.35, 0.7, 24, [0, model.floorY(f) + 0.5, -3.4]); else rig.view(0.35, 0.62, 19, [0, model.floorY(f) + 0.5, -1.4]); }
 
   // ---------- app ----------
+  let deskSig = null; // (chữ ký cấu hình bàn đã dựng — app.rebuildDesks)
   const app = {
     model, nav, rig, debug, renderer, scene, camera, sim, staff, empData, signInfo, mergeInfo, quality: QUALITY, street,
     speed: +(params.get('speed') || 10), paused: params.has('paused'), autoCut: false,
@@ -269,8 +317,14 @@ export async function startApp(me, hooks = {}) {
       panel.showErrors(next.errors, [...msgs, ...next.warnings, `Đã nhập ${name}: cập nhật ${applied.updated} người.`]);
       panel.renderList(true);
     },
-    meConfig: me.config, outerBlinds: ctx.outerBlinds, big: BIG,
-    rebuildDesks() { inter.rebuildDesks(d => session.equipFor(d), { receiveShadow: QUALITY !== 'low' }); if (cutFloor !== null) setCut(cutFloor); },
+    meConfig: me.config, outerBlinds: ctx.outerBlinds, big: BIG, real: REAL,
+    rebuildDesks(force = false) {
+      // dựng lại cả lớp bàn (vài trăm ms, máy yếu 1–2 s — khựng hình) chỉ khi cấu hình bàn thật sự đổi: tin "seats" đến mỗi khi
+      // bất kỳ ai nhận/trả chỗ, và lúc vào trang server gửi lại đúng dữ liệu vừa tải (trước đây dựng lại hai lần)
+      const sig = model.desks.map(d => { const e = session.equipFor(d) || {}; return JSON.stringify(BIG ? e.equipment ?? null : [e.equipment ?? null, e.nameplate ?? null]); }).join('|');
+      if (!force && sig === deskSig) return; deskSig = sig;
+      inter.rebuildDesks(d => session.equipFor(d), { receiveShadow: QUALITY !== 'low' }); if (cutFloor !== null) setCut(cutFloor); app.freezer?.add(scene, o => o.name === 'avatars' || o.name === 'nameTags'); app.releaseRam?.();
+    },
     showFloor(f, moveCam = true) { app.autoCut = false; setCut(f); if (moveCam && f !== null) floorView(f); },
     cutFloor: () => cutFloor,
     followTarget(a) { if (rig.walkMode) rig.setWalk(false); rig.follow = a; rig.G.r = 8; rig.G.ph = 0.95; app.autoCut = true; },
@@ -306,7 +360,7 @@ export async function startApp(me, hooks = {}) {
     sim = new Simulation(model, nav, staff, { start: '06:00' });
     sim.advanceTo(t);
     app.sim = sim; debug.sim = sim;
-    scene.remove(avatars.group);
+    scene.remove(avatars.group); disposeObject(avatars.group); // (giải phóng GPU của bộ nhân vật cũ)
     avatars = new AvatarSystem(scene, Math.max(1, sim.agents.length), QUALITY, { scale: model.cs, seatH: layout.scale?.seatHip ?? 0.53 * model.fs, moStaff: characterDef('mo-nam') }); avatars.setColors(sim.agents);
     app.select(null);
   }
@@ -473,10 +527,10 @@ export async function startApp(me, hooks = {}) {
   // gợi ý phím: một dòng 3 phím chính + nút "Phím tắt" (mở cửa sổ đầy đủ)
   const keyCaps = k => k.split(' ').map(x => `<span class="key">${x}</span>`).join('');
   const keyFull = rows => '<ul class="keylist">' + rows.map(([k, t]) => `<li><span class="keys">${keyCaps(k)}</span><span class="what">${t}</span></li>`).join('') + '</ul>';
-  const keyLine = rows => `<span class="keys-short">${rows.slice(0, 3).map(([k, t]) => `<span class="ks">${keyCaps(k)}<span class="what">${t}</span></span>`).join('')}</span><button type="button" class="keys-btn" onclick="window.__app.app.openKeys()" title="Xem tất cả phím tắt và động tác">${icon('keyboard')} Phím tắt</button>`;
-  const KEYROWS3D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['B', 'Về bàn làm việc (tự đi tới và ngồi)'], ['T', 'Chat nội bộ'], ['Space', 'Nhảy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['V', 'Góc nhìn thứ nhất / thứ ba'], ['C', 'Đưa camera về sau lưng'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Kéo', 'Xoay camera (thả tay camera trôi nhẹ rồi dừng)'], ['Cuộn + −', 'Phóng to / thu nhỏ'], ['2 ngón', 'Điện thoại: chụm để zoom, kéo ngang để xoay'], ['Esc', 'Dừng động tác']];
-  const KEYROWS2D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Chuột', 'Bấm bàn để xem chủ chỗ'], ['Cầu thang', 'Đi vào cầu thang để lên / xuống tầng'], ['Esc', 'Dừng động tác']];
-  const KEYS3D = keyLine(KEYROWS3D), KEYS2D = keyLine(KEYROWS2D);
+  const keyLine = (rows, n = 3) => `<span class="keys-short">${rows.slice(0, n).map(([k, t]) => `<span class="ks">${keyCaps(k)}<span class="what">${t}</span></span>`).join('')}</span><button type="button" class="keys-btn" onclick="window.__app.app.openKeys()" title="Xem tất cả phím tắt và động tác">${icon('keyboard')} Phím tắt</button>`;
+  const KEYROWS3D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['B', 'Về bàn làm việc (tự đi tới và ngồi)'], ['T', 'Chat nội bộ'], ['Space', 'Nhảy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['V', 'Góc nhìn thứ nhất / thứ ba'], ['C', 'Đưa camera về sau lưng'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Kéo', 'Xoay camera — khi đang xem xung quanh (Esc)'], ['Cuộn + −', 'Phóng to / thu nhỏ'], ['2 ngón', 'Điện thoại: chụm để zoom, kéo ngang để xoay'], ['Esc', 'Xem xung quanh bằng chuột (bật / tắt) · đi tiếp: camera theo lại sau lưng']];
+  const KEYROWS2D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Chuột', 'Bấm bàn để xem chủ chỗ'], ['Cầu thang', 'Đi vào cầu thang để lên / xuống tầng'], ['Esc', 'Xem xung quanh bằng chuột (bật / tắt) · đi tiếp: camera theo lại sau lưng']];
+  const KEYS3D = keyLine([...KEYROWS3D.slice(0, 3), ['Esc', 'Xem xung quanh']], 4), KEYS2D = keyLine(KEYROWS2D); // (3D: thêm Esc — xoay camera bằng chuột)
   { const k = document.querySelector('.hud-keys'); if (k) k.innerHTML = KEYS3D; }
   // chuyển 2D/3D có mờ chuyển cảnh ~0.2 s; luôn theo chế độ đích MỚI NHẤT (đổi nhanh liên tiếp không bị kẹt sai chế độ)
   let modeTarget = false, modeTimer = 0;
@@ -526,14 +580,41 @@ export async function startApp(me, hooks = {}) {
     if (adapt.low >= 4) {
       adapt.low = 0;
       if (cur > 1.01) { renderer.setPixelRatio(Math.max(1, cur - 0.25)); resize(); if (adapt.last > 0) adapt.flips++; adapt.last = -1; }
+      else if (renderer.shadowMap.enabled) { // đã ở 1× mà vẫn chậm: tắt bóng đổ ngay (lượt vẽ bóng tốn gần gấp đôi draw call)
+        renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
+      }
       else if (f < 30) { try { sessionStorage.setItem('sysone.quality', 'low'); } catch { /* */ } }
     } else if (adapt.high >= 10 && cur < PR_MAX - 0.01 && adapt.flips < 3) {
       adapt.high = 0; renderer.setPixelRatio(Math.min(PR_MAX, cur + 0.25)); resize(); if (adapt.last < 0) adapt.flips++; adapt.last = 1;
     }
   }
   let last = performance.now(), fps = 60, frames = 0, perfT = 0, cutCheck = 0;
+  // tab ẩn: trình duyệt tự dừng requestAnimationFrame (không vẽ, không tốn pin). Quay lại: tính giờ từ lúc đó, bỏ qua bộ đếm
+  // khung hình cũ (không để khoảng nghỉ làm thuật toán tự hạ độ phân giải tưởng máy chậm)
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) { last = performance.now(); frames = 0; perfT = 0; adapt.low = adapt.high = 0; } });
   // bản đồ nhỏ góc dưới bên phải (cảnh 3D)
   const minimap = session.player ? new Minimap($('appRoot'), app) : null;
+  // nhãn nhỏ cho biết chế độ camera (bám theo / xem xung quanh) — hiện vài giây khi đổi chế độ, mờ dần
+  if (session.player) {
+    const hint = document.createElement('div'); hint.className = 'cam-hint'; hint.setAttribute('role', 'status'); canvas.parentElement.appendChild(hint);
+    const touch = isTouchUI(); let hideT = 0;
+    const show = (on, nudge = false) => {
+      if (nudge) { // kéo chuột khi camera đang bám theo: nhắc cách xoay
+        hint.innerHTML = '<kbd>Esc</kbd> <b>để xoay camera bằng chuột</b> · đi tiếp: camera tự theo lại';
+        hint.classList.remove('look'); hint.classList.add('show', 'nudge'); clearTimeout(hideT);
+        hideT = setTimeout(() => hint.classList.remove('show', 'nudge'), 3500); return;
+      }
+      hint.classList.remove('nudge');
+      hint.innerHTML = on ? (touch ? '<b>Xem xung quanh</b> · đi để camera theo lại' : '<b>Đang xem xung quanh</b> · kéo chuột để xoay · đi tiếp hoặc <kbd>Esc</kbd> để camera theo lại')
+        : (touch ? '<b>Camera theo bạn</b> · vuốt để xem xung quanh' : '<b>Camera theo nhân vật</b> · <kbd>Esc</kbd> để xem xung quanh bằng chuột');
+      hint.classList.toggle('look', on); hint.classList.add('show'); clearTimeout(hideT);
+      hideT = setTimeout(() => hint.classList.remove('show'), on ? 4000 : 2600);
+    };
+    rig.onLookModeChange = on => show(on);
+    if (!touch) rig.onDragInFollow = () => show(false, true);
+    // lần đầu vào: cho biết cách xem xung quanh (lâu hơn bình thường)
+    setTimeout(() => { if (rig.follow === session.player.agent && !rig.lookMode) { show(false); clearTimeout(hideT); hideT = setTimeout(() => hint.classList.remove('show'), 6000); } }, 1500);
+  }
   if (session.player && isTouchUI()) app.touch = new TouchControls(app, session); // điện thoại: cần điều khiển + nút Tương tác / Nhảy / Về bàn
   // nhãn tên + phòng ban trên đầu mọi người (thay nhãn cũ của người online)
   const tags = new NameTags(scene, canvas.parentElement); session.remote.tags.visible = false;
@@ -658,6 +739,8 @@ export async function startApp(me, hooks = {}) {
     updateTags();
     if (++followCheck % 6 === 1) updateFollowBtn();
     // (kiểm thử trên GPU giả lập: window.__RENDER_EVERY_MS — chỉ vẽ thưa; logic vẫn chạy đủ, ma trận vẫn cập nhật cho việc bấm chuột)
+    floorCull.update(camera.position, cutFloor, session.player?.agent);
+    freezer.sync(); // (vật đứng yên: không tính lại ma trận; vật vừa đổi chỗ thì tính — scene/freeze.js)
     const every = window.__RENDER_EVERY_MS || 0, drawNow = !every || now - lastDraw >= every;
     if (!drawNow) scene.updateMatrixWorld();
     else if (!(app.dashboard && !app.dashboard.el.hidden)) { lastDraw = now; renderer.render(scene, camera); tags.render(scene, camera); tv?.render(camera); } // bảng quản trị phủ gần kín màn hình: không vẽ cảnh 3D bên dưới
@@ -667,6 +750,28 @@ export async function startApp(me, hooks = {}) {
     requestAnimationFrame(frame);
   }
   rig.go(params.get('view') || 'A'); rig.snap();
+  // ma trận của vật đứng yên: đóng băng (bỏ ~18% CPU mỗi khung hình), vật nào đổi chỗ thì tự cập nhật. Nhân vật (xương
+  // đổi mỗi khung hình) không đóng băng. Lượt thứ hai sau vài giây: đồ dựng muộn (khi phiên làm việc đã chạy).
+  const freezer = new MatrixFreezer(), noFreeze = o => o.name === 'avatars' || o.name === 'nameTags';
+  // tầng bị sàn che (camera trong nhà ở tầng khác, hoặc trên mặt cắt): không vẽ — bớt ~1/3 draw call (scene/floorCull.js)
+  const innerRects = BIG ? SHELL.shellFloors().inner : null;
+  const floorCull = new FloorCuller(model, { cameraFloor: C => {
+    for (const f of model.floors) {
+      if (f.open || C.y < model.floorY(f.id) - 0.2 || C.y > f.ceiling + 0.2) continue;
+      if (BIG) { const r = innerRects.find(q => q.floor === f.id); return r && C.x > r.x0 && C.x < r.x1 && C.z > r.z0 && C.z < r.z1 ? f.id : null; }
+      if (REAL) return inRealBuilding(C.x, C.z) ? f.id : null;
+      return null;
+    }
+    return null;
+  } });
+  const registerFloorParts = () => {
+    if (BIG) bld.floors.forEach((g, i) => floorCull.add(g, i)); // nội thất my-office: mỗi tầng một nhóm
+    for (const n of ['blinds', 'deptSigns']) floorCull.addChildrenByBox(scene.getObjectByName(n));
+    if (deskInfo) for (const [f, g] of deskInfo.floors) floorCull.add(g, f);
+  };
+  registerFloorParts(); freezer.add(scene, noFreeze);
+  setTimeout(() => { registerFloorParts(); freezer.add(scene, noFreeze); }, 4000);
+  app.freezer = freezer; app.floorCull = floorCull;
   // biên dịch sẵn shader của mọi vật liệu trong cảnh (song song nếu GPU hỗ trợ) trước khi bỏ màn hình chờ: tránh khựng
   // nhiều giây ở khung hình đầu (máy yếu / GPU giả lập phải biên dịch hàng chục chương trình shader một lúc)
   try { loading.step('Đang chuẩn bị đồ hoạ…', 82, 97); if (renderer.extensions.has('KHR_parallel_shader_compile')) await renderer.compileAsync(scene, camera); else renderer.compile(scene, camera); } catch (e) { console.warn('compileAsync', e); }
@@ -692,7 +797,7 @@ export async function startApp(me, hooks = {}) {
     pause(p = true) { app.paused = p; panel.syncSpeed(); },
     debug(kind, on) { debug.setVisible(kind, on); },
     follow(id) { const a = sim.byId.get(id); app.select(a, true); },
-    render() { avatars.update(sim.agents); debug.update(cutFloor); rig.update(0.016); rig.snap(); rig.update(0.016); renderer.render(scene, camera); },
+    render() { avatars.update(sim.agents); debug.update(cutFloor); freezer.sync(); rig.update(0.016); rig.snap(); rig.update(0.016); renderer.render(scene, camera); },
     stats() { const s = sim.summary(); return { t: sim.t, byFloor: Object.fromEntries(s.byFloor), byState: s.byState, problems: sim.problems.slice(0, 20), errors: staff.errors, sign: signInfo, merge: mergeInfo, calls: renderer.info.render.calls, tris: renderer.info.render.triangles }; },
     fps: () => fps,
     presets: Object.keys(PRESETS)
@@ -701,7 +806,8 @@ export async function startApp(me, hooks = {}) {
 
 // lỗi dựng cảnh: hiện ngay trên khung 3D
 window.addEventListener('unhandledrejection', e => {
-  if (!$('loading')) return;
+  // chỉ khi đang dựng cảnh (chưa vào được văn phòng); lỗi lặt vặt lúc đang dùng không được phủ kín màn hình
+  if (!$('loading') || window.__app?.ready) return;
   loading.error(`Không dựng được mô hình: ${e.reason?.message || e.reason}`);
 });
 

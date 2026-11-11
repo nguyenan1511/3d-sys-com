@@ -24,6 +24,8 @@ import { Props } from '../scene/props.js';
 import { Karaoke } from './karaoke.js';
 import { Billiards } from './billiards.js';
 import { notice } from '../ui/notices.js';
+import { MODES, getMode, switchMode, REAL_ENABLED } from '../core/mode.js';
+const MODE = getMode(), COMPACT = '(max-width: 760px), (max-height: 500px) and (max-width: 1100px)';
 
 const $ = id => document.getElementById(id);
 
@@ -46,7 +48,8 @@ export class Session {
     this.app = app; this.me = me; this.hooks = hooks;
     this.isAdmin = me.kind === 'admin';
     this.key = this.isAdmin ? `admin:${me.admin.username}` : `employee:${me.employee.code}`;
-    this.seats = new Map(seats.map(s => [s.deskId, s]));
+    this.inMode = s => !!s && app.model.deskById.has(s.deskId); // chỉ chỗ của chế độ đang mở (server giữ chỗ của cả hai chế độ)
+    this.seats = new Map(seats.filter(this.inMode).map(s => [s.deskId, s]));
     this.schema = equipment;
     this.appearance = appearance;
     this.online = [];
@@ -57,7 +60,7 @@ export class Session {
     this.remote.setSelf(this.key);
     this.toast = toast;
     this.fx = new SmokeFX(app.scene);
-    this.blinds = new Blinds(app.scene, app.model, app.outerBlinds || [], { big: app.big });
+    this.blinds = new Blinds(app.scene, app.model, app.outerBlinds || [], { big: app.big, real: app.real });
     this.lift = app.big ? new Elevator(app.scene) : null; // thang máy (toà nhà lớn)
     this.tv = app.big ? new LoungeTv(app.model) : null;   // sofa xem TV ở khu giải trí
     // mỗi người (cả CEO) điều khiển nhân vật của mình (góc nhìn thứ ba); CEO dùng nhân vật cố định mặc vest
@@ -72,7 +75,7 @@ export class Session {
     this.social = new Social(this); // chat nội bộ + loa công ty
     this.ktv = app.big && this.player ? new Karaoke(this) : null;
     this.bil = app.big && this.player ? new Billiards(this) : null;   // bàn bi-a 2 người (phòng giải trí)   // phòng karaoke (buồng ở tầng trệt)
-    this.att = app.big ? new Attendance(this) : null; // chấm công: máy ở sảnh, bản ghi trong ngày
+    this.att = app.big || app.real ? new Attendance(this) : null; // chấm công: máy ở sảnh, bản ghi trong ngày
     this.listeners = new Set();
   }
   onSeats(fn) { this.listeners.add(fn); }
@@ -98,13 +101,13 @@ export class Session {
       if (this.seated && !m.presence.some(p => p.key === this.key && p.seated === this.seated)) api('POST', `/api/seats/${encodeURIComponent(this.seated)}/sit`, {}).then(r => { if (!r.ok) { this.seated = null; this.renderSeatBox(); } });
       this.online = m.online; this.renderOnline();
       this.known = new Set(m.online.map(o => o.key));
-      for (const p of m.presence) this.remote.upsert(p);
+      for (const p of m.presence) if ((p.mode || 'office') === MODE) this.remote.upsert(p);
       for (const [id, open] of Object.entries(m.blinds || {})) this.blinds.set(id, open, true);
       this.synced = true; // đã nhận trạng thái chung (chỗ ngồi, rèm…) từ server
     });
     this.rt.on('blind', m => { const it = this.blinds.byId.get(m.id); if (it && it.open !== m.open) { this.blinds.set(m.id, m.open); if (m.by) toast(`${m.by} ${m.open ? 'kéo' : 'hạ'} ${it.name.toLowerCase()}.`); } });
     this.rt.on('online', m => { this.announceArrivals(m.list); this.online = m.list; this.renderOnline(); for (const k of [...this.remote.byKey.keys()]) if (k !== 'guide' && !m.list.some(o => o.key === k)) this.remote.remove(k); }); // (chị hướng dẫn chỉ có trên máy mình, không nằm trong danh sách online)
-    this.rt.on('positions', m => { for (const p of m.list) { if (p.key === this.key) this.syncSelf(p); this.remote.upsert(p); } });
+    this.rt.on('positions', m => { for (const p of m.list) { if (p.key === this.key) this.syncSelf(p); if ((p.mode || 'office') === MODE) this.remote.upsert(p); else if (p.key !== this.key) this.remote.remove(p.key); } }); // (người ở chế độ kia: không hiện trong cảnh này)
     this.rt.on('gone', m => this.remote.remove(m.key));
     this.rt.on('seats', m => this.applySeats(m.list, m.full));
     this.rt.on('kick', m => this.hooks.logout?.(m.reason));
@@ -115,7 +118,9 @@ export class Session {
 
   /** Lần đầu: tạo hình nhân vật (bắt buộc) rồi chọn chỗ; có chỗ rồi thì vào là ngồi luôn. */
   async firstSteps() {
-    if (!this.isAdmin && !this.me.employee.look) await this.editLook(true);
+    // chọn nhân vật chỉ khi chưa từng chọn, hoặc nhân vật đã lưu không còn trong bộ (server đánh dấu _repick); đã chọn rồi thì
+    // lần nào vào cũng dùng lại nhân vật đã lưu trên tài khoản (mọi thiết bị)
+    if (!this.isAdmin && (!this.me.employee.look || this.me.employee.look._repick)) await this.editLook(true);
     const mine = this.mySeat;
     if (mine) await this.sit(mine.deskId, { quiet: true, place: true });
     else if (!this.isAdmin && this.guide && !window.__NO_GUIDE) { this.player.follow(); this.guide.startAtGate(); return; } // người mới: bắt đầu trước cổng công ty; vào sảnh thì chị hướng dẫn đón và dẫn tới bàn (nhân viên không tự chọn chỗ)
@@ -125,7 +130,7 @@ export class Session {
   async editLook(required = false) {
     const look = await openAvatarEditor({
       schema: this.appearance, look: this.me.employee.look, display: this.me.employee.display, required,
-      title: required ? 'Chào mừng! Chọn nhân vật của bạn' : 'Nhân vật của tôi',
+      title: required ? (this.me.employee.look?._repick ? 'Nhân vật cũ của bạn không còn — chọn nhân vật mới' : 'Chào mừng! Chọn nhân vật của bạn') : 'Nhân vật của tôi',
       save: async look => { const r = await api('PUT', '/api/me/look', { look }); return r.ok ? { ok: true, look: r.look } : { ok: false, error: r.error }; }
     });
     if (look) {
@@ -137,9 +142,17 @@ export class Session {
   }
 
   /** Server báo mình đã bị đứng dậy (vd. chỗ bị khóa/giải phóng). */
-  syncSelf(p) { if (this.seated && !p.seated) { this.seated = null; this.player?.standUp(); toast('Bạn không còn ngồi ở chỗ đó.', true); this.renderSeatBox(); } }
+  syncSelf(p) {
+    if (this.seated && !p.seated) { this.seated = null; this.player?.standUp(); toast('Bạn không còn ngồi ở chỗ đó.', true); this.renderSeatBox(); }
+    // nhân vật vừa đổi ở thiết bị khác (cùng tài khoản): cập nhật ngay, không cần tải lại trang
+    if (p.look && this.me.employee && !this.isAdmin) {
+      const sig = JSON.stringify(p.look);
+      if (sig !== this._lookSig) { this._lookSig = sig; if (sig !== JSON.stringify(this.me.employee.look)) { this.me.employee.look = p.look; if (this.player) { this.player.agent.emp.look = p.look; this.remote.refreshColors(); } } }
+    }
+  }
 
   applySeats(list, full) {
+    list = list.filter(this.inMode);
     if (full) this.seats = new Map(list.map(s => [s.deskId, s]));
     else for (const s of list) this.seats.set(s.deskId, s);
     // bản nháp ở chỗ vừa bị người khác nhận
@@ -159,7 +172,7 @@ export class Session {
     const bar = $('sessionBar');
     const who = this.isAdmin ? `CEO · ${esc(this.me.admin.username)}` : esc(this.me.employee.display);
     // kiểu agent-office: bảng tên văn phòng bên trái, dock nút + menu ☰ bên phải
-    bar.innerHTML = `<div class="project panel"><div class="proj-id"><img src="logo/sysone-logo.svg" alt="SYSONE" class="bar-logo" width="174" height="20">
+    bar.innerHTML = `<div class="project panel"><div class="proj-id"><div class="proj-top"><img src="logo/sysone-logo.svg" alt="SYSONE" class="bar-logo" width="174" height="20">${REAL_ENABLED || MODE !== 'office' ? `<div class="mode-sw" role="group" aria-label="Chế độ văn phòng">${Object.values(MODES).map(m => `<button type="button" data-mode="${m.id}" class="${MODE === m.id ? 'on' : ''}" aria-pressed="${MODE === m.id}" title="${m.hint}">${m.name}</button>`).join('')}</div>` : ''}</div>
         <div class="project-meta"><span class="who">${who}</span><span class="badge">${this.isAdmin ? 'Quản trị' : 'Nhân viên'}</span><span class="addr">33 Dương Quang Đông</span><span class="hdr-online" title="Số người đang online"><i aria-hidden="true"></i><b>0</b><span class="sr-only"> người đang online</span></span></div></div></div>
       <nav class="dock" aria-label="Văn phòng">
       ${this.isAdmin ? `<button id="btnDash" class="dock-btn">${icon('clipboard')} <span class="lbl">Bảng quản trị</span></button><button id="btnPw" class="dock-btn">${icon('key')} <span class="lbl">Đổi mật khẩu</span></button>` : ''}
@@ -170,6 +183,7 @@ export class Session {
       <button id="btnLogout" class="dock-btn">${icon('logout')} <span class="lbl">Đăng xuất</span></button></nav>`;
     $('view2d')?.addEventListener('click', () => this.app.setView('2d')); $('view3d')?.addEventListener('click', () => this.app.setView('3d'));
     $('btnLogout').onclick = () => this.hooks.logout?.();
+    bar.querySelectorAll('.mode-sw button').forEach(b => { b.onclick = () => { if (b.dataset.mode !== MODE) switchMode(b.dataset.mode); else if (matchMedia(COMPACT).matches) switchMode(Object.keys(MODES).find(k => k !== MODE)); }; }); // (điện thoại: chỉ hiện chế độ đang dùng — bấm để đổi)
     $('btnLook')?.addEventListener('click', () => this.editLook(false));
     const co = $('cOwners'); co.checked = !!this.showOwners;
     co.onchange = e => { this.showOwners = e.target.checked; this.labels.visible = this.showOwners || this.selecting; };

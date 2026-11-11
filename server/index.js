@@ -2,9 +2,9 @@
 import http from 'http';
 import path from 'path';
 import fs from 'fs';
-import express from 'express';
 import { config, ROOT } from './config.js';
 import { createApp } from './app.js';
+import { compressedStatic } from './static.js';
 
 const { app, finish, hub, close } = await createApp(config);
 const server = http.createServer(app);
@@ -12,7 +12,7 @@ const server = http.createServer(app);
 if (config.production) {
   const dist = path.join(ROOT, 'dist');
   if (!fs.existsSync(dist)) { console.error('Chưa có dist/. Chạy "npm run build" trước.'); process.exit(1); }
-  app.use(express.static(dist, { index: 'index.html' }));
+  app.use(compressedStatic(dist)); // (nén brotli/gzip, tệp có mã băm giữ 1 năm)
 } else {
   const { createServer } = await import('vite');
   // tên miền được phép khi chạy dev (Vite chặn tên miền lạ): đường hầm ngrok + DEV_ALLOWED_HOSTS (cách nhau bằng dấu phẩy)

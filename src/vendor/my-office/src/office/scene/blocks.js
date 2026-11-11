@@ -11,7 +11,7 @@ export const lampBulbs = [];
 const asMat = (m) => (m && m.isMaterial ? m : mat(m));
 export function rbox(w, h, d, m, r = 0.05) {
   const rr = Math.max(0.001, Math.min(r, w / 2 - 0.001, h / 2 - 0.001, d / 2 - 0.001));
-  const mesh = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, rr), asMat(m));
+  const mesh = new THREE.Mesh(new RoundedBoxGeometry(w, h, d, 2, rr), asMat(m)); // (SYSONE: bản nhanh — vite.config.js)
   mesh.castShadow = mesh.receiveShadow = true; return mesh;
 }
 export function cyl(rt, rb, h, m, seg = 20) { const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, seg), asMat(m)); mesh.castShadow = mesh.receiveShadow = true; return mesh; }

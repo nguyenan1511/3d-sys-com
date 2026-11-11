@@ -1,5 +1,4 @@
 // Lưới điều hướng theo từng tầng, dựng từ layout (vùng đi được trừ vật cản), A* 8 hướng.
-import { inRect } from '../core/util.js';
 
 class Heap {
   constructor() { this.k = []; this.v = []; }
@@ -40,13 +39,20 @@ export class FloorGrid {
     const N = this.nx * this.nz;
     const walk = new Uint8Array(N);
     const obs = model.obstacles.get(floorId) || [];
-    for (let j = 0; j < this.nz; j++) for (let i = 0; i < this.nx; i++) {
-      const x = this.x0 + (i + 0.5) * this.c, z = this.z0 + (j + 0.5) * this.c;
-      let ok = false;
-      for (const a of areas) if (inRect(a, x, z)) { ok = true; break; }
-      if (ok) for (const o of obs) if (inRect(o, x, z)) { ok = false; break; }
-      walk[j * this.nx + i] = ok ? 1 : 0;
-    }
+    // ô đi được = tâm ô nằm trong một vùng đi được và không nằm trong vật cản nào. Tô từng hình chữ nhật lên lưới
+    // (vùng: 1, rồi vật cản: 0) thay vì xét mọi vật cản cho mọi ô — kết quả y hệt (cùng phép so sánh tâm ô, có tính mép),
+    // nhanh hơn hàng chục lần với vài nghìn vật cản (lúc tải trang trên điện thoại yếu).
+    const xs = new Float64Array(this.nx), zs = new Float64Array(this.nz);
+    for (let i = 0; i < this.nx; i++) xs[i] = this.x0 + (i + 0.5) * this.c;
+    for (let j = 0; j < this.nz; j++) zs[j] = this.z0 + (j + 0.5) * this.c;
+    const lo = (arr, v) => { let a = 0, b = arr.length; while (a < b) { const m = (a + b) >> 1; if (arr[m] < v) a = m + 1; else b = m; } return a; }; // ô đầu tiên có tâm ≥ v
+    const hi = (arr, v) => { let a = 0, b = arr.length; while (a < b) { const m = (a + b) >> 1; if (arr[m] <= v) a = m + 1; else b = m; } return a; }; // sau ô cuối có tâm ≤ v
+    const fill = (r, val) => {
+      const i0 = lo(xs, r.x0), i1 = hi(xs, r.x1), j0 = lo(zs, r.z0), j1 = hi(zs, r.z1);
+      for (let j = j0; j < j1; j++) walk.fill(val, j * this.nx + i0, j * this.nx + Math.max(i0, i1));
+    };
+    for (const a of areas) fill(a, 1);
+    for (const o of obs) fill(o, 0);
     this.walk = walk;
     this.dist = this._distance(walk);
     this.g = new Float32Array(N); this.par = new Int32Array(N); this.stamp = new Uint32Array(N); this.closed = new Uint32Array(N); this.gen = 0;
@@ -218,6 +224,7 @@ export class Navigator {
         if (!flat(cur, st.pEntry)) return null;
         pts[pts.length - 1].ev = { stair: st.id, enter: true, dir };
         pts.push({ ...st.pBottom, f: st.from, s: st.id });
+        for (const v of st.pVia || []) pts.push({ ...v, f: st.from, s: st.id }); // (thang chữ U: qua chiếu nghỉ)
         pts.push({ ...st.pTop, f: st.to, s: st.id });
         pts.push({ ...st.pExit, f: st.to, ev: { stair: st.id, leave: true } });
         cur = st.pExit;
@@ -225,6 +232,7 @@ export class Navigator {
         if (!flat(cur, st.pExit)) return null;
         pts[pts.length - 1].ev = { stair: st.id, enter: true, dir };
         pts.push({ ...st.pTop, f: st.to, s: st.id });
+        for (const v of [...(st.pVia || [])].reverse()) pts.push({ ...v, f: st.from, s: st.id });
         pts.push({ ...st.pBottom, f: st.from, s: st.id });
         pts.push({ ...st.pEntry, f: st.from, ev: { stair: st.id, leave: true } });
         cur = st.pEntry;

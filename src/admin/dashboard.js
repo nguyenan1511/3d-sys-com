@@ -35,7 +35,7 @@ export class Dashboard {
     const r = await api('GET', '/api/admin/employees');
     if (seq !== this._seq) return;
     if (!r.ok) { toast(r.error, true); return; }
-    this.employees = r.employees;
+    this.employees = this.app.real ? r.employees.map(e => ({ ...e, seat: e.seatReal })) : r.employees; // (Real SYS: chỗ theo mặt bằng thật)
     this.render();
   }
 

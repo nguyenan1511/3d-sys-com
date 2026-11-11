@@ -8,6 +8,7 @@ import { buildModel } from '../src/model/layoutModel.js';
 import { parseLogin, nameKey, displayOf, normalizeText } from '../src/shared/identity.js';
 import { normalizeEquipment, defaultEquipment, normalizeBySchema } from '../src/shared/equipment.js';
 import { audit } from './db.js';
+import { modeOfDesk } from '../src/core/mode.js';
 
 export class HttpError extends Error {
   constructor(status, message, extra) { super(message); this.status = status; this.extra = extra; }
@@ -41,30 +42,41 @@ export class Store {
   /** Ngoại hình đã lưu theo bộ nhân vật cũ (VRM, con vật, pixel cũ, kiểu áo…): đưa về lựa chọn hiện có trong appearance.json. */
   migrateLooks() {
     if (!this.db) return 0;
-    let n = 0;
+    let n = 0, repick = 0;
+    const models = new Set((this.appearance.items || []).find(it => it.key === 'model')?.options?.map(o => o.value) || []);
     for (const e of this.db.prepare('SELECT code, look FROM employees WHERE look IS NOT NULL').all()) {
       let old; try { old = JSON.parse(e.look); } catch { old = {}; }
-      const v = normalizeBySchema(this.appearance, old).value, js = JSON.stringify(v);
+      const v = normalizeBySchema(this.appearance, old).value;
+      // nhân vật 3D đã chọn không còn trong bộ nhân vật: vẫn đưa về nhân vật mặc định (giữ màu còn hợp lệ) để hiển thị được,
+      // và đánh dấu _repick — lần vào sau người đó được mời chọn lại (màn hình chọn nhân vật điền sẵn màu cũ). Dấu này giữ
+      // qua các lần khởi động lại cho tới khi người đó lưu nhân vật mới (setLook ghi đè).
+      if (old?._repick || (models.size && typeof old?.model === 'string' && old.model && !models.has(old.model))) { v._repick = true; if (!old?._repick) repick++; }
+      const js = JSON.stringify(v);
       if (js !== e.look) { this.db.prepare('UPDATE employees SET look = ? WHERE code = ?').run(js, e.code); n++; }
     }
     if (n) console.log(`Đã chuyển ${n} ngoại hình nhân vật cũ sang bộ nhân vật hiện tại.`);
+    if (repick) console.log(`${repick} nhân viên có nhân vật không còn trong bộ nhân vật: sẽ được mời chọn lại khi vào.`);
     return n;
   }
   loadLayout() {
     const layout = JSON.parse(fs.readFileSync(this.config.layoutPath, 'utf8'));
     setOfficeFromLayout(layout); // ranh giới toà nhà cho quy định (không hút thuốc trong văn phòng)
     this.model = buildModel(layout);
+    // Real SYS: mô hình riêng (mã bàn R…); cùng bảng seats, mỗi người tối đa một chỗ ở mỗi chế độ
+    const rp = this.config.realLayoutPath;
+    this.modelReal = rp && fs.existsSync(rp) ? buildModel(JSON.parse(fs.readFileSync(rp, 'utf8'))) : null;
     this.syncSeats();
   }
   /** Thêm bàn mới trong layout.json; bàn bị bỏ khỏi layout thì đánh dấu và trả chỗ. */
   syncSeats() {
-    const db = this.db, ids = new Set(this.model.desks.map(d => d.id)), now = Date.now();
+    const db = this.db, ids = new Set([...this.model.desks, ...(this.modelReal?.desks || [])].map(d => d.id)), now = Date.now();
     const removed = [];
     db.tx(() => {
       const ins = db.prepare('INSERT INTO seats (desk_id, in_layout, updated_at) VALUES (?, 1, ?) ON CONFLICT(desk_id) DO UPDATE SET in_layout = 1');
       for (const id of ids) ins.run(id, now);
       for (const s of db.prepare('SELECT desk_id, owner_code FROM seats WHERE in_layout = 1').all()) {
         if (ids.has(s.desk_id)) continue;
+        if (!this.modelReal && modeOfDesk(s.desk_id) === 'real') continue; // (Real SYS đang tắt: giữ nguyên chỗ R… để bật lại không mất)
         db.prepare('UPDATE seats SET in_layout = 0, owner_code = NULL, updated_at = ? WHERE desk_id = ?').run(now, s.desk_id);
         removed.push(s);
         audit(db, 'system', 'layout.desk_removed', s.desk_id, { previousOwner: s.owner_code });
@@ -77,10 +89,15 @@ export class Store {
   // ---------- truy vấn ----------
   employee(code) { return this.db.prepare('SELECT * FROM employees WHERE code = ?').get(code); }
   seatRow(deskId) { return this.db.prepare('SELECT * FROM seats WHERE desk_id = ? AND in_layout = 1').get(deskId); }
-  seatOf(code) { return this.db.prepare('SELECT * FROM seats WHERE owner_code = ? AND in_layout = 1').get(code); }
+  /** Chỗ của một người trong một chế độ ('office' | 'real'). */
+  seatOf(code, mode = 'office') { return this.db.prepare(`SELECT * FROM seats WHERE owner_code = ? AND in_layout = 1 AND desk_id ${mode === 'real' ? '' : 'NOT '}LIKE 'R%'`).get(code); }
+  /** Mọi chỗ của một người (cả hai chế độ). */
+  seatsOf(code) { return this.db.prepare('SELECT * FROM seats WHERE owner_code = ? AND in_layout = 1').all(code); }
+  modelOf(deskId) { return modeOfDesk(deskId) === 'real' && this.modelReal ? this.modelReal : this.model; }
+  desk(deskId) { return this.modelOf(deskId).deskById.get(deskId); }
 
   seatView(row) {
-    const d = this.model.deskById.get(row.desk_id);
+    const d = this.desk(row.desk_id);
     const owner = row.owner_code ? this.employee(row.owner_code) : null;
     return {
       deskId: row.desk_id, floor: d ? d.floor : null, kind: d?.kind || 'desk', locked: !!row.locked,
@@ -88,16 +105,18 @@ export class Store {
       equipment: row.equipment ? JSON.parse(row.equipment) : null
     };
   }
-  listSeats() {
-    return this.db.prepare('SELECT * FROM seats WHERE in_layout = 1 ORDER BY desk_id').all().map(r => this.seatView(r));
+  /** mode: 'office' | 'real' — chỉ chỗ của chế độ đó; bỏ trống = cả hai (WebSocket, client tự lọc theo chế độ đang mở). */
+  listSeats(mode = null) {
+    return this.db.prepare('SELECT * FROM seats WHERE in_layout = 1 ORDER BY desk_id').all().filter(r => (!mode || modeOfDesk(r.desk_id) === mode) && (this.modelReal || modeOfDesk(r.desk_id) !== 'real')).map(r => this.seatView(r));
   }
   employeeView(e, isOnline = () => false) {
-    const seat = this.seatOf(e.code);
+    const seat = this.seatOf(e.code), real = this.modelReal ? this.seatOf(e.code, 'real') : null;
     return {
       code: e.code, name: e.name, display: displayOf(e.code, e.name), department: e.department, status: e.status,
       canMove: !!e.can_move, canMusic: !!e.can_music, createdAt: e.created_at, lastSeen: e.last_seen, online: isOnline(e.code),
       look: e.look ? JSON.parse(e.look) : null,
-      seat: seat ? { deskId: seat.desk_id, floor: this.model.deskById.get(seat.desk_id)?.floor ?? null } : null
+      seat: seat ? { deskId: seat.desk_id, floor: this.desk(seat.desk_id)?.floor ?? null } : null,
+      seatReal: real ? { deskId: real.desk_id, floor: this.desk(real.desk_id)?.floor ?? null } : null
     };
   }
   listEmployees(isOnline) { return this.db.prepare('SELECT * FROM employees ORDER BY code').all().map(e => this.employeeView(e, isOnline)); }
@@ -182,7 +201,7 @@ export class Store {
       const e = this.employee(code);
       if (!e || e.status !== 'active') throw new HttpError(403, 'Tài khoản không còn hiệu lực.');
       const row = this.requireDesk(deskId);
-      const cur = this.seatOf(code);
+      const cur = this.seatOf(code, modeOfDesk(deskId));
       if (cur && cur.desk_id === deskId) return { deskId, moved: null };
       if (cur && !e.can_move) throw new HttpError(403, `Bạn đã có chỗ ${cur.desk_id}. Muốn đổi chỗ cần quản trị cho phép.`, { reason: 'has-seat' });
       if (cur) db.prepare('UPDATE seats SET owner_code = NULL, equipment = NULL, updated_at = ? WHERE desk_id = ?').run(Date.now(), cur.desk_id);
@@ -217,7 +236,7 @@ export class Store {
       if (!row.owner_code) throw new HttpError(403, 'Chỗ này chưa có chủ. Hãy nhận chỗ trước khi ngồi.', { reason: 'free' });
       throw new HttpError(403, this.ownerMessage(row), { reason: 'owned' });
     }
-    const d = this.model.deskById.get(deskId);
+    const d = this.desk(deskId);
     return { deskId, floor: d.floor, x: d.seat.x, z: d.seat.z, facing: d.facing || 0 };
   }
 
@@ -231,7 +250,7 @@ export class Store {
       if (row.owner_code === code) return { from: deskId };
       if (row.locked) throw new HttpError(409, 'Chỗ này đang bị khóa. Mở khóa trước khi gán.');
       if (row.owner_code) throw new HttpError(409, `${this.ownerMessage(row)}. Giải phóng chỗ đó trước.`);
-      const cur = this.seatOf(code);
+      const cur = this.seatOf(code, modeOfDesk(deskId));
       const equipment = cur?.equipment || JSON.stringify(defaultEquipment(this.equipment)); // dụng cụ đi theo người
       if (cur) db.prepare('UPDATE seats SET owner_code = NULL, equipment = NULL, updated_at = ? WHERE desk_id = ?').run(Date.now(), cur.desk_id);
       const r = db.prepare('UPDATE seats SET owner_code = ?, equipment = ?, updated_at = ? WHERE desk_id = ? AND owner_code IS NULL AND locked = 0').run(code, equipment, Date.now(), deskId);
@@ -266,30 +285,30 @@ export class Store {
       this.db.prepare('UPDATE employees SET name = ?, name_key = ?, department = ?, status = ?, can_move = ? WHERE code = ?').run(next.name, nameKey(next.name), next.department, next.status, next.can_move, code);
       let seat = null;
       if (next.status === 'disabled' && e.status !== 'disabled') {
-        seat = this.seatOf(code);
-        if (seat) this.db.prepare('UPDATE seats SET owner_code = NULL, equipment = NULL, updated_at = ? WHERE desk_id = ?').run(Date.now(), seat.desk_id);
+        seat = this.seatsOf(code);
+        this.db.prepare('UPDATE seats SET owner_code = NULL, equipment = NULL, updated_at = ? WHERE owner_code = ?').run(Date.now(), code);
         this.db.prepare("DELETE FROM sessions WHERE kind = 'employee' AND subject = ?").run(code);
       }
       audit(this.db, actor.key, 'admin.employee.update', code, { before: { name: e.name, department: e.department, status: e.status, canMove: !!e.can_move }, after: { ...next, can_move: !!next.can_move } });
       return seat;
     });
-    if (released) this.emit({ type: 'seat', deskIds: [released.desk_id] });
+    if (released?.length) this.emit({ type: 'seat', deskIds: released.map(r => r.desk_id) });
     if (next.status === 'disabled' && e.status !== 'disabled') this.emit({ type: 'kick', code, reason: 'Tài khoản đã bị vô hiệu hóa.' });
     this.emit({ type: 'employees' });
-    if (next.name !== e.name) this.emit({ type: 'seat', deskIds: [this.seatOf(code)?.desk_id].filter(Boolean) });
+    if (next.name !== e.name) this.emit({ type: 'seat', deskIds: this.seatsOf(code).map(r => r.desk_id) });
   }
   adminDeleteEmployee(actor, code) {
     const e = this.employee(code);
     if (!e) throw new HttpError(404, `Không có nhân viên ${code}.`);
-    const seat = this.seatOf(code);
+    const mine = this.seatsOf(code), seat = mine[0] || null;
     this.db.tx(() => {
-      if (seat) this.db.prepare('UPDATE seats SET owner_code = NULL, equipment = NULL, updated_at = ? WHERE desk_id = ?').run(Date.now(), seat.desk_id);
+      this.db.prepare('UPDATE seats SET owner_code = NULL, equipment = NULL, updated_at = ? WHERE owner_code = ?').run(Date.now(), code);
       this.db.prepare("DELETE FROM sessions WHERE kind = 'employee' AND subject = ?").run(code);
       this.db.prepare('DELETE FROM employees WHERE code = ?').run(code);
-      audit(this.db, actor.key, 'admin.employee.delete', code, { name: e.name, seat: seat?.desk_id || null });
+      audit(this.db, actor.key, 'admin.employee.delete', code, { name: e.name, seat: seat?.desk_id || null, seats: mine.map(r => r.desk_id) });
     });
     this.emit({ type: 'kick', code, reason: 'Tài khoản đã bị xóa.' });
-    if (seat) this.emit({ type: 'seat', deskIds: [seat.desk_id] });
+    if (mine.length) this.emit({ type: 'seat', deskIds: mine.map(r => r.desk_id) });
     this.emit({ type: 'employees' });
   }
   adminForceLogout(actor, code) {
@@ -326,7 +345,7 @@ export class Store {
       status = status ? (/^(disabled|vô hiệu|khoa|khóa)/i.test(status) ? 'disabled' : 'active') : undefined;
       desk = desk ? desk.trim() : '';
       if (desk) {
-        if (!this.model.deskById.has(desk)) { errors.push(`Dòng ${line}: không có bàn "${desk}" trong layout.json.`); return; }
+        if (!this.desk(desk)) { errors.push(`Dòng ${line}: không có bàn "${desk}" trong layout.json.`); return; }
         if (seenDesk.has(desk)) { errors.push(`Dòng ${line}: bàn ${desk} đã gán cho ${seenDesk.get(desk)} ở dòng trước.`); return; }
         seenDesk.set(desk, p.code);
       }
@@ -351,7 +370,7 @@ export class Store {
       // trả chỗ cũ của những người đổi bàn trước, rồi gán bàn mới (tránh vướng ràng buộc UNIQUE)
       const equipOf = new Map();
       for (const it of items) {
-        const cur = this.seatOf(it.code);
+        const cur = it.desk ? this.seatOf(it.code, modeOfDesk(it.desk)) : null;
         if (it.desk && cur && cur.desk_id !== it.desk) { equipOf.set(it.code, cur.equipment); this.db.prepare('UPDATE seats SET owner_code = NULL, equipment = NULL, updated_at = ? WHERE desk_id = ?').run(now, cur.desk_id); changed.add(cur.desk_id); }
       }
       for (const it of items) {

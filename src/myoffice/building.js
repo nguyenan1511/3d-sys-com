@@ -33,6 +33,7 @@ const DROP = ['terrace', 'city', 'backdrop', 'weather'];
  * offset: dời cả toà nhà [dx, dz] để mặt tiền nằm đúng chỗ trên phố SYSONE.
  */
 export function buildMyBuilding(renderer, { offset = [0, 0], optimize = true, stripDesks = false } = {}) {
+  globalThis.__MO_SKIP_BACKDROP = true; // không dựng thành phố của my-office (dùng đường phố SYSONE) — xem backdrops/index.js
   const scene = buildMyOffice(renderer, { plan: 'hq', optimize: false });
   if (THEME?.group) THEME.group.removeFromParent();          // không dùng thành phố của my-office
   const g0 = new THREE.Group(), g1 = new THREE.Group(), lights = [];

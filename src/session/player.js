@@ -4,6 +4,7 @@
 // ngồi thì đi tới trước ghế, quay người rồi mới ngồi. Mọi kích thước theo tỉ lệ nhân vật (layout.json → scale).
 import { CEO_LOOK } from '../shared/departments.js';
 import { PROP_ACTS } from '../shared/propActs.js';
+import { HM } from '../ui/camera.js';
 import { smokeAllowed, NO_SMOKING } from '../shared/rules.js';
 import { angDiff, facingVec, deg2yaw } from '../core/util.js';
 import { characterDef } from '../agents/glbCharacters.js';
@@ -53,7 +54,8 @@ export class Player {
     if (!down || e.repeat) return;
     if (k === ' ') { e.preventDefault(); this.jump(); return; }
     if (k === 'e') { e.preventDefault(); const at = this.session.att; if (!this.seated && !this.sofa && !this.seq && at?.code && at.near(this.agent.x, this.agent.z, this.agent.f)) { at.open(); return; } if (!this.seated && !this.sofa && !this.seq && this.app.musicCorner?.near(this.agent.x, this.agent.z, this.agent.f)) { this.session.social?.openMusic(); return; } const g = this.session.guide; if (!this.seated && !this.sofa && !this.seq && g?.near(this.agent.x, this.agent.z, this.agent.f)) { g.talk(); return; } if (!this.seated && this.session.openLift()) return; if (!this.seated && !this.sofa && !this.seq && this.session.nearKtv) { this.session.ktv.join(); return; } if (!this.seated && !this.sofa && !this.seq && this.session.nearBil) { this.session.bil.join(); return; } const pr = !this.seated && !this.sofa && !this.seq && this.session.nearProp; if (pr && this.session.props?.use(pr)) return; this.toggleSit(); return; }
-    if (k === 'escape') { this.setAct(null); return; }
+    // Esc: chuyển qua lại 'bám theo' ↔ 'xem xung quanh' (kéo chuột để nhìn quanh) — như hangmu; đi tiếp là camera bám theo lại
+    if (k === 'escape') { this.setAct(null); if (!this.app.rig.fp && this.app.rig.follow === this.agent) this.app.rig.setLookMode(!this.app.rig.lookMode); return; }
     if (k === 'c') { this.follow(); this.app.rig.recenter = true; return; }
     if ((k === 'v' || k === 'c') && this.app.mode2d) return; // 2D: không có góc nhìn thứ nhất / camera sau lưng
     if (k === 'v') { this.follow(); this.app.rig.setFirstPerson(!this.app.rig.fp); this.app.onViewChange?.(this.app.rig.fp); return; }
@@ -71,9 +73,9 @@ export class Player {
     this.app.showFloor(null, false);
     // camera kiểu agent-office: sau lưng, cách ~3.75 lần chiều cao, nhìn chếch xuống 0.42 rad
     // góc nhìn thứ ba ngang vai, luôn có trần nhà (không cắt trần/tầng trên khi đi trong nhà)
-    rig.follow = this.agent; rig.G.r = rig.S.r = 7.6 * this.CR; rig.G.ph = rig.S.ph = Math.PI / 2 - 0.38; // (như hangmu: cách ~7,8 lần chiều cao, chếch xuống ~22°) // (xa và cao hơn: thấy rõ xung quanh)
-    rig.S.th = rig.G.th = this.agent.yaw; rig.camDist = null; this.app.autoCut = false;
-    rig.pickOpenStart?.(this.agent);   // (sau lưng là tường: quay camera sang hướng thoáng gần nhất ngay từ đầu)
+    rig.follow = this.agent; rig.G.r = rig.S.r = HM.dist * this.H; rig.G.ph = rig.S.ph = Math.PI / 2 - HM.pitch0; // (như hangmu: cách ~7,8 lần chiều cao, chếch xuống ~22°) // (xa và cao hơn: thấy rõ xung quanh)
+    rig.S.th = rig.G.th = this.agent.yaw; rig.camDist = null; this.app.autoCut = false; rig.setLookMode(false);
+    rig.pickOpenYaw(this.agent); // (sau lưng là tường: quay camera sang hướng thoáng gần nhất)
     if (this.app.cutFloor() !== null) this.app.showFloor(null, false); // bỏ cắt tầng còn sót (từ lúc chọn chỗ/xem tầng)
     this.app.onFollowChange?.(true);
   }
@@ -146,7 +148,7 @@ export class Player {
     const rig = this.app.rig;
     if (rig.follow === a && rig.viewScore) {
       const H = this.H, cand = [seat.yaw - 1.2, seat.yaw + 1.2], sc = th => rig.viewScore({ ...a, x: seat.x, z: seat.z, y }, th, rig.S.ph, rig.S.r, H);
-      rig.escapeTh = sc(cand[0]) >= sc(cand[1]) ? cand[0] : cand[1]; rig.lastUserOrbit = 0;
+      rig.S.th = rig.G.th = sc(cand[0]) >= sc(cand[1]) ? cand[0] : cand[1]; rig.camDist = null;
     }
   }
   standSofa() {
@@ -217,8 +219,13 @@ export class Player {
       if ((f || r) && !this._standing) { this._standing = true; Promise.resolve(this.session.stand()).finally(() => { this._standing = false; }); }
       a.walkAmt = 0; this.send(); return;
     }
-    // đi theo hướng camera; tăng/giảm tốc mượt và quay mặt dần theo hướng đi (như hangmu.online: tăng tốc 14, quay 12 rad/s)
-    const th = rig.S.th, fx = -Math.sin(th), fz = -Math.cos(th), rx = Math.cos(th), rz = -Math.sin(th);
+    // đi theo hướng camera; tăng/giảm tốc mượt và quay mặt dần theo hướng đi (như hangmu.online: tăng tốc 14, quay 12 rad/s).
+    // Hướng tham chiếu CHỐT lúc bắt đầu bấm phím / đẩy cần: camera tự vòng ra sau lưng khi đi (chế độ 'bám theo') mà hướng đi
+    // vẫn thẳng — giữ A/D không bị đi vòng tròn; nhả ra bấm lại thì lấy hướng camera mới.
+    const input = !!(f || r);
+    if (input && rig.lookMode) rig.setLookMode(false); // (đang xem xung quanh mà đi tiếp: về chế độ bám theo)
+    if (!input || rig.fp) this.moveRef = null; else if (this.moveRef == null) this.moveRef = rig.S.th;
+    const th = this.moveRef ?? rig.S.th, fx = -Math.sin(th), fz = -Math.cos(th), rx = Math.cos(th), rz = -Math.sin(th);
     let mx = fx * f + rx * r, mz = fz * f + rz * r;
     let moving = Math.hypot(mx, mz) > 0.01;
     // nhìn bằng mắt nhân vật: luôn quay mặt theo hướng camera
@@ -298,6 +305,7 @@ export class Player {
   walkTo(x, z, f) {
     const a = this.agent, nav = this.app.nav;
     if (this.seated || this.seq) return false;
+    this.app.rig.setLookMode(false); // (đi tới chỗ khác: camera về bám theo)
     const res = nav.path({ x: a.x, z: a.z, f: a.f }, { x, z, f });
     if (!res || res.points.length < 2) return false;
     // đích cùng tầng mà đường đi vòng qua tầng khác (cầu thang): không đi — tránh tự chạy xuống tầng khác tới chỗ lạ

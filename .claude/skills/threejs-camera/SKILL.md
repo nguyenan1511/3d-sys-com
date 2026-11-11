@@ -17,6 +17,17 @@ Extend it instead of adding a controls library on top (two controllers fighting 
 
 - **State**: `rig.S` = current spherical camera `{ th, ph, r, t }`, `rig.G` = goal. Every frame S eases toward G;
   input writes to G (or to both for an instant response). `th` = azimuth, `ph` = polar angle, `r` = distance, `t` = target.
+- **Own-player camera (hangmu-style, user request 2026-11-11)**:
+  - Two sub-modes while following your own character: `rig.lookMode = false` = *follow* (default) and `true` = *look around*.
+  - Follow: mouse drag does NOT orbit; while the character walks, `S.th` eases behind `a.yaw` (`FOLLOW.alignRate`), scaled down
+    when walking toward the camera (no 180° flips). Wheel / pinch zoom still work.
+  - `Esc` toggles look-around (player.js); on touch, a drag > 8 px enters it. Any movement (keys, stick, `walkTo`) calls
+    `rig.setLookMode(false)`. `rig.onLookModeChange` drives the `.cam-hint` pill (main.js).
+  - Movement direction uses `player.moveRef`, the camera yaw latched when input starts, so holding A/D walks straight while the
+    camera swings behind (no circling).
+  - Smoothing (`FOLLOW`): SmoothDamp target, occlusion pull-in damped with a 0.5 s hold, pitch deviates (up/down) instead of
+    moving close, glass walls (`COL.glass`) don't block sight, edge-of-screen rotation off.
+  - Do NOT add wall fading / see-through holes: the user rejected dither, cut-out holes and Unity-style fades.
 - **Modes**:
   - `follow.local`: third person behind your own character (`updateThirdPerson`).
   - `fp`: first person (V key).
@@ -46,18 +57,22 @@ Extend it instead of adding a controls library on top (two controllers fighting 
     room. It is part of `walkable()`.
   - Measured in testing: 300 random spots across 3 floors gave 0 walls or furniture between the camera and the
     character, the camera was never inside a wall, and the camera costs about 0.25 ms per frame.
-- **Follow camera = hangmu.online model** (user request, 2026-11-10):
-  - FOV 55; fixed distance ≈ 7.6 × character size (`camR`); default pitch ~22° down.
-  - Look target at **1.15 × character height** (above the head), so the character sits in the lower part of the frame.
-  - The target snaps to the character every frame (no lag, `S.t.copy(G.t)`). If the target ends up inside a roof or
-    beam box, lower it to just under that box.
-  - Walls pull the camera in immediately (farthest valid point); it eases back out at `exp(-dt*8)`.
-  - Furniture does not move the camera.
-  - When the user's pitch leaves less room than `armNeed`: the camera rises a little. If that lasts ≥0.5 s and the
-    user hasn't orbited in the last 2.5 s, it turns to the nearest direction with comfortable room (`openDir`, ≥60% of
-    the wanted distance).
-  - `follow()` calls `pickOpenStart()` so the camera never starts facing a wall.
-  - Drag sensitivity matches hangmu: yaw 0.006, pitch 0.004 rad/px.
+- **Follow camera = hangmu.online, exact numbers** (`HM` in `src/ui/camera.js`, read from their CaveScreen code;
+  their character is 1.91 tall):
+  - FOV 55.
+  - Distance 14/1.91 ≈ 7.3 × character height; look target 4/1.91 ≈ 2.1 × height above the feet.
+  - Pitch starts at 0.24 rad, limited to −0.75 … 1.1.
+  - Drag sensitivity: mouse 0.0036 / 0.0024 rad/px, touch 0.006 / 0.004.
+  - No inertia, no auto-rotate, no auto-raise.
+  - Mouse in the left/right 7% edge rotates at 1.8 rad/s.
+- **Collision as hangmu:** binary-search (12 steps) for the farthest valid point on the segment from the target to the
+  camera. Valid means: same space as the character, under the ceiling (`rig.clamp`), above floor + 0.42H, not inside a
+  wall box. We add wall rays from the target, head and feet so interior walls never hide the character (hangmu's cave
+  has none).
+- **Our one deviation:** when walls pull the camera in, its position stays exactly hangmu's, but `lookAt` tilts down
+  toward shoulder height (fully at ≤2H distance). Without this the character drops out of frame in narrow rooms.
+- **Not copied:** hangmu's desktop plain-mouse-move mouse-look. It would break click-to-walk and clicking desks/people.
+- Wheel, pinch and +/- keep zoom within 3.2–9.5H; hangmu has no zoom.
 - **Movement = hangmu model**:
   - acceleration `v += (target − v)·min(1, 14·dt)`, so movement starts and stops smoothly;
   - heading turns at 12 rad/s;

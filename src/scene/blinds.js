@@ -1,5 +1,6 @@
 // Rèm cuốn ở cửa sổ / cửa ban công: kéo lên/xuống (phím F khi đứng gần hoặc bấm vào rèm), đồng bộ cho mọi người.
 // Toà nhà lớn (nội thất my-office): rèm tre màu vàng đậm (như rèm tre của ngôi nhà cũ) ở mọi cửa sổ thật của vỏ nhà.
+import { REAL_ENABLED } from '../core/mode.js';
 import * as THREE from 'three';
 import { shellWalls, floorY as shellFloorY, OFFSET } from '../myoffice/shellSpec.js';
 
@@ -34,6 +35,22 @@ export function bigBlindSpecs() {
   return out;
 }
 
+/** Real SYS: một rèm cho mỗi cửa sổ ở tường ngoài (layout.walls[].windows), treo ở mặt trong; mã r{tầng}-{n}. */
+export function realBlindSpecs(model) {
+  const out = [], count = new Map(), inside = (x, z) => (model.layout.rooms || []).some(r => r.floor === 0 && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1);
+  for (const w of model.layout.walls || []) {
+    if (!w.ext || !w.windows) continue;
+    const ax = (w.x1 - w.x0) >= (w.z1 - w.z0) ? 'x' : 'z', mid = ax === 'x' ? (w.z0 + w.z1) / 2 : (w.x0 + w.x1) / 2;
+    const am = ax === 'x' ? (w.x0 + w.x1) / 2 : (w.z0 + w.z1) / 2, probe = s => ax === 'x' ? inside(am, mid + s * 0.5) : inside(mid + s * 0.5, am);
+    const n = probe(1) ? 1 : -1, face = ax === 'x' ? (n < 0 ? w.z0 : w.z1) : (n < 0 ? w.x0 : w.x1), y = model.floorY(w.floor);
+    for (const o of w.windows) {
+      const i = (count.get(w.floor) || 0) + 1; count.set(w.floor, i);
+      out.push({ id: `r${w.floor}-${i}`, name: `Rèm cửa sổ ${model.floorById.get(w.floor)?.name.toLowerCase() || ''}`, floor: w.floor, axis: ax, a0: o.from + 0.04, a1: o.to - 0.04, c: face + n * 0.07, n, y0: y + 0.8, y1: y + 2.55, open: false, lite: true });
+    }
+  }
+  return out;
+}
+
 let bambooTex = null;
 function bamboo() {
   if (bambooTex) return bambooTex;
@@ -49,11 +66,11 @@ export class Blinds {
   constructor(scene, model, outer = [], opts = {}) {
     this.outer = outer;
     this.group = new THREE.Group(); this.group.name = 'blinds'; scene.add(this.group);
-    const big = !!opts.big;
+    const big = !!opts.big || !!opts.real; // (Real SYS: rèm tre như toà nhà lớn)
     const fabric = big ? new THREE.MeshLambertMaterial({ map: bamboo(), side: THREE.DoubleSide }) : new THREE.MeshLambertMaterial({ color: 0xe9e2d2 });
     const dark = new THREE.MeshLambertMaterial({ color: big ? 0x6b4a1e : 0x8a8578 });
     const tube = new THREE.MeshLambertMaterial({ color: big ? 0x7a5524 : 0xf2f2ee });
-    const specs = big ? bigBlindSpecs() : blindSpecs(model);
+    const specs = __REAL_SYS__ && opts.real && REAL_ENABLED ? realBlindSpecs(model) : big ? bigBlindSpecs() : blindSpecs(model);
     const rolls = [];
     this.items = specs.map(s => {
       const w = s.a1 - s.a0, h = s.y1 - s.y0, am = (s.a0 + s.a1) / 2, rotY = s.axis === 'x' ? 0 : Math.PI / 2;

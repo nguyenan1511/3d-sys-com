@@ -5,7 +5,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 let KIT = null, loading = null;
-export const loadCarKit = (base = './') => (loading ??= fetch(new URL('assets/vehicles/cars.json', new URL(base, document.baseURI))).then(r => (r.ok ? r.json() : null)).then(k => (KIT = k)).catch(() => null));
+// (một lần tải dùng chung với street-life.js của hai bản my-office: globalThis.__carKitJson)
+export const loadCarKit = (base = './') => (loading ??= (globalThis.__carKitJson ??= fetch(new URL('assets/vehicles/cars.json', new URL(base, document.baseURI))).then(r => (r.ok ? r.json() : null)).catch(() => null)).then(k => (KIT = k)).catch(() => null));
 export const carKitReady = () => !!KIT;
 
 const unb64 = (s, T) => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new T(u.buffer); };

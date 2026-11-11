@@ -1,3 +1,5 @@
+import { getMode } from '../core/mode.js';
+const MODE = getMode();
 // Kết nối WebSocket tới server (xác thực bằng cookie phiên, hoặc vé dùng một lần khi giao diện ở tên miền khác), tự nối lại khi rớt mạng.
 export class Realtime {
   constructor() { this.handlers = new Map(); this.ws = null; this.retry = 0; this.closed = false; this.lastPos = 0; }
@@ -33,7 +35,7 @@ export class Realtime {
     const now = performance.now();
     if (!this.connected || now - this.lastPos < 160) return;
     this.lastPos = now;
-    this.ws.send(JSON.stringify({ t: 'pos', ...p }));
+    this.ws.send(JSON.stringify({ t: 'pos', mode: MODE, ...p }));
   }
   close() { this.closed = true; this.ws?.close(); }
 }

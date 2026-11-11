@@ -18,6 +18,8 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: `http://localhost:${PORT}`,
+    // các bài kiểm thử viết cho Office SYS (bàn T…): chọn sẵn chế độ đó (Real SYS: tests/modes.test.js)
+    storageState: { cookies: [], origins: [{ origin: `http://localhost:${PORT}`, localStorage: [{ name: 'sysone.mode', value: 'office' }] }] },
     viewport: { width: 1280, height: 800 },
     launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }
   },

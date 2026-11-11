@@ -5,12 +5,16 @@ import { icon } from './icons.js';
 
 const ROOM = { office: '#e9dfd2', lobby: '#eadfce', lounge: '#d7e4d3', meeting: '#dcdcf0', pantry: '#efe6d6', wc: '#d6e5ec' };
 const NAMES = ['Tầng trệt', 'Tầng 2', 'Tầng 3'];
-const B = { x0: -13.6, x1: 13.6, z0: -14.2, z1: 10.2 };   // vùng vẽ (toà nhà, khối thang, sân trước tới cổng)
-const W = 300, S = W / (B.x1 - B.x0), H = Math.round((B.z1 - B.z0) * S);
+let B = { x0: -13.6, x1: 13.6, z0: -14.2, z1: 10.2 };   // vùng vẽ (toà nhà, khối thang, sân trước tới cổng)
+let W = 300, S = W / (B.x1 - B.x0), H = Math.round((B.z1 - B.z0) * S);
+/** Real SYS: nhà hẹp và sâu — khung vẽ hẹp hơn để nhà không bé tí. */
+function setBounds(b) { B = b; W = 300; S = W / (B.x1 - B.x0); H = Math.round((B.z1 - B.z0) * S); }
 
 export class Minimap {
   constructor(root, app) {
     this.app = app; this.f = null; this.cache = new Map(); this.t = 0;
+    this.real = (__REAL_SYS__ && app.model.layout.world === 'sysone-real');
+    if (this.real) setBounds({ x0: -10, x1: 10, z0: -12.4, z1: 9.8 });
     const el = this.el = document.createElement('div'); el.className = 'minimap'; el.id = 'minimap';
     el.innerHTML = `<div class="mm-head"><span class="mm-floor">Bản đồ</span><button type="button" class="mm-tog" title="Thu gọn / mở bản đồ nhỏ" aria-label="Thu gọn / mở bản đồ nhỏ"></button></div><canvas width="${W * 2}" height="${H * 2}" style="width:${W}px;height:${H}px" aria-label="Bản đồ nhỏ: bấm để đi tới"></canvas>`;
     root.appendChild(el);
@@ -74,7 +78,7 @@ export class Minimap {
     this.t += dt; if (this.t < 1 / 15) return; this.t = 0;                                // ~15 lần/giây là đủ
     const me = session?.player?.agent, rig = this.app.rig;
     const f = me ? (me.onStair ? (this.app.model.stairById.get(me.onStair)?.to ?? me.f) : me.f) : (this.app.cutFloor() ?? 0);
-    if (f !== this.f) { this.f = f; this.label.textContent = NAMES[f] || `Tầng ${f + 1}`; }
+    if (f !== this.f) { this.f = f; this.label.textContent = (this.real ? this.app.model.floorById.get(f)?.name : NAMES[f]) || `Tầng ${f + 1}`; }
     const g = this.ctx; g.clearRect(0, 0, W, H); g.drawImage(this.base(f), 0, 0, W, H);
     const clampX = x => Math.min(W - 4, Math.max(4, this.sx(x))), clampY = z => Math.min(H - 4, Math.max(4, this.sy(z)));
     // nhân viên mô phỏng (chấm nhạt), người online khác (chấm xanh)

@@ -159,5 +159,9 @@ describe('ngoại hình nhân vật', () => {
     expect(look.pixel).toBe('mo-nu');
     expect(look.topStyle).toBeUndefined();
     expect(look.hairColor).toBe('#1d1a17');           // màu còn hợp lệ thì giữ
+    expect(look._repick).toBe(true);                   // nhân vật cũ không còn: lần vào sau mời chọn lại
+    expect(new Store(db, { ...baseCfg }).lookOf(code)._repick).toBe(true); // (khởi động lại server vẫn giữ dấu)
+    s.setLook({ kind: 'employee', code, key: `employee:${code}` }, code, { ...look, model: 'mo-nu' });
+    expect(s.lookOf(code)._repick).toBeUndefined();   // chọn xong thì hết mời
   });
 });

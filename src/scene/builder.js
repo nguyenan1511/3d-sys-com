@@ -65,6 +65,7 @@ export function mergeStatic(root, { force = false } = {}) {
     const g = mergeGeometries(b.geos, false);
     for (const x of b.geos) x.dispose();
     if (!g) continue;
+    g.userData.ownedMerge = true; // (hình gộp riêng của mesh này, không dùng lại ở đâu — scene/releaseRam.js được giải phóng bản trong RAM)
     const m = new THREE.Mesh(g, b.mat); m.castShadow = b.cast; m.receiveShadow = b.recv; m.matrixAutoUpdate = false;
     root.add(m); after++;
   }

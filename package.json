@@ -14,6 +14,7 @@
     "shots:baseline": "node scripts/shots.mjs --baseline",
     "e2e": "node scripts/e2e.mjs",
     "perf": "node scripts/perf.mjs",
+    "perf:load": "vite build && node scripts/perf-load.mjs",
     "start": "NODE_ENV=production node --disable-warning=ExperimentalWarning server/index.js",
     "test:auth": "playwright test",
     "model": "node scripts/optimize-model.mjs",

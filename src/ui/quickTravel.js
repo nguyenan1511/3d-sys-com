@@ -24,7 +24,7 @@ export class QuickTravel {
     for (let f = 0; f < m.floors.length; f++) {
       const items = [];
       if (f === 0) {
-        if (wp.lobby) items.push({ name: 'Sảnh · lễ tân', icon: 'user', f, x: wp.lobby.x, z: wp.lobby.z, r: 1.5 });
+        if (wp.lobby) items.push({ name: (__REAL_SYS__ && L.world === 'sysone-real') ? 'Sảnh · cửa chính' : 'Sảnh · lễ tân', icon: 'user', f, x: wp.lobby.x, z: wp.lobby.z, r: 1.5 });
         const at = this.s.att; if (at) items.push({ name: 'Máy chấm công', icon: 'clipboard', f, x: at.spot.stand.x, z: at.spot.stand.z, r: 1.0 });
         const mc = this.app.musicCorner; if (mc) items.push({ name: 'Góc âm nhạc', icon: 'music', f, x: mc.stand.x, z: mc.stand.z, r: 1.0 });
         const tv = this.s.tv; if (tv) items.push({ name: 'Sofa xem TV', icon: 'cube', f, x: tv.seats[0].front.x, z: tv.seats[0].front.z + 0.4, r: 1.0 });
@@ -33,8 +33,8 @@ export class QuickTravel {
         items.push({ name: r.name, icon: 'map', f, x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2, r: 3 });
       for (const z of L.deptZones || []) if (z.floor === f) items.push({ name: z.name.replace(/^Phòng /, ''), color: z.color, f, x: (z.x0 + z.x1) / 2, z: z.z1 + 0.4, r: 2.5 });
       const lift = this.s.lift?.stops?.[f]; if (lift) items.push({ name: 'Thang máy', icon: 'arrowUp', f, x: lift.x, z: lift.z, r: 1.0 });
-      if (f === 2) { const t = (L.nav.areas || []).find(a => a.floor === 2 && /sân thượng/i.test(a.name || '')); items.push({ name: 'Sân thượng', icon: 'map', f, x: t ? (t.x0 + t.x1) / 2 : 1.0, z: t ? (t.z0 + t.z1) / 2 : 3.5, r: 3 }); }
-      if (items.length) groups.push({ title: FLOOR_NAMES[f] || `Tầng ${f + 1}`, items });
+      if (f === 2 && (!__REAL_SYS__ || L.world !== 'sysone-real')) { const t = (L.nav.areas || []).find(a => a.floor === 2 && /sân thượng/i.test(a.name || '')); items.push({ name: 'Sân thượng', icon: 'map', f, x: t ? (t.x0 + t.x1) / 2 : 1.0, z: t ? (t.z0 + t.z1) / 2 : 3.5, r: 3 }); }
+      if (items.length) groups.push({ title: ((__REAL_SYS__ && this.app?.model?.layout?.world === 'sysone-real') ? this.app.model.floorById.get(+f)?.name : FLOOR_NAMES[f]) || `Tầng ${f + 1}`, items });
     }
     return groups;
   }

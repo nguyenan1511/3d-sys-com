@@ -11,7 +11,7 @@ test.afterEach(closeAll);
 
 test('điện thoại: bố cục gọn, cần điều khiển đi được, không tràn màn hình', async ({ browser }) => {
   const { defaultBrowserType: _d, ...iphone } = devices['iPhone 14']; void _d;
-  const ctx = await browser.newContext(iphone);
+  const ctx = await browser.newContext(iphone); await ctx.addInitScript(() => { try { localStorage.setItem('sysone.mode', 'office'); } catch { /* */ } });
   await ctx.addInitScript(() => { window.__MAXFPS = 12; window.__PIXEL_RATIO = 0.6; window.__RENDER_EVERY_MS = 2000; window.__NO_GUIDE = true; });
   const p = await ctx.newPage();
   await loginEmployeeUI(p, `${uniqueCode()}-Mobi`);
@@ -67,7 +67,7 @@ const overlaps = p => p.evaluate(() => {
 for (const name of ['iPhone SE', 'iPhone 14 landscape']) {
   test(`điện thoại (${name}): không khối nào đè nhau; bảng công mở gọn, tấm bảng điều khiển tự đóng`, async ({ browser }) => {
     const { defaultBrowserType: _d, ...dev } = devices[name]; void _d;
-    const ctx = await browser.newContext(dev);
+    const ctx = await browser.newContext(dev); await ctx.addInitScript(() => { try { localStorage.setItem('sysone.mode', 'office'); } catch { /* */ } });
     await ctx.addInitScript(() => { window.__MAXFPS = 12; window.__PIXEL_RATIO = 0.6; window.__RENDER_EVERY_MS = 2000; window.__NO_GUIDE = true; });
     const p = await ctx.newPage();
     await loginEmployeeUI(p, `${uniqueCode()}-Mobi`); await waitScene(p); await finishAvatar(p);

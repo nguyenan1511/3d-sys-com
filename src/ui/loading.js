@@ -33,6 +33,7 @@ function setTip(i) {
 export const loading = {
   /** Bước mới: text, phần trăm đạt được khi bước này bắt đầu, phần trăm tối đa trước khi sang bước sau. */
   step(text, pct, next = pct + 15) {
+    try { performance.mark(`ld:${text}`); } catch { /* */ } // (đo thời gian từng bước: scripts/perf-load.mjs)
     const el = $('loading'); if (!el) return;
     el.hidden = false; el.classList.remove('ld-out', 'ld-error');
     const s = el.querySelector('.ld-step'); if (s) s.textContent = text;
@@ -42,6 +43,7 @@ export const loading = {
   },
   /** Xong: chạy tới 100% rồi mờ dần. */
   done() {
+    try { performance.mark('ld:done'); } catch { /* */ }
     const el = $('loading'); if (!el) return;
     target = cap = 100;
     setTimeout(() => { el.classList.add('ld-out'); setTimeout(() => { el.hidden = true; el.classList.remove('ld-out'); cancelAnimationFrame(raf); }, 420); }, 260);
@@ -49,5 +51,14 @@ export const loading = {
   /** Báo nhanh trên nền mờ (vd. "Đang tua…"), không thanh tiến trình. */
   flash(text) { const el = $('loading'); if (!el) return; el.hidden = false; el.classList.add('ld-quick'); const s = el.querySelector('.ld-step'); if (s) s.textContent = text; },
   hideFlash() { const el = $('loading'); if (!el) return; el.hidden = true; el.classList.remove('ld-quick'); },
-  error(text) { const el = $('loading'); if (!el) return; el.hidden = false; el.classList.add('ld-error'); const s = el.querySelector('.ld-step'); if (s) s.textContent = text; }
+  /** Báo lỗi trên màn hình chờ. retry: hiện nút "Thử lại" (tải lại trang); hint: dòng gợi ý thay cho mẹo. */
+  error(text, { retry = true, hint = '' } = {}) {
+    const el = $('loading'); if (!el) return;
+    el.hidden = false; el.classList.remove('ld-out', 'ld-quick'); el.classList.add('ld-error'); cancelAnimationFrame(raf);
+    const s = el.querySelector('.ld-step'); if (s) s.textContent = text;
+    const t = el.querySelector('.ld-tip'); if (t) t.textContent = hint || 'Kiểm tra kết nối mạng rồi thử lại. Nếu vẫn lỗi, thử trình duyệt khác (Chrome, Safari, Edge bản mới).';
+    let b = el.querySelector('.ld-retry');
+    if (retry && !b) { b = document.createElement('button'); b.type = 'button'; b.className = 'ld-retry'; b.textContent = 'Thử lại'; b.onclick = () => location.reload(); el.querySelector('.ld-card')?.appendChild(b); }
+    if (b) { b.hidden = !retry; if (retry) b.focus({ preventScroll: true }); }
+  }
 };

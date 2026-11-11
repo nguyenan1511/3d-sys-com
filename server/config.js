@@ -21,6 +21,9 @@ export const config = {
   adminInitialPassword: env.ADMIN_INITIAL_PASSWORD || '',
   cookieSecure: bool(env.COOKIE_SECURE, env.NODE_ENV === 'production'),
   layoutPath: path.resolve(ROOT, env.LAYOUT_PATH || 'public/data/layout.json'),
+  // chế độ Real SYS (mặt bằng thật, sinh bằng scripts/build-real-layout.mjs); thiếu file thì chỉ có Office SYS
+  // Real SYS (mặt bằng thật) tắt mặc định: chỉ nạp khi REAL_SYS=1 (cùng cờ với bản build — src/core/mode.js)
+  realLayoutPath: env.REAL_SYS === '1' ? path.resolve(ROOT, env.REAL_LAYOUT_PATH || 'src/data/layout.real.json') : null,
   equipmentPath: path.resolve(ROOT, env.EQUIPMENT_PATH || 'public/data/equipment.json'),
   appearancePath: path.resolve(ROOT, env.APPEARANCE_PATH || 'public/data/appearance.json'),
   // nhân viên mô phỏng (mặc định public/data/employees.json, hiện để trống); script kiểm thử trỏ sang dữ liệu demo

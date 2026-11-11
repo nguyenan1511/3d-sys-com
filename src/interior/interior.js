@@ -48,6 +48,10 @@ export function buildInterior(ctx, model) {
       let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
       for (const d of cl) for (const p of [[d.x, d.z], [d.seat?.x ?? d.x, d.seat?.z ?? d.z]]) { x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); z0 = Math.min(z0, p[1]); z1 = Math.max(z1, p[1]); }
       x0 -= pad; x1 += pad; z0 -= pad; z1 += pad;
+      if ((__REAL_SYS__ && model.layout.world === 'sysone-real')) { // (mặt bằng thật: thảm không lấn qua tường — cắt theo phòng chứa cụm bàn)
+        const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, rm = (model.layout.rooms || []).find(q => q.floor === d0.floor && q.type === 'office' && cx > q.x0 && cx < q.x1 && cz > q.z0 && cz < q.z1);
+        if (rm) { x0 = Math.max(x0, rm.x0 + 0.08); x1 = Math.min(x1, rm.x1 - 0.08); z0 = Math.max(z0, rm.z0 + 0.08); z1 = Math.min(z1, rm.z1 - 0.08); }
+      }
       const w = x1 - x0, h = z1 - z0, r = Math.min(0.3, w / 4, h / 4), sh = new THREE.Shape(), hw = w / 2, hh = h / 2;
       sh.moveTo(-hw + r, -hh); sh.lineTo(hw - r, -hh); sh.quadraticCurveTo(hw, -hh, hw, -hh + r); sh.lineTo(hw, hh - r); sh.quadraticCurveTo(hw, hh, hw - r, hh);
       sh.lineTo(-hw + r, hh); sh.quadraticCurveTo(-hw, hh, -hw, hh - r); sh.lineTo(-hw, -hh + r); sh.quadraticCurveTo(-hw, -hh, -hw + r, -hh);

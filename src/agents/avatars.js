@@ -29,8 +29,19 @@ function chibiDefLook(a) {
 const lookOf = a => chibiDefLook(a) || (a && a.key && VIEW.mode === '3d' && chibiLookOf(a)) || (a && a.emp && a.emp.look) || {};
 import { gaitMotion, gaitLegs } from './gait.js';
 import { MOCAP, loadMocap, mocapPose, segQuat, SEG } from './mocap.js';
-import { VrmPool } from './vrmCharacters.js';
-import { RiggedPool } from './riggedCharacters.js';
+// Nhân vật VRM / GLB có xương: thư viện nạp khi có người dùng tới (bộ nhân vật hiện tại toàn my-office 'mo') — gói chính
+// nhẹ đi ~250 kB (@pixiv/three-vrm). Trong lúc nạp, get() trả null: nhân vật tạm ẩn như khi đang tải mô hình.
+class LazyPool {
+  constructor(load, group) { this.load = load; this.group = group; this.pool = null; this.req = false; }
+  begin() { this.pool?.begin(); }
+  get(a, def) {
+    if (this.pool) return this.pool.get(a, def);
+    if (!this.req) { this.req = true; this.load().then(P => { this.pool = new P(this.group); }).catch(e => { console.warn('Không nạp được bộ nhân vật', e); this.req = false; }); }
+    return null;
+  }
+  loading(a) { return this.pool ? this.pool.loading(a) : this.req; }
+  end() { this.pool?.end(); }
+}
 import { MoPool, moConfig } from './moCharacters.js';
 import { toonRamp, outlineMaterial, characterToon, characterVinyl, OUTLINE } from './toon.js';
 export { toonRamp, outlineMaterial };
@@ -367,8 +378,8 @@ export class AvatarSystem {
       else if (p.local) { const m = p.local(); p.local = () => m; }
     }
     this.glb = new GlbPool(this.group); // nhân vật 3D làm sẵn (GLB)
-    this.vrm = new VrmPool(this.group); // nhân vật VRM (xương chuẩn, biểu cảm, vật lý tóc)
-    this.rigged = new RiggedPool(this.group); // nhân vật GLB có sẵn bộ xương (gấu trúc, thỏ…)
+    this.vrm = new LazyPool(() => import('./vrmCharacters.js').then(m => m.VrmPool), this.group); // nhân vật VRM (xương chuẩn, biểu cảm, vật lý tóc)
+    this.rigged = new LazyPool(() => import('./riggedCharacters.js').then(m => m.RiggedPool), this.group); // nhân vật GLB có sẵn bộ xương (gấu trúc, thỏ…)
     this.mo = new MoPool(this.group); // nhân vật kiểu my-office (chibi đồ chơi / hoạt hình)
     this.moStaff = opts.moStaff ?? null; // định nghĩa nhân vật my-office cho nhân viên mô phỏng (null = chibi cũ)
     this.mocap = opts.mocap !== false; if (this.mocap && typeof window !== 'undefined') loadMocap(); // chuyển động người thật

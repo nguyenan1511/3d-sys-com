@@ -79,6 +79,7 @@ export function optimizeStatic() {
       }
       if (used.length < 2) continue;
       const geo = mergeGeometries(geos, false); if (!geo) continue;
+      geo.userData.ownedMerge = true; // (SYSONE: hình gộp riêng — src/scene/releaseRam.js)
       const material = used[0].material.clone(); material.vertexColors = true; material.userData.own = true; if (material.color) material.color.setRGB(1, 1, 1);
       if (typeof material.roughness === 'number') { material.roughness = q(material.roughness, 0.25); material.metalness = q(material.metalness, 0.5); }
       const mesh = new THREE.Mesh(geo, material); mesh.castShadow = used[0].castShadow; mesh.receiveShadow = used[0].receiveShadow;

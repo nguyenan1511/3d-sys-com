@@ -18,7 +18,8 @@ export class Attendance {
     this.code = session.me.employee?.code || null;
     const wp = this.app.model.waypoints;
     // máy chấm công: tường trước, bên trái cửa chính (nhìn từ trong nhà)
-    this.spot = { x: (wp.door0?.x ?? 5.55) - 1.45, z: 4.5, stand: { x: (wp.door0?.x ?? 5.55) - 1.45, z: 3.95 }, f: 0 };
+    const tc = this.app.model.layout.timeClock; // (Real SYS: vị trí theo mặt bằng thật, sinh trong layout)
+    this.spot = tc ? { x: tc.x, z: tc.z, rot: tc.rot, stand: { ...tc.stand }, f: 0 } : { x: (wp.door0?.x ?? 5.55) - 1.45, z: 4.5, stand: { x: (wp.door0?.x ?? 5.55) - 1.45, z: 3.95 }, f: 0 };
     this.build();
     session.rt.on('hello', () => this.refresh());
     session.rt.on('attendance', m => { if (!m.rec) return; this.byCode.set(m.rec.code, m.rec); if (m.rec.code === this.code) this.mine = m.rec; this.version++; });
@@ -31,7 +32,7 @@ export class Attendance {
 
   // ---------- máy chấm công (3D) ----------
   build() {
-    const g = this.group = new THREE.Group(); g.name = 'timeClock'; g.position.set(this.spot.x, this.app.model.floorY(0), this.spot.z); g.rotation.y = Math.PI; // mặt máy nhìn vào trong nhà (-z)
+    const g = this.group = new THREE.Group(); g.name = 'timeClock'; g.position.set(this.spot.x, this.app.model.floorY(0), this.spot.z); g.rotation.y = this.spot.rot ?? Math.PI; // mặt máy nhìn vào trong nhà (-z)
     this.app.scene.add(g);
     const body = new THREE.MeshStandardMaterial({ color: '#2b2f36', roughness: 0.5 }), trim = new THREE.MeshStandardMaterial({ color: '#c9a227', metalness: 0.6, roughness: 0.35 });
     const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); return o; };

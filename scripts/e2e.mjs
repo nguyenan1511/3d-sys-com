@@ -16,7 +16,7 @@ page.on('pageerror', e => errors.push(e.message));
 let fail = 0;
 const check = (name, ok, info = '') => { console.log(`${ok ? '✓' : '✗'} ${name}${info ? ' — ' + info : ''}`); if (!ok) fail++; };
 
-await page.goto(`${url}?paused&t=07:00`);
+await page.goto(`${url}?paused&t=07:00&mode=office`); // (kiểm thử Office SYS; Real SYS: tests/modes.test.js)
 await page.waitForFunction(() => window.__app?.ready, null, { timeout: 120000 });
 
 // 1. đi bộ: có cầu thang (toà nhà 2 tầng cũ) thì kiểm tra leo thang; văn phòng một tầng thì kiểm tra tường chặn
@@ -105,7 +105,7 @@ check('nhập CSV đổi chỗ ngồi và cập nhật ngay', csv.desk === csv.f
 
 // 5. sức chứa: nhiều người hơn số bàn
 const nDesks = await page.evaluate(() => window.__app.app.model.desks.length), nOver = nDesks + 5;
-await page.goto(`${url}?paused&n=${nOver}`);
+await page.goto(`${url}?paused&n=${nOver}&mode=office`);
 await page.waitForFunction(() => window.__app?.ready, null, { timeout: 120000 });
 const cap = await page.evaluate(() => ({ err: document.getElementById('errors').innerText, n: window.__app.app.sim.agents.length }));
 check('quá số bàn thì báo lỗi rõ ràng, không đặt chồng', cap.err.includes(`${nOver} nhân viên nhưng layout.json chỉ có ${nDesks} bàn`) && cap.n === nDesks, `${cap.n} người được đưa vào mô hình`);

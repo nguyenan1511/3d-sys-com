@@ -14,6 +14,9 @@ export let THEMES;
 export let THEME;
 export function setScene(name, apply = true) {
   const t = THEMES[name] || THEMES.city;
+  // (SYSONE: globalThis.__MO_SKIP_BACKDROP — toà nhà SYSONE dùng đường phố riêng và bỏ thành phố của my-office ngay sau khi
+  // dựng: không dựng nó nữa, tiết kiệm ~0,5 s lúc tải trên máy tính, ~2 s trên điện thoại yếu)
+  if (!t.group && globalThis.__MO_SKIP_BACKDROP) { t.group = new THREE.Group(); t.group.userData.noMerge = true; t.live = { update() {}, night() {}, street: { doors: [], shop: null } }; }
   if (!t.group) { t.group = new THREE.Group(); t.group.userData.noMerge = true; scene.add(t.group); t.live = t.build(t.group); t.live.night(night); }
   if (!t.wins) t.wins = [viewTex(t.view, false), viewTex(t.view, true)];
   for (const x of Object.values(THEMES)) if (x.group) x.group.visible = x === t;

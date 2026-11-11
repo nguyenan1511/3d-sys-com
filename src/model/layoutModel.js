@@ -59,12 +59,13 @@ export function buildModel(layout) {
     const yFrom = floorY(s.from), yTo = floorY(s.to);
     const P = (p, f) => ({ x: p[0], z: p[1], f });
     return { ...s, yFrom, yTo, rect: { x0: s.x0, x1: s.x1, z0: s.z0, z1: s.z1 },
-      pEntry: P(s.entry, s.from), pBottom: P(s.bottom, s.from), pTop: P(s.top, s.to), pExit: P(s.exit, s.to) };
+      pEntry: P(s.entry, s.from), pBottom: P(s.bottom, s.from), pTop: P(s.top, s.to), pExit: P(s.exit, s.to), pVia: (s.via || []).map(v => P(v, s.from)) };
   });
   const stairById = new Map(stairs.map(s => [s.id, s]));
 
   /** Cao độ bậc thang tại (x,z): có bậc rõ ràng, bo nhẹ ở mép bậc. */
   function stairHeight(st, x, z) {
+    if (st.flights) return flightHeight(st, x, z);
     let u;
     switch (st.rise) {
       case '-z': u = (st.z1 - z) / (st.z1 - st.z0); break;
@@ -77,6 +78,33 @@ export function buildModel(layout) {
     const i = Math.min(N - 1, Math.floor(k)), fr = k - i;
     let y = st.yFrom + (i + 1) * rs;
     if (fr < 0.25 && i > 0) y -= rs * (1 - fr / 0.25) * 0.5; // chân đặt mép bậc
+    return y;
+  }
+
+  /**
+   * Thang chữ U (layout.stairs[].flights): mỗi vế có rise riêng và đoạn [a, b] của tổng độ cao; chiếu nghỉ có flat (tỉ lệ
+   * độ cao). Điểm nằm ngoài mọi vế → vế gần nhất.
+   */
+  function flightHeight(st, x, z) {
+    let best = null, bd = Infinity;
+    for (const fl of st.flights) {
+      const dx = Math.max(fl.x0 - x, 0, x - fl.x1), dz = Math.max(fl.z0 - z, 0, z - fl.z1), d = dx * dx + dz * dz;
+      if (d < bd) { bd = d; best = fl; }
+    }
+    const H = st.yTo - st.yFrom;
+    if (best.flat !== undefined) return st.yFrom + best.flat * H;
+    let u;
+    switch (best.rise) {
+      case '-z': u = (best.z1 - z) / (best.z1 - best.z0); break;
+      case '+x': u = (x - best.x0) / (best.x1 - best.x0); break;
+      case '-x': u = (best.x1 - x) / (best.x1 - best.x0); break;
+      default: u = (z - best.z0) / (best.z1 - best.z0);
+    }
+    u = Math.max(0, Math.min(1, u));
+    const N = best.steps || Math.round(st.steps * (best.b - best.a)), rs = (best.b - best.a) * H / N, k = u * N;
+    const i = Math.min(N - 1, Math.floor(k)), fr = k - i;
+    let y = st.yFrom + best.a * H + (i + 1) * rs;
+    if (fr < 0.25 && i > 0) y -= rs * (1 - fr / 0.25) * 0.5;
     return y;
   }
 
@@ -123,6 +151,7 @@ export function buildModel(layout) {
   // Lan can quanh ô cầu thang ở tầng trên (chừa đầu thang để bước ra)
   const rails = [];
   for (const st of stairs) {
+    if (st.flights) continue; // (thang chữ U trong lõi: ba phía là tường, phía sảnh để trống cho người lên / xuống)
     const r = st.rect, T = 0.04, f = st.to;
     const nearWall = x => Math.abs(x) > 2.95;
     if (st.rise === '+z' || st.rise === '-z') {

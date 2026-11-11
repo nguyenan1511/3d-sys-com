@@ -1,5 +1,6 @@
 // Route HTTP. Mọi quyết định quyền đều ở server; client chỉ hiển thị kết quả.
 import express from 'express';
+import { compressedStatic } from './static.js';
 import path from 'path';
 import { config as defaultConfig, ROOT } from './config.js';
 import { openDb, audit } from './db.js';
@@ -139,7 +140,7 @@ export async function createApp(config = defaultConfig) {
   });
 
   // ---------- chỗ ngồi ----------
-  api.get('/seats', needAuth, (_req, res) => res.json({ seats: store.listSeats() }));
+  api.get('/seats', needAuth, (req, res) => res.json({ seats: store.listSeats(req.query.mode === 'real' ? 'real' : req.query.mode === 'all' ? null : 'office') })); // (mặc định Office SYS như trước)
   api.get('/equipment', needAuth, (_req, res) => res.json(store.equipment));
   api.get('/appearance', needAuth, (_req, res) => res.json(store.appearance));
   api.put('/me/look', needEmployee, (req, res) => res.json({ ok: true, look: store.setLook(req.actor, req.actor.code, req.body?.look) }));
@@ -192,7 +193,7 @@ export async function createApp(config = defaultConfig) {
   // dữ liệu bố cục chỉ cấp sau khi đăng nhập
   app.use((req, res, next) => (DATA_FILE.test(req.path) && !req.actor) ? res.status(401).json({ error: 'Cần đăng nhập.' }) : next());
   if (config.simEmployeesPath) app.get('/data/employees.json', (_req, res) => res.sendFile(config.simEmployeesPath));
-  app.use('/data', express.static(path.join(ROOT, 'public/data'), { maxAge: 0 }));
+  app.use('/data', compressedStatic(path.join(ROOT, 'public/data'))); // (nén; kiểm tra lại bằng ETag)
 
   // lỗi
   const finish = (err, req, res, _next) => {

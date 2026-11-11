@@ -10,15 +10,18 @@ import { findDepartment } from '../shared/departments.js';
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 export class NameTags {
-  constructor(scene, host) {
-    this.group = new THREE.Group(); this.group.name = 'nameTags'; scene.add(this.group);
+  constructor(_scene, host) {
+    // nhãn nằm trong cảnh riêng: CSS2DRenderer duyệt toàn bộ cảnh nó được giao mỗi khung hình — giao cả văn phòng (hàng
+    // nghìn vật) tốn ~12% thời gian CPU mỗi khung hình chỉ để tìm vài chục nhãn
+    this.scene = new THREE.Scene(); this.scene.matrixWorldAutoUpdate = true;
+    this.group = new THREE.Group(); this.group.name = 'nameTags'; this.scene.add(this.group);
     this.items = new Map(); this.seen = new Set();
     this.blocked = null; // (x, y, z) => true khi đoạn camera → điểm bị tường che (main.js gắn vào)
     this.r = new CSS2DRenderer(); this.r.domElement.className = 'tag-layer';
     host.appendChild(this.r.domElement);
   }
   setSize(w, h) { this.r.setSize(w, h); }
-  render(scene, camera) { this.r.render(scene, camera); }
+  render(_scene, camera) { this.r.render(this.scene, camera); }
   make(e) {
     const tag = el('div', 'tag'), dot = el('i'), name = document.createTextNode(e.name), chip = el('span', 'tag-dept');
     tag.append(dot, name, chip);
@@ -48,7 +51,8 @@ export class NameTags {
       const y = e.y + (2.02 - 0.5 * (e.sit || 0)) * cs;
       // bị tường che? (mỗi nhãn kiểm tra ~7 lần/giây, so le nhau; mờ dần thay vì chớp tắt)
       const now = performance.now();
-      if (this.blocked && now - it.t > 140) { it.t = now + Math.random() * 30; it.hid = this.blocked(e.x, y - 0.1 * cs, e.z) && this.blocked(e.x, e.y + 0.9 * cs, e.z); }
+      if (e.me) it.hid = false; // (nhân vật của mình: Invisicam làm mờ vật chắn nên luôn thấy — nhãn luôn hiện)
+      else if (this.blocked && now - it.t > 140) { it.t = now + Math.random() * 30; it.hid = this.blocked(e.x, y - 0.1 * cs, e.z) && this.blocked(e.x, e.y + 0.9 * cs, e.z); }
       it.tag.classList.toggle('tag--hidden', it.hid);
       it.obj.visible = true; it.obj.position.set(e.x, y, e.z);
       if (e.bubble && !it.hid) { if (it.txt.textContent !== e.bubble) it.txt.textContent = e.bubble; it.bobj.visible = true; it.bobj.position.set(e.x, y, e.z); }

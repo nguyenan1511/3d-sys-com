@@ -174,7 +174,8 @@ export function parkedScooter(color) {
 /* ---------- the Car Kit's models (public/assets/vehicles/cars.json) ---------- */
 const BASE = process.env.NEXT_PUBLIC_BASE_PATH || '';
 let kitLoad = null;
-const loadKit = () => (kitLoad ??= fetch(`${BASE}/assets/vehicles/cars.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null));
+// (SYSONE: dùng chung một lần tải với src/scene/carKit.js và bản cozy — trước đây tệp 420 kB bị tải 3 lần)
+const loadKit = () => (kitLoad ??= (globalThis.__carKitJson ??= fetch(`${BASE}/assets/vehicles/cars.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
 const unb64 = (s, T) => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new T(u.buffer); };
 const linear = (c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);   // the palette's sRGB bytes, as three wants vertex colours
 function kitGeometry(part) {

@@ -2,6 +2,7 @@
 // Kiểm tra định dạng ngay khi gõ; quyết định cuối cùng ở server.
 import { parseLogin } from '../shared/identity.js';
 import { api } from '../net/api.js';
+import { MODES, getMode, saveMode, REAL_ENABLED } from '../core/mode.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -11,6 +12,9 @@ export function showLogin(root, { onSuccess, notice } = {}) {
   <div class="login-card" role="main">
     <div class="login-brand"><h1><img src="logo/sysone-logo.svg" alt="SYSONE" class="login-logo" width="174" height="20"></h1><p>Văn phòng 33 Dương Quang Đông</p></div>
     ${notice ? `<p class="login-notice" role="status">${esc(notice)}</p>` : ''}
+    ${REAL_ENABLED ? `<fieldset class="mode-pick"><legend>Chọn chế độ</legend>
+      ${Object.values(MODES).map(m => `<label class="mode-opt"><input type="radio" name="mode" value="${m.id}"${getMode() === m.id ? ' checked' : ''}><span><b>${m.name}</b><small>${m.hint}</small></span></label>`).join('')}
+    </fieldset>` : ''}
     <div class="tabs" role="tablist" aria-label="Loại tài khoản">
       <button role="tab" id="tabEmp" aria-selected="true" aria-controls="paneEmp">Nhân viên</button>
       <button role="tab" id="tabCeo" aria-selected="false" aria-controls="paneCeo" tabindex="-1">CEO</button>
@@ -32,6 +36,8 @@ export function showLogin(root, { onSuccess, notice } = {}) {
     </form>
   </div>`;
   const $ = id => root.querySelector('#' + id);
+  if (REAL_ENABLED) saveMode(getMode());
+  root.querySelectorAll('input[name=mode]').forEach(r => { r.onchange = () => saveMode(r.value); });
   const tabs = [$('tabEmp'), $('tabCeo')], panes = [$('paneEmp'), $('paneCeo')];
   const select = i => {
     tabs.forEach((t, k) => { t.setAttribute('aria-selected', String(k === i)); t.tabIndex = k === i ? 0 : -1; panes[k].hidden = k !== i; });

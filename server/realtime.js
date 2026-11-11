@@ -5,11 +5,12 @@ import { WebSocketServer } from 'ws';
 import { sessionFromCookie, originAllowed, redeemWsTicket } from './security.js';
 import { displayOf } from '../src/shared/identity.js';
 
-const LIMIT = { x: [-16, 16], y: [-1, 12], z: [-11, 31] };
+const LIMIT = { x: [-16, 16], y: [-1, 16], z: [-14, 31] }; // (Real SYS: nhà sâu tới z ≈ -11,3, sân thượng cao ≈ 10,9 m)
 import { smokeAllowed } from '../src/shared/rules.js';
 import { PROP_ACTS } from '../src/shared/propActs.js';
 import { Karaoke } from './karaoke.js';
 import { Billiards } from './billiards.js';
+import { modeOfDesk } from '../src/core/mode.js';
 const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'jump', 'tv', ...PROP_ACTS]); // tv: ngồi sofa xem TV; còn lại: dùng đồ vật
 const okNum = (v, [a, b]) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b;
 
@@ -98,7 +99,7 @@ export class Hub {
     if (act === 'smoke' && (p.seated || !smokeAllowed(Number(m.x), Number(m.z)))) act = '';
     if (p.seated) { if (p.act !== act && act !== 'jump') { p.act = act; this.dirty.add(ws.key); } return; } // đang ngồi: vị trí do server quyết định, chỉ đổi động tác
     if (!okNum(m.x, LIMIT.x) || !okNum(m.y, LIMIT.y) || !okNum(m.z, LIMIT.z) || !Number.isInteger(m.f) || !Number.isFinite(m.yaw)) return;
-    Object.assign(p, { x: m.x, y: m.y, z: m.z, f: m.f, yaw: m.yaw, walk: !!m.walk, run: !!m.run, act });
+    Object.assign(p, { x: m.x, y: m.y, z: m.z, f: m.f, yaw: m.yaw, walk: !!m.walk, run: !!m.run, act, mode: m.mode === 'real' ? 'real' : 'office' });
     this.dirty.add(ws.key);
   }
 
@@ -146,8 +147,8 @@ export class Hub {
   setSeated(key, seat) {
     const p = this.presence.get(key);
     if (!p) { this.pendingSeat.set(key, seat); return false; }
-    const y = this.store.model.floorY(seat.floor);
-    Object.assign(p, { seated: seat.deskId, x: seat.x, y, z: seat.z, f: seat.floor, yaw: seat.facing * Math.PI / 180, walk: false });
+    const y = this.store.modelOf(seat.deskId).floorY(seat.floor);
+    Object.assign(p, { mode: modeOfDesk(seat.deskId), seated: seat.deskId, x: seat.x, y, z: seat.z, f: seat.floor, yaw: seat.facing * Math.PI / 180, walk: false });
     this.dirty.add(key);
     return true;
   }
