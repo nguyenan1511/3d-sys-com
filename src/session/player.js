@@ -43,7 +43,7 @@ export class Player {
 
   get typing() {
     const t = document.activeElement, dash = document.getElementById('dash');
-    return !!(t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.isContentEditable)) || !!document.querySelector('.modal-back') || !!(dash && !dash.hidden);
+    return !!(t && (/^(INPUT|SELECT|TEXTAREA)$/.test(t.tagName) || t.isContentEditable)) || !!document.querySelector('.modal-back') || !!(dash && !dash.hidden) || document.body.classList.contains('in-room') || !!this.session?.wc?.locked;
   }
 
   onKey(e) {
@@ -53,8 +53,9 @@ export class Player {
     if (MOVE[k]) { this.keys[MOVE[k]] = down; e.preventDefault(); if (down) { this.follow(); this.stopPath(); } return; }
     if (!down || e.repeat) return;
     if (k === ' ') { e.preventDefault(); this.jump(); return; }
-    if (k === 'e') { e.preventDefault(); const at = this.session.att; if (!this.seated && !this.sofa && !this.seq && at?.code && at.near(this.agent.x, this.agent.z, this.agent.f)) { at.open(); return; } if (!this.seated && !this.sofa && !this.seq && this.app.musicCorner?.near(this.agent.x, this.agent.z, this.agent.f)) { this.session.social?.openMusic(); return; } const g = this.session.guide; if (!this.seated && !this.sofa && !this.seq && g?.near(this.agent.x, this.agent.z, this.agent.f)) { g.talk(); return; } if (!this.seated && this.session.openLift()) return; if (!this.seated && !this.sofa && !this.seq && this.session.nearKtv) { this.session.ktv.join(); return; } if (!this.seated && !this.sofa && !this.seq && this.session.nearBil) { this.session.bil.join(); return; } const pr = !this.seated && !this.sofa && !this.seq && this.session.nearProp; if (pr && this.session.props?.use(pr)) return; this.toggleSit(); return; }
+    if (k === 'e') { e.preventDefault(); const at = this.session.att; if (!this.seated && !this.sofa && !this.seq && this.session.nearLights) { this.session.lights.open(); return; } if (!this.seated && !this.sofa && !this.seq && this.session.nearStall) { this.session.wc.enter(this.session.nearStall); return; } if (!this.seated && !this.sofa && !this.seq && this.session.nearSink) { if (this.session.wc.looking) this.session.wc.endMirror(); else this.session.wc.startMirror(); return; } if (!this.seated && !this.sofa && !this.seq && at?.code && at.near(this.agent.x, this.agent.z, this.agent.f)) { at.open(); return; } if (!this.seated && !this.sofa && !this.seq && this.app.musicCorner?.near(this.agent.x, this.agent.z, this.agent.f)) { this.session.social?.openMusic(); return; } const g = this.session.guide; if (!this.seated && !this.sofa && !this.seq && g?.near(this.agent.x, this.agent.z, this.agent.f)) { g.talk(); return; } if (!this.seated && this.session.openLift()) return; if (!this.seated && !this.sofa && !this.seq && this.session.nearKtv) { this.session.ktv.enterRoom(); return; } if (!this.seated && !this.sofa && !this.seq && this.session.nearBil) { this.session.bil.interact(); return; } const pr = !this.seated && !this.sofa && !this.seq && this.session.nearProp; if (pr && this.session.props?.use(pr)) return; this.toggleSit(); return; }
     // Esc: chuyển qua lại 'bám theo' ↔ 'xem xung quanh' (kéo chuột để nhìn quanh) — như hangmu; đi tiếp là camera bám theo lại
+    if (k === 'escape' && this.session.wc?.escape()) return;
     if (k === 'escape') { this.setAct(null); if (!this.app.rig.fp && this.app.rig.follow === this.agent) this.app.rig.setLookMode(!this.app.rig.lookMode); return; }
     if (k === 'c') { this.follow(); this.app.rig.recenter = true; return; }
     if ((k === 'v' || k === 'c') && this.app.mode2d) return; // 2D: không có góc nhìn thứ nhất / camera sau lưng
@@ -123,7 +124,7 @@ export class Player {
     const a = this.agent, f = facingVec(desk.facing || 0), y = this.app.model.floorY(desk.floor), fs = this.app.model.fs || 1;
     const front = { x: desk.seat.x + f.x * 0.16 * fs, z: desk.seat.z + f.z * 0.16 * fs };
     this.seated = desk.id; this.vx = this.vz = 0;
-    if (a.act === 'dance' || a.act === 'wave') a.act = null;
+    if (a.act === 'dance' || a.act === 'quay' || a.act === 'wave') a.act = null;
     const dist = Math.hypot(front.x - a.x, front.z - a.z);
     this.seq = [
       { kind: 'walk', from: { x: a.x, z: a.z }, to: front, dur: Math.max(0.05, dist / this.WALK) },
@@ -256,7 +257,7 @@ export class Player {
     if (this.path && this.stuckFor > 1) this.stopPath('stuck');
     a.walkPhase += moved / this.STRIDE * Math.PI;
     if (!rig.fp && speed > 0.05 * this.cs && moving) a.yaw += angDiff(a.yaw, Math.atan2(-mx, -mz)) * Math.min(1, dt * 12);
-    if (moving && (a.act === 'dance' || a.act === 'wave' || (PROP_ACTS.includes(a.act) && a.act !== 'sing' && a.act !== 'cue')) && !this.path) this.setAct(null);   // (đi đi: thôi dùng đồ vật)
+    if (moving && (a.act === 'dance' || a.act === 'quay' || a.act === 'wave' || (PROP_ACTS.includes(a.act) && a.act !== 'sing' && a.act !== 'cue')) && !this.path) this.setAct(null);   // (đi đi: thôi dùng đồ vật)
     if (a.act === 'smoke' && !smokeAllowed(a.x, a.z)) { this.setAct(null); this.session.toast(NO_SMOKING, true); } // đi vào toà nhà thì dập thuốc
     a.walkAmt = Math.min(2, speed / (this.WALK * sk)) * (this.onGround ? 1 : 0.3);
     // nhảy: nhún lấy đà -> bật -> rơi -> nhún khi tiếp đất

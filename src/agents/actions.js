@@ -277,6 +277,26 @@ export class Motion {
         p.y = Math.abs(Math.sin(T * 6.2)) * 0.05; p.mouth = 'o';
         return p;
       }
+      case 'quay': {   // quẩy kiểu Audition (phòng karaoke): 4 động tác luân phiên theo nhịp ~128 BPM, nhún gối mạnh, lắc đầu
+        // tay: [vung trước/sau, giơ ngang (tay phải +, tay trái −), gập khuỷu]
+        const beat = T * 128 / 60, s = Math.sin(beat * Math.PI), b = Math.abs(s), move = Math.floor(beat / 8) % 4;
+        const p = chibiPose(P, 'idle', T, sitO);
+        if (move === 0) {          // đấm tay lên trời luân phiên
+          p.armR = s > 0 ? [-0.2, 2.75, -0.15] : [-0.9, 0.5, -1.7]; p.armL = s > 0 ? [-0.9, -0.5, -1.7] : [-0.2, -2.75, -0.15];
+          p.head = [-0.15, 0, s * 0.12];
+        } else if (move === 1) {   // dang tay sóng ngang, lắc hông
+          p.armR = [0, 1.5 + s * 0.45, -0.5 - b * 0.5]; p.armL = [0, -1.5 + s * 0.45, -0.5 - (1 - b) * 0.5]; p.lean = s * 0.1; p.tilt = s * 0.12;
+          p.head = [0, 0, -s * 0.15];
+        } else if (move === 2) {   // vỗ tay trên đầu
+          const c = 0.25 + b * 0.35; p.armR = [-0.35, 2.5 - c, -1.2]; p.armL = [-0.35, -2.5 + c, -1.2]; p.head = [-0.2, 0, 0];
+        } else {                   // disco: chỉ tay chéo lên trời rồi xuống đất
+          p.armR = s > 0 ? [-0.3, 2.6, -0.05] : [-0.6, 0.35, -0.2]; p.armL = s > 0 ? [-0.6, -0.35, -0.2] : [-0.3, -2.6, -0.05];
+          p.head = [s > 0 ? -0.2 : 0.15, 0, s * 0.1];
+        }
+        if (!seated) { p.hipL = -(0.12 + b * 0.35); p.hipR = -(0.12 + (move === 1 ? 1 - b : b) * 0.35); p.kneeL = 0.2 + b * 0.6; p.kneeR = 0.2 + (move === 1 ? 1 - b : b) * 0.6; p.y = -b * 0.06 + (move === 3 ? b * 0.05 : 0); }
+        p.mouth = 'o';
+        return p;
+      }
       // ---- dùng đồ vật (src/scene/props.js) ----
       case 'brew': {   // pha cà phê: hai tay thao tác trước máy, đầu cúi nhìn; cuối chu kỳ nhấc cốc lên
         const p = chibiPose(P, 'tidy', T, sitO); p.lean = 0.1; p.head = [0.22, 0, 0];

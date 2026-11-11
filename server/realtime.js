@@ -10,13 +10,15 @@ import { smokeAllowed } from '../src/shared/rules.js';
 import { PROP_ACTS } from '../src/shared/propActs.js';
 import { Karaoke } from './karaoke.js';
 import { Billiards } from './billiards.js';
+import { Restroom } from './wc.js';
+import { lightsState, canLights } from './lights.js';
 import { modeOfDesk } from '../src/core/mode.js';
-const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'jump', 'tv', ...PROP_ACTS]); // tv: ngồi sofa xem TV; còn lại: dùng đồ vật
+const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'quay', 'jump', 'tv', ...PROP_ACTS]); // tv: ngồi sofa xem TV; còn lại: dùng đồ vật
 const okNum = (v, [a, b]) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b;
 
 export class Hub {
   constructor(store, config) {
-    this.store = store; this.config = config; this.ktv = new Karaoke(this); this.bil = new Billiards(this);
+    this.store = store; this.config = config; this.ktv = new Karaoke(this); this.bil = new Billiards(this); this.wc = new Restroom(this);
     this.sockets = new Map();   // key -> Set<ws>
     this.presence = new Map();  // key -> { key, kind, code, display, x,y,z,f,yaw,walk, seated }
     this.pending = new Map();   // code -> hạn "đang vào" sau khi đăng nhập, trước khi mở WS
@@ -65,7 +67,7 @@ export class Hub {
     ws.on('pong', () => { ws.alive = true; });
     ws.on('message', buf => this.onMessage(ws, buf));
     ws.on('close', () => this.onClose(ws));
-    this.send(ws, { t: 'hello', you: id, online: this.onlineList(), seats: this.store.listSeats(), presence: [...this.presence.values()].filter(p => p.x !== null), blinds: this.blinds(), music: musicState(this.store), ktv: this.ktv.state(), bil: this.bil.state(), canMusic: canMusic(this.store, this.actorOf(ws)) });
+    this.send(ws, { t: 'hello', you: id, online: this.onlineList(), seats: this.store.listSeats(), presence: [...this.presence.values()].filter(p => p.x !== null), blinds: this.blinds(), music: musicState(this.store), ktv: this.ktv.state(), bil: this.bil.state(), wc: this.wc.state(), lights: lightsState(this.store), canLights: canLights(this.store, this.actorOf(ws)), canMusic: canMusic(this.store, this.actorOf(ws)) });
     if (first) { this.broadcast({ t: 'online', list: this.onlineList() }); if (id.code) this.store.emit({ type: 'employees' }); }
   }
 
@@ -76,7 +78,7 @@ export class Hub {
     if (set.size === 0) {
       this.sockets.delete(ws.key);
       this.presence.delete(ws.key);
-      this.ktv.leave(ws.key); this.bil.leave(ws.key);   // (rời mạng: ra khỏi phòng karaoke / bàn bi-a)
+      this.ktv.leave(ws.key); this.bil.leave(ws.key); this.wc.leave(ws.key);   // (rời mạng: ra khỏi phòng karaoke / bàn bi-a)
       const code = ws.key.startsWith('employee:') ? ws.key.slice(9) : null;
       if (code) this.store.db.prepare('UPDATE employees SET last_seen = ? WHERE code = ?').run(Date.now(), code);
       this.broadcast({ t: 'gone', key: ws.key });
@@ -90,6 +92,7 @@ export class Hub {
     if (m && m.t === 'blind') return this.onBlind(ws, m);
     if (m && m.t === 'chat') return this.onChat(ws, m);
     if (m && typeof m.t === 'string' && m.t.startsWith('bil:')) return this.bil.onMessage(ws, m);
+    if (m && typeof m.t === 'string' && m.t.startsWith('wc:')) return this.wc.onMessage(ws, m);
     if (m && (m.t === 'rtc' || (typeof m.t === 'string' && m.t.startsWith('ktv:')))) return this.ktv.onMessage(ws, m);
     if (!m || m.t !== 'pos') return;
     const p = this.presence.get(ws.key);

@@ -73,8 +73,11 @@ async function boot(notice) {
 
 const notice = sessionStorage.getItem('sysone_notice');
 sessionStorage.removeItem('sysone_notice');
-boot(notice).catch(err => {
+boot(notice).catch(async err => {
   console.error(err);
+  // phiên đăng nhập hết hiệu lực giữa chừng (đăng xuất ở tab khác, phiên hết hạn…): về màn hình đăng nhập thay vì báo lỗi
+  const me = await api('GET', '/api/me');
+  if (me.ok && !me.authenticated) { sessionStorage.setItem('sysone_notice', 'Phiên đăng nhập đã hết hạn — vui lòng đăng nhập lại.'); location.reload(); return; }
   loginRoot.hidden = true; appRoot.hidden = false;
   loading.error(`Không mở được văn phòng: ${err.message}`);
 });

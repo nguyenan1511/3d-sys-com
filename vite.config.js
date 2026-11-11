@@ -10,6 +10,9 @@ export default defineConfig({
   // (src/scene/fastRoundedBox.js, tests/fastRoundedBox.test.js)
   resolve: { alias: [{ find: /^three\/examples\/jsm\/geometries\/RoundedBoxGeometry\.js$/, replacement: fileURLToPath(new URL('./src/scene/fastRoundedBox.js', import.meta.url)) }] },
   server: { port: 5179 },
+  // (dev) khai báo trước các module three/examples dùng ở phần tải sau (phòng bi-a / karaoke, gương nhà vệ sinh, nhân vật…):
+  // không thì lần đầu dùng tới Vite mới phát hiện, tối ưu lại rồi TẢI LẠI CẢ TRANG cho mọi người đang mở — trông như app crash
+  optimizeDeps: { include: ['three', ...['controls/OrbitControls', 'environments/RoomEnvironment', 'loaders/GLTFLoader', 'loaders/SVGLoader', 'objects/Reflector', 'postprocessing/EffectComposer', 'postprocessing/OutputPass', 'postprocessing/RenderPass', 'postprocessing/UnrealBloomPass', 'renderers/CSS2DRenderer', 'renderers/CSS3DRenderer', 'utils/BufferGeometryUtils', 'utils/SkeletonUtils'].map(m => `three/examples/jsm/${m}.js`)] },
   build: { chunkSizeWarningLimit: 1200 },
   test: { include: ['tests/**/*.test.js'] }
 });

@@ -23,6 +23,8 @@ import { sound } from '../audio/notify.js';
 import { Props } from '../scene/props.js';
 import { Karaoke } from './karaoke.js';
 import { Billiards } from './billiards.js';
+import { LightSwitch } from './lightSwitch.js';
+import { Restroom } from './restroom.js';
 import { notice } from '../ui/notices.js';
 import { MODES, getMode, switchMode, REAL_ENABLED } from '../core/mode.js';
 const MODE = getMode(), COMPACT = '(max-width: 760px), (max-height: 500px) and (max-width: 1100px)';
@@ -76,6 +78,8 @@ export class Session {
     this.ktv = app.big && this.player ? new Karaoke(this) : null;
     this.bil = app.big && this.player ? new Billiards(this) : null;   // bàn bi-a 2 người (phòng giải trí)   // phòng karaoke (buồng ở tầng trệt)
     this.att = app.big || app.real ? new Attendance(this) : null; // chấm công: máy ở sảnh, bản ghi trong ngày
+    this.lights = this.att ? new LightSwitch(this, this.att.spot) : null;   // công tắc đèn công ty (cạnh máy chấm công)
+    this.wc = app.big && this.player && app.bldRoot ? new Restroom(this) : null;   // nhà vệ sinh: buồng có khoá, gương
     this.listeners = new Set();
   }
   onSeats(fn) { this.listeners.add(fn); }
@@ -496,20 +500,25 @@ export class Session {
       const it = free && !ls && !sofa ? this.blinds.near(a.x, a.z, a.f) : null;
       this.guide?.update(dt);
       this.att?.update(dt); this.att?.tick(a);
-      const tc = free && !ls && this.att?.code && this.att.near(a.x, a.z, a.f);
+      const lt = free && !ls && this.lights?.near(a.x, a.z, a.f);
+      this.nearLights = lt;
+      const tc = free && !ls && !lt && this.att?.code && this.att.near(a.x, a.z, a.f);
       const mc = free && !ls && this.app.musicCorner?.near(a.x, a.z, a.f);
       const gd = free && !ls && !sofa && this.guide?.near(a.x, a.z, a.f);
       // đồ vật dùng được (pha cà phê, máy in, sách, cá, mèo, đèn, game…): tạo khi toà nhà đã dựng xong
       if (!this.props && this.app.bldRoot && this.app.nav) this.props = new Props(this.app, this);
       this.props?.update(dt);
       this.ktv?.update(); this.bil?.update(dt);
+      this.wc?.update(dt);
+      const ws = free && !ls && !lt && !tc && this.wc ? this.wc.nearStall(a.x, a.z, a.f) : null, wk = free && !ls && !lt && !tc && !ws && this.wc?.nearSink(a.x, a.z, a.f);
+      this.nearStall = ws; this.nearSink = wk;
       const kt = free && !ls && !sofa && !tc && !mc && !gd && this.ktv && !this.ktv.inRoom && this.ktv.near(a.x, a.z, a.f);
       this.nearKtv = kt;
       const bl = free && !ls && !sofa && !tc && !mc && !gd && !kt && this.bil && !this.bil.mine && this.bil.near(a.x, a.z, a.f) && this.bil.prompt() ? true : false;
       this.nearBil = bl;
       const pr = free && !ls && !sofa && !tc && !mc && !gd && !kt && !bl && !this.props?.busy && !this.bil?.mine && !this.ktv?.inRoom ? this.props?.near(a.x, a.z, a.f, a.yaw) : null;
       this.nearProp = pr;
-      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : kt ? this.ktv.prompt() : bl ? this.bil.prompt() : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
+      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : this.wc?.locked ? '' : lt ? this.lights.prompt() : ws ? this.wc.prompt(ws) : wk ? (this.wc.looking ? '<b>E</b> thôi soi gương' : '<b>E</b> soi gương 🪞') : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : kt ? this.ktv.prompt() : bl ? this.bil.prompt() : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
       if (prompt !== this._prompt) { this._prompt = prompt; this.app.setPrompt?.(prompt); }
     }
     if (this.labels.visible) {

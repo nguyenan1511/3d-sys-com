@@ -98,6 +98,25 @@ describe('chat và loa', () => {
   });
 });
 
+describe('đèn công ty', () => {
+  it('CEO bật/tắt được; nhân viên chỉ bật/tắt khi được CEO cấp quyền; trạng thái lưu lại; có ghi nhật ký', async () => {
+    const e = await loginEmp('4511-Đèn'), ceo = await loginCeo();
+    expect((await req('GET', '/api/v1/lights', { cookie: e })).body).toMatchObject({ state: { on: false }, canControl: false });
+    expect((await req('POST', '/api/v1/lights', { cookie: e, body: { on: true } })).status).toBe(403);
+    expect((await req('POST', '/api/v1/lights', { cookie: ceo, body: { on: 'bat' } })).body).toMatchObject({ code: 'invalid', field: 'on' });
+    expect((await req('POST', '/api/v1/lights', { cookie: ceo, body: { on: true } })).body.state).toMatchObject({ on: true });
+    expect((await req('POST', '/api/v1/admin/lights/4511', { cookie: e, body: { allow: true } })).status).toBe(403);
+    expect((await req('POST', '/api/v1/admin/lights/4511', { cookie: ceo, body: { allow: true } })).status).toBe(200);
+    expect((await req('GET', '/api/v1/admin/lights', { cookie: ceo })).body.allowed).toContain('4511');
+    expect((await req('GET', '/api/v1/lights', { cookie: e })).body.canControl).toBe(true);
+    expect((await req('POST', '/api/v1/lights', { cookie: e, body: { on: false } })).body.state).toMatchObject({ on: false, by: expect.any(String) });
+    expect((await req('GET', '/api/v1/lights', { cookie: ceo })).body.state.on).toBe(false);
+    const audit = (await req('GET', '/api/v1/admin/audit', { cookie: ceo })).body.audit;
+    expect(audit.some(x => x.action === 'lights.permission.grant' && x.target === '4511')).toBe(true);
+    expect(audit.some(x => x.action === 'lights.on')).toBe(true);
+  });
+});
+
 describe('giới hạn tần suất', () => {
   it('chấm công quá 12 lần/phút → 429 kèm Retry-After', async () => {
     resetRateLimits();

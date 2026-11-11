@@ -1,4 +1,5 @@
 import { migrateSocial } from './social.js';
+import { migrateLights } from './lights.js';
 import { migrateAttendance } from './attendance.js';
 // Nghiệp vụ: nhân viên, chỗ ngồi (đọc từ layout.json), dụng cụ, quyền ngồi, thao tác quản trị.
 // Không phụ thuộc Express để dễ kiểm thử. Mọi kiểm tra quyền nằm ở đây (server), client chỉ hiển thị.
@@ -21,6 +22,7 @@ export class Store {
     this.db = db; this.config = config;
     migrateSocial(db); // chat + quyền bật nhạc (server/social.js)
     migrateAttendance(db); // chấm công (server/attendance.js)
+    migrateLights(db); // quyền bật đèn công ty (server/lights.js)
     this.listeners = new Set();
     this.loadEquipment();
     this.loadLayout();

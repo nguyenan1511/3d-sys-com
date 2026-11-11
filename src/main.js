@@ -49,6 +49,7 @@ import { departmentOfDesk } from './shared/departments.js';
 import { buildDeptSigns } from './scene/deptSigns.js';
 import { MusicCorner } from './scene/musicCorner.js';
 import { TvVideo } from './scene/tvVideo.js';
+import { RoomStage } from './rooms/stage.js';
 import { DeskInfoBoards } from './scene/deskInfo.js';
 import { OfficeMap2D } from './pixel/map2d.js';
 import { setPixelSpecs, setBillboardCamera, VIEW, ENABLE_2D } from './pixel/billboard.js';
@@ -372,6 +373,10 @@ export async function startApp(me, hooks = {}) {
   panel.showErrors(staff.errors, warn);
   panel.renderList(true);
 
+  // phòng 3D riêng cho bi-a / karaoke (src/rooms): vào phòng thì thay cảnh văn phòng bằng cảnh của phòng
+  app.envMap = scene.environment;
+  app.rooms = new RoomStage(app, { renderer, canvas, host: canvas.parentElement });
+  app.bldRoot = bld ? bld.root : null;   // (đồ vật my-office → toạ độ thế giới; nhà vệ sinh, karaoke… cần ngay khi tạo phiên)
   // ---------- phiên người dùng + đồng bộ ----------
   const session = new Session(app, me, hooks, { seats: seatsRes.seats, equipment: equipRes, appearance: lookRes });
   app.session = session;
@@ -380,6 +385,68 @@ export async function startApp(me, hooks = {}) {
   if (tv) { const fitTv = () => tv.setSize(canvas.clientWidth || 680, canvas.clientHeight || 480); new ResizeObserver(fitTv).observe(canvas); fitTv(); tv.place(); }
   app.onMusic = st => { ctx.music?.set(st.on && !st.paused); tv?.setActive(!!st.on); if (session.tv) session.tv.yt = !!st.on; };
   app.musicCorner = ctx.music || null;
+  // ---- đèn công ty (công tắc ở sảnh — src/session/lightSwitch.js): bật đèn = buổi tối, đèn các phòng sáng; tắt = ban ngày.
+  // Chuyển êm ~1,5 s. Đèn phòng là một bộ đèn điểm cố định (không đổi số đèn → không phải dịch lại shader khi đi giữa các
+  // tầng), đặt theo các phòng của tầng đang xem; ban ngày tắt hẳn (không tốn gì).
+  const night = { k: 0, want: 0, base: null, lamps: [], floor: -1, check: 0 };
+  {
+    const N = QUALITY === 'low' || SOFT_GL ? 4 : 9;
+    for (let i = 0; i < N; i++) { const l = new THREE.PointLight(0xffc27a, 0, 9, 1.7); l.visible = false; l.castShadow = false; l.name = 'nightLamp'; scene.add(l); night.lamps.push(l); }
+    night.dayBg = scene.background?.isColor ? scene.background.clone() : new THREE.Color(0xe7edf3);
+  }
+  const NIGHT_BG = new THREE.Color(0x0c1426), NIGHT_SKY = new THREE.Color(0x4a5a8a), NIGHT_SUN = new THREE.Color(0x9fb4ff), _c = new THREE.Color();
+  /** Đặt bộ đèn phòng theo các phòng của tầng f (nhiều đèn hơn cho phòng rộng). */
+  function placeNightLamps(f) {
+    night.floor = f;
+    const rooms = (layout.rooms || []).filter(r => r.floor === f), N = night.lamps.length, fl = model.floors.find(x => x.id === f);
+    const area = r => (r.x1 - r.x0) * (r.z1 - r.z0), tot = rooms.reduce((s, r) => s + area(r), 0) || 1;
+    const spots = [];
+    for (const r of rooms) {
+      const n = Math.max(1, Math.round(area(r) / tot * N)), alongX = r.x1 - r.x0 >= r.z1 - r.z0;
+      for (let i = 0; i < n; i++) { const t = (i + 0.5) / n; spots.push(alongX ? [r.x0 + (r.x1 - r.x0) * t, (r.z0 + r.z1) / 2] : [(r.x0 + r.x1) / 2, r.z0 + (r.z1 - r.z0) * t]); }
+    }
+    night.lamps.forEach((l, i) => { const p = spots[i]; l.userData.on = !!p && !!fl; if (p && fl) l.position.set(p[0], (fl.ceiling ?? fl.y + 4) - 0.5, p[1]); });
+  }
+  /** Lưu cường độ/màu gốc của nắng và bầu trời (lần đầu). */
+  function nightBase() {
+    if (night.base) return night.base;
+    const ls = []; scene.traverse(o => { if ((o.isHemisphereLight || o.isDirectionalLight || o.isAmbientLight) && o.parent === scene) ls.push({ o, i: o.intensity, c: o.color.clone(), g: o.groundColor?.clone() }); });
+    return (night.base = { ls, env: scene.environmentIntensity ?? 1 });
+  }
+  app.__night = night;
+  app.setLights = (on, instant = false) => { night.want = on ? 1 : 0; if (instant) night.k = night.want - (night.want ? 0.0001 : -0.0001); };
+  function updateNight(dt) {
+    if (night.k === night.want && !(night.k > 0 && performance.now() - night.check > 700)) return;
+    const b = nightBase();
+    if (night.k !== night.want) { const d = night.want - night.k, st = dt / 1.5; night.k = Math.abs(d) <= st ? night.want : night.k + Math.sign(d) * st; }
+    const k = night.k * night.k * (3 - 2 * night.k);   // (smoothstep)
+    for (const x of b.ls) {
+      x.o.intensity = x.i * (1 - k * (x.o.isDirectionalLight ? 0.94 : 0.85));
+      x.o.color.copy(x.c).lerp(x.o.isDirectionalLight ? NIGHT_SUN : NIGHT_SKY, k * 0.7);
+    }
+    scene.environmentIntensity = b.env * (1 - k * 0.86);
+    if (scene.background?.isColor) scene.background.copy(_c.copy(night.dayBg).lerp(NIGHT_BG, k));
+    // đèn phòng: theo tầng mình đang đứng / đang xem
+    const me = session.player?.agent, f = me && !me.onStair ? me.f : (cutFloor ?? 0);
+    if (night.k > 0) { night.check = performance.now(); if (f !== night.floor) placeNightLamps(f); }
+    for (const l of night.lamps) { l.visible = night.k > 0.002 && l.userData.on; l.intensity = 4.2 * k; }
+  }
+  // ---- camera tạm (soi gương ở nhà vệ sinh — src/session/restroom.js): trộn êm giữa camera bám theo và góc đặt sẵn
+  const camOv = { k: 0, want: 0, eye: new THREE.Vector3(), look: new THREE.Vector3() }, _e = new THREE.Vector3(), _l = new THREE.Vector3(), _f = new THREE.Vector3();
+  app.setCamOverride = o => { if (o) { camOv.eye.copy(o.eye); camOv.look.copy(o.look); camOv.want = 1; } else camOv.want = 0; };
+  function applyCamOverride(dt) {
+    if (!camOv.want && camOv.k < 0.001) { camOv.k = 0; return; }
+    camOv.k += (camOv.want - camOv.k) * (1 - Math.exp(-dt * 5));
+    camera.getWorldDirection(_f); _l.copy(camera.position).add(_f);   // (điểm nhìn của camera bám theo)
+    const k = camOv.k * camOv.k * (3 - 2 * camOv.k);
+    _e.copy(camera.position).lerp(camOv.eye, k); _l.lerp(camOv.look, k);
+    camera.position.copy(_e); camera.lookAt(_l); camera.updateMatrixWorld();
+  }
+  app.onRoomChange = on => {   // vào phòng: luôn vẽ 3D (kể cả khi đang ở bản 2D), ẩn khung video TV văn phòng
+    $('map2d').hidden = on || !app.mode2d; canvas.style.visibility = on || !app.mode2d ? '' : 'hidden';
+    if (tv) tv.r.domElement.style.display = on ? 'none' : '';
+    if (!on) { last = performance.now(); canvas.focus({ preventScroll: true }); }
+  };
   app.bldRoot = bld ? bld.root : null;   // (đồ vật my-office → toạ độ thế giới: src/scene/props.js)
   const deskInfo = BIG ? new DeskInfoBoards(scene, model) : null; // bảng thông tin làm việc trong ngày trên mỗi bàn có chủ
   app.deskInfoSig = id => deskInfo?.items.get(id)?.sig || ''; // (kiểm thử) nội dung bảng trên bàn
@@ -625,10 +692,17 @@ export async function startApp(me, hooks = {}) {
   { const fit = () => tags.setSize(canvas.clientWidth || 680, canvas.clientHeight || 480); new ResizeObserver(fit).observe(canvas); fit(); }
   const deptOfCode = code => { if (!code) return ''; for (const st of session.seats.values()) if (st.owner?.code === code) return departmentOfDesk(st.deskId)?.name || ''; return ''; };
   const myDept = () => session.isAdmin ? 'Ban giám đốc' : (session.me.employee?.department || deptOfCode(session.me.employee?.code));
+  /** Tên + phòng ban của một người (bảng tên trong phòng bi-a / karaoke dùng chung kiểu với văn phòng). */
+  app.tagInfo = key => {
+    if (key === session.key) return { me: true, name: session.isAdmin ? `CEO (${session.me.admin.username})` : session.me.employee.display, dept: myDept() };
+    const a = session.remote.byKey.get(key);
+    return { name: a?.display || key, dept: a?.department || deptOfCode(key.startsWith('employee:') ? key.slice(9) : null) };
+  };
   function updateTags() {
     const list = [];
     for (const a of session.remote.list) {
       if (!a.visible && a !== session.player?.agent) continue;
+      if (a.local && a._mirror) continue;   // (đang soi gương: góc nhìn ngang mắt, không hiện nhãn của mình)
       if (a.local) list.push({ key: 'me', me: true, name: session.isAdmin ? `CEO (${session.me.admin.username})` : session.me.employee.display, dept: myDept(), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf('me') });
       else if (a.key === 'guide') list.push({ key: 'guide', guide: true, name: 'Chị Mai', dept: '', x: a.x, y: a.y, z: a.z, f: a.f, sit: a.sit });
       else list.push({ key: a.key, name: a.display, dept: a.department || deptOfCode(a.key.startsWith('employee:') ? a.key.slice(9) : null), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf(a.key) });
@@ -666,12 +740,33 @@ export async function startApp(me, hooks = {}) {
   };
   // ?maxfps=N: giới hạn số khung hình mỗi giây (máy yếu, hoặc nhiều trang 3D chạy cùng lúc khi kiểm thử)
   const maxFps = +(params.get('maxfps') || window.__MAXFPS || 0);
+  // vòng vẽ: luôn hẹn khung hình kế tiếp TRƯỚC khi chạy — một lỗi bất ngờ trong một khung hình (dữ liệu lạ từ mạng, đồ vật
+  // chưa dựng xong…) chỉ làm hỏng khung đó, không làm đứng cả ứng dụng. Lỗi lặp lại liên tục thì báo một lần.
+  let frameErrs = 0, frameErrAt = 0;
   function frame(now) {
-    if (window.__PAUSE_RENDER) { last = now; requestAnimationFrame(frame); return; } // (kiểm thử nhiều trang trên GPU giả lập: trang khác đang tải cảnh thì tạm dừng vẽ)
-    if (maxFps && now - last < 1000 / maxFps - 2) { requestAnimationFrame(frame); return; }
+    requestAnimationFrame(frame);
+    try { frameBody(now); }
+    catch (e) {
+      frameErrs++; last = now;
+      if (performance.now() - frameErrAt > 5000) { frameErrAt = performance.now(); console.error('[khung hình] lỗi, bỏ qua khung này:', e); }
+      if (frameErrs === 60) session.toast?.('Có lỗi hiển thị — nếu màn hình đứng, hãy tải lại trang.', true);
+    }
+  }
+  function frameBody(now) {
+    if (window.__PAUSE_RENDER) { last = now; return; } // (kiểm thử nhiều trang trên GPU giả lập: trang khác đang tải cảnh thì tạm dừng vẽ)
+    if (maxFps && now - last < 1000 / maxFps - 2) { return; }
     // (khung giật tới 1 s: nhân vật vẫn đi đủ quãng, không bị "quay chậm")
     const rawDt = Math.min((now - last) / 1000, 1.0), rdt = Math.min(rawDt, 0.1); last = now;
     if (!app.paused) sim.step(rdt * app.speed);
+    updateNight(rdt);
+    // đang ở phòng bi-a / karaoke: chỉ vẽ phòng (văn phòng không vẽ); phiên làm việc (mạng, người khác, ván bi-a) vẫn chạy
+    if (app.rooms.active) {
+      session.update(rdt, null, rawDt);
+      app.rooms.frame(rdt);
+      frames++; perfT += rdt; if (perfT > 0.5) { fps = frames / perfT; frames = 0; perfT = 0; }
+      panel.tick(now);
+      return;
+    }
     if (MYOFFICE || CITY) updateMyOffice(rdt); // đường phố, xe cộ, người đi đường (và đồ vật chuyển động khi dùng cả văn phòng my-office)
     // cổng tự mở khi có người tới gần
     const g = model.waypoints.gate;
@@ -724,7 +819,6 @@ export async function startApp(me, hooks = {}) {
       map2d.render(rdt, focus);
       frames++; perfT += rdt; if (perfT > 0.5) { fps = frames / perfT; frames = 0; perfT = 0; }
       panel.tick(now);
-      requestAnimationFrame(frame);
       return;
     }
     avatars.update(sim.agents);
@@ -735,6 +829,7 @@ export async function startApp(me, hooks = {}) {
     session.update(rdt, cutFloor === null ? null : cutPlane.constant, rawDt);
     debug.update(cutFloor);
     rig.update(rdt);
+    applyCamOverride(rdt);
     minimap?.update(rdt, sim, session);
     updateTags();
     if (++followCheck % 6 === 1) updateFollowBtn();
@@ -747,7 +842,6 @@ export async function startApp(me, hooks = {}) {
     frames++; perfT += rdt;
     if (perfT > 0.5) { fps = frames / perfT; frames = 0; perfT = 0; adaptPR(fps); const i = renderer.info.render; $('perf').textContent = `${fps.toFixed(0)} khung hình/giây · ${i.calls} draw call · ${(i.triangles / 1000).toFixed(0)}k tam giác · ${sim.agents.length} nhân viên · chất lượng ${QUALITY === 'low' ? 'thấp' : 'cao'} (đổi bằng ?q=${QUALITY === 'low' ? 'high' : 'low'})`; }
     panel.tick(now);
-    requestAnimationFrame(frame);
   }
   rig.go(params.get('view') || 'A'); rig.snap();
   // ma trận của vật đứng yên: đóng băng (bỏ ~18% CPU mỗi khung hình), vật nào đổi chỗ thì tự cập nhật. Nhân vật (xương

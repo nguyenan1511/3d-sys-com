@@ -74,6 +74,8 @@ function mergeChibiParts(root, P) {
       const merged = mergeGeometries(geos, false); if (!merged) continue;
       const m = new THREE.Mesh(merged, list[0].material); m.castShadow = list[0].castShadow; m.receiveShadow = list[0].receiveShadow; m.renderOrder = list[0].renderOrder;
       g.add(m); for (const c of list) g.remove(c);
+      P.own?.add(merged);   // (hình gộp: giải phóng cùng nhân vật — disposeChibi; trước đây nằm lại trên GPU mỗi lần nhân vật bị gỡ)
+      for (const x of geos) x.dispose();
     }
   }
 }

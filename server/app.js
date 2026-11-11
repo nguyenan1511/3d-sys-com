@@ -8,10 +8,12 @@ import { Store, HttpError } from './store.js';
 import { Hub } from './realtime.js';
 import { requestLog, securityHeaders, rateLimit } from './http.js';
 import { attendanceRoutes } from './routes/attendance.js';
+import { suggest, CATEGORIES } from './ktvSuggest.js';
 import { chatRoutes } from './routes/chat.js';
 import { backupRoutes } from './routes/backup.js';
 import { scheduleBackups, backupDir } from './backup.js';
 import { musicRoutes } from './routes/music.js';
+import { lightsRoutes } from './routes/lights.js';
 import {
   hashPassword, verifyPassword, dummyVerify, createSession, sessionFromCookie, setSessionCookie, clearSessionCookie,
   failureCount, recordFailure, clearFailures, originAllowed, issueWsTicket
@@ -67,6 +69,11 @@ export async function createApp(config = defaultConfig) {
   const api = express.Router();
   api.use(rateLimit('write', { max: 240, windowMs: 60e3, methods: ['POST', 'PUT', 'PATCH', 'DELETE'] })); // trần chung cho thao tác ghi
   const ctx = { db, store, hub, config, guards: { needAuth, needAdmin, needEmployee } };
+  // gợi ý bài karaoke từ YouTube (phòng hát): nhóm có sẵn (?cat=) hoặc tìm theo tên bài (?q=)
+  api.get('/ktv/suggest', needAuth, rateLimit('ktv-suggest', { max: 30, windowMs: 60e3 }), async (req, res) => {
+    const r = await suggest({ cat: String(req.query.cat || ''), q: String(req.query.q || '') });
+    res.json({ categories: CATEGORIES.map(({ id, label }) => ({ id, label })), ...r });
+  });
   api.get('/health', (_req, res) => res.json({ ok: true, version: API_VERSION, time: Date.now(), uptimeSec: Math.round(process.uptime()) }));
 
   // ---------- phiên làm việc ----------
@@ -186,6 +193,7 @@ export async function createApp(config = defaultConfig) {
   attendanceRoutes(api, ctx);
   chatRoutes(api, ctx);
   musicRoutes(api, ctx);
+  lightsRoutes(api, ctx);
   backupRoutes(api, ctx);
   app.use(['/api/v1', '/api'], api);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Không có API này.', code: 'not_found', path: req.originalUrl.split('?')[0], requestId: req.id }));
