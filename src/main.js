@@ -43,6 +43,7 @@ import { OUTLINE } from './agents/toon.js';
 import { icon } from './ui/icons.js';
 import { Minimap } from './ui/minimap.js';
 import { QuickTravel } from './ui/quickTravel.js';
+import { Intro } from './ui/intro.js';
 import { loading } from './ui/loading.js';
 import { TouchControls, isTouchUI } from './ui/touchControls.js';
 import { NameTags } from './ui/nameTags.js';
@@ -502,7 +503,8 @@ export async function startApp(me, hooks = {}) {
     } else if (!session.player && menu && slot && menu.parentElement !== slot) { menu.hidden = false; slot.appendChild(menu); }
     // "Của tôi" trong ngăn kéo: Nhân vật của tôi, Hiện chủ chỗ, Âm báo tin nhắn, Đăng xuất
     const meRow = document.querySelector('#meBox .me-row'), look = $('btnLook'), owners = $('cOwners')?.closest('label'), snd = $('cSound')?.closest('label'), out = $('btnLogout');
-    if (meRow) { meRow.replaceChildren(...[look, $('btnDash'), $('btnPw'), owners, snd, out].filter(Boolean)); $('meBox').hidden = !meRow.children.length; }
+    const introBtn = document.createElement('button'); introBtn.type = 'button'; introBtn.className = 'dock-btn intro-btn'; introBtn.innerHTML = `${icon('info')} <span class="lbl">Có gì ở đây?</span>`;
+    if (meRow) { meRow.replaceChildren(...[introBtn, look, $('btnDash'), $('btnPw'), owners, snd, out].filter(Boolean)); $('meBox').hidden = !meRow.children.length; }
     $('sessionBar').querySelector('.dock')?.remove();
     // thanh dưới một dòng: Đang online + phím chính + nút Phím tắt
     const online = $('onlineBox'), slotO = ctrlNav.querySelector('.nav-online'); if (online && online.parentElement !== slotO) slotO.replaceChildren(online);
@@ -533,6 +535,8 @@ export async function startApp(me, hooks = {}) {
   }
   if (me.kind !== 'admin') { $('csv').closest('.row').hidden = true; document.querySelector('#panel .small code')?.closest('p')?.setAttribute('hidden', ''); }
   if (me.kind === 'admin') { const { Dashboard } = await import('./admin/dashboard.js'); app.dashboard = new Dashboard(app, session); }
+  app.intro = new Intro(app, session);   // giới thiệu nhanh "Có gì ở văn phòng?" (public/data/intro.json)
+  document.addEventListener('click', e => { if (e.target.closest?.('.intro-btn')) app.intro.open(); });
 
   // ---------- điều khiển ----------
   document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { app.autoCut = false; rig.go(b.dataset.view); $('cR').checked = false; });
@@ -675,7 +679,7 @@ export async function startApp(me, hooks = {}) {
       adapt.high = 0; renderer.setPixelRatio(Math.min(PR_MAX, cur + 0.25)); resize(); if (adapt.last < 0) adapt.flips++; adapt.last = 1;
     }
   }
-  let last = performance.now(), fps = 60, frames = 0, perfT = 0, cutCheck = 0;
+  let last = performance.now(), fps = 60, frames = 0, perfT = 0, cutCheck = 0, wasCovered = false;
   // tab ẩn: trình duyệt tự dừng requestAnimationFrame (không vẽ, không tốn pin). Quay lại: tính giờ từ lúc đó, bỏ qua bộ đếm
   // khung hình cũ (không để khoảng nghỉ làm thuật toán tự hạ độ phân giải tưởng máy chậm)
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { last = performance.now(); frames = 0; perfT = 0; adapt.low = adapt.high = 0; } });
@@ -858,8 +862,13 @@ export async function startApp(me, hooks = {}) {
     detail.update(camera.position);
     freezer.sync(); // (vật đứng yên: không tính lại ma trận; vật vừa đổi chỗ thì tính — scene/freeze.js)
     const every = window.__RENDER_EVERY_MS || 0, drawNow = !every || now - lastDraw >= every;
+    // bảng phủ màn hình (bảng quản trị, giới thiệu "Có gì ở đây?"): không vẽ cảnh 3D bên dưới — giữ nguyên hình cuối. Vẽ tiếp
+    // dưới modal làm điện thoại cuộn giật, và bộ tự chỉnh độ phân giải tưởng máy chậm nên hạ độ phân giải → canvas đổi cỡ, chớp.
+    const covered = (app.dashboard && !app.dashboard.el.hidden) || document.body.classList.contains('overlay-open');
+    if (covered !== wasCovered) { wasCovered = covered; frames = 0; perfT = 0; adapt.low = adapt.high = 0; }
     if (!drawNow) scene.updateMatrixWorld();
-    else if (!(app.dashboard && !app.dashboard.el.hidden)) { lastDraw = now; renderer.render(scene, camera); tags.render(scene, camera); tv?.render(camera); } // bảng quản trị phủ gần kín màn hình: không vẽ cảnh 3D bên dưới
+    else if (!covered) { lastDraw = now; renderer.render(scene, camera); tags.render(scene, camera); tv?.render(camera); }
+    if (covered) { panel.tick(now); return; }   // (không đo khung hình / không đổi độ phân giải khi đang phủ)
     frames++; perfT += rdt;
     if (perfT > 0.5) { fps = frames / perfT; frames = 0; perfT = 0; adaptPR(fps); const i = renderer.info.render; $('perf').textContent = `${fps.toFixed(0)} khung hình/giây · ${i.calls} draw call · ${(i.triangles / 1000).toFixed(0)}k tam giác · ${sim.agents.length} nhân viên · chất lượng ${QUALITY === 'low' ? 'thấp' : 'cao'} (đổi bằng ?q=${QUALITY === 'low' ? 'high' : 'low'})`; }
     panel.tick(now);

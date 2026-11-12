@@ -2,6 +2,9 @@
 import { test, expect } from '@playwright/test';
 import { call } from './helpers.js';
 
+// modal giới thiệu "Có gì ở đây?" tự mở lần đầu vào văn phòng: tắt ở đây (có bài riêng h-intro)
+test.beforeEach(({ page }) => page.addInitScript(() => { window.__NO_INTRO = true; }));
+
 test('đăng nhập CEO qua giao diện, đổi mật khẩu, đăng xuất', async ({ page }) => {
   await page.goto('/');
   await page.click('#tabCeo');

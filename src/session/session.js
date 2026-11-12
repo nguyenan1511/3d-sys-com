@@ -134,6 +134,7 @@ export class Session {
     }
     if (!this.isAdmin) rememberLook(this.me.employee.code, this.me.employee.look);
     if (!this.isAdmin && (!this.me.employee.look || this.me.employee.look._repick)) await this.editLook(true);
+    await this.app.intro?.maybeShow();   // (lần đầu / có tính năng mới: giới thiệu nhanh văn phòng — trước khi chị Mai dẫn đường)
     const mine = this.mySeat;
     if (mine) await this.sit(mine.deskId, { quiet: true, place: true });
     else if (!this.isAdmin && this.guide && !window.__NO_GUIDE) { this.player.follow(); this.guide.startAtGate(); return; } // người mới: bắt đầu trước cổng công ty; vào sảnh thì chị hướng dẫn đón và dẫn tới bàn (nhân viên không tự chọn chỗ)

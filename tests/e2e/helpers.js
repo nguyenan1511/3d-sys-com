@@ -4,7 +4,7 @@ import { expect } from '@playwright/test';
 const opened = [];
 // GPU giả lập (SwiftShader) dùng chung cho mọi trang: giới hạn 12 khung hình/giây để trang mới mở không bị trang cũ chiếm hết
 /** guide: bật người hướng dẫn đón người mới (mặc định tắt để các test khác vào thẳng màn hình chọn chỗ). */
-export async function newPage(browser, { guide = false } = {}) { const c = await browser.newContext(); await c.addInitScript(g => { try { if (!localStorage.getItem('sysone.mode')) localStorage.setItem('sysone.mode', 'office'); } catch { /* */ } /* (bài kiểm thử viết cho Office SYS) */ window.__MAXFPS = 12; window.__PIXEL_RATIO = 0.6; window.__RENDER_EVERY_MS = 2000; if (!g) window.__NO_GUIDE = true; }, guide); opened.push(c); return c.newPage(); }
+export async function newPage(browser, { guide = false } = {}) { const c = await browser.newContext(); await c.addInitScript(g => { try { if (!localStorage.getItem('sysone.mode')) localStorage.setItem('sysone.mode', 'office'); } catch { /* */ } /* (bài kiểm thử viết cho Office SYS) */ window.__MAXFPS = 12; window.__PIXEL_RATIO = 0.6; window.__RENDER_EVERY_MS = 2000; if (!g) window.__NO_GUIDE = true; window.__NO_INTRO = true; /* (modal giới thiệu: test riêng ở h-intro) */ }, guide); opened.push(c); return c.newPage(); }
 export async function closeAll() { while (opened.length) await opened.pop().close().catch(() => {}); }
 
 let next = 1000 + Math.floor(Math.random() * 8000);

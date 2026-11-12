@@ -3,6 +3,9 @@ import { test, expect } from '@playwright/test';
 import { uniqueCode, loginEmployeeUI, waitScene, call, loginEmployeeAPI, freeDesk } from './helpers.js';
 import { newPage, closeAll } from './helpers.js';
 
+// modal giới thiệu "Có gì ở đây?" tự mở lần đầu vào văn phòng: tắt ở đây (có bài riêng h-intro)
+test.beforeEach(({ page }) => page.addInitScript(() => { window.__NO_INTRO = true; }));
+
 test.afterEach(closeAll);
 
 test('chưa đăng nhập thì không tải cảnh và không lấy được dữ liệu bố cục', async ({ page }) => {

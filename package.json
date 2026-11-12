@@ -20,7 +20,8 @@
     "model": "node scripts/optimize-model.mjs",
     "model:view": "node scripts/view-model.mjs",
     "motion": "node scripts/motion-check.mjs",
-    "model:fetch": "node scripts/fetch-sketchfab.mjs"
+    "model:fetch": "node scripts/fetch-sketchfab.mjs",
+    "intro:shots": "node scripts/intro-shots.mjs"
   },
   "dependencies": {
     "@pixiv/three-vrm": "^3.5.5",

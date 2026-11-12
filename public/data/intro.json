@@ -1,0 +1,43 @@
+{
+  "_huong_dan": [
+    "Nội dung modal 'Có gì ở văn phòng?' (src/ui/intro.js). Sửa file này là đủ, không cần sửa code.",
+    "Thêm tính năng mới: tăng 'version' lên 1, thêm mục mới vào 'items' với \"new_in\": <version mới>. Lần vào sau, mọi người tự thấy modal mở lại, mục mới hiện đầu tiên với nhãn MỚI.",
+    "Mỗi mục: id (không trùng), group (start | work | fun | more), ảnh 3D tự lấy public/intro/<id>.webp — chụp từ cảnh thật bằng: npm run build && node scripts/intro-shots.mjs --only=<id> (thêm góc máy cho id mới trong SHOTS của script); icon (emoji, chỉ dùng khi chưa có ảnh), color (màu nền khi chưa có ảnh), title, text (1-2 câu ngắn), pc / mobile (cách dùng trên máy tính / điện thoại), go (tuỳ chọn: nút 'Đi tới' — 'desk', 'karaoke', 'billiards' hoặc tên một nơi trong 'Đi nhanh tới').",
+    "Không cần kể hết: mỗi mục là một thứ người dùng làm được ngay."
+  ],
+  "version": 1,
+  "title": "Có gì ở văn phòng SYSONE?",
+  "subtitle": "Văn phòng 3D để làm việc, gặp đồng nghiệp và giải trí. Lướt qua 1 phút là nắm hết!",
+  "groups": [
+    { "id": "start", "label": "Bắt đầu", "icon": "play" },
+    { "id": "work", "label": "Làm việc", "icon": "clipboard" },
+    { "id": "fun", "label": "Giải trí", "icon": "music" },
+    { "id": "more", "label": "Khám phá thêm", "icon": "map" }
+  ],
+  "items": [
+    { "id": "move", "group": "start", "icon": "🚶", "color": "#dbeafe", "title": "Đi lại", "text": "Đi khắp 3 tầng, giữ Shift để chạy. Bấm vào sàn là nhân vật tự đi tới.", "pc": "W A S D · Shift", "mobile": "Cần điều khiển góc trái" },
+    { "id": "interact", "group": "start", "icon": "👆", "color": "#fde68a", "title": "Tương tác", "text": "Đứng gần ghế, máy, đồ vật hay cửa phòng sẽ hiện gợi ý — bấm là dùng được.", "pc": "Phím E", "mobile": "Nút Tương tác" },
+    { "id": "chat", "group": "start", "icon": "💬", "color": "#dcfce7", "title": "Chat", "text": "Nhắn cả công ty, theo phòng ban hoặc nhắn riêng một người.", "pc": "Phím T", "mobile": "Nút chat góc trên" },
+    { "id": "camera", "group": "start", "icon": "🎥", "color": "#ede9fe", "title": "Xoay & zoom", "text": "Kéo để xoay camera, cuộn hoặc chụm 2 ngón để phóng to. V đổi sang góc nhìn thứ nhất.", "pc": "Kéo chuột · cuộn · V", "mobile": "Kéo · chụm 2 ngón" },
+
+    { "id": "desk", "group": "work", "icon": "🪑", "color": "#dbeafe", "title": "Bàn làm việc của bạn", "text": "Chị Mai xếp chỗ theo phòng ban. Lần sau vào là ngồi ngay vào bàn.", "pc": "Phím B: về bàn", "mobile": "Nút Về bàn", "go": "desk" },
+    { "id": "clock", "group": "work", "icon": "⏰", "color": "#fee2e2", "title": "Chấm công", "text": "Máy chấm công cạnh cửa chính: vào ca, ra về và xem bảng công cả tháng.", "pc": "E ở máy chấm công", "mobile": "Tương tác ở máy", "go": "Máy chấm công" },
+    { "id": "guide", "group": "work", "icon": "🙋‍♀️", "color": "#ffedd5", "title": "Chị Mai hướng dẫn", "text": "Người mới được chị Mai đón ở sảnh và dẫn tới bàn. Cần gì cứ tới hỏi chị.", "pc": "E cạnh chị Mai", "mobile": "Tương tác cạnh chị Mai" },
+    { "id": "lift", "group": "work", "icon": "🛗", "color": "#e0f2fe", "title": "Thang máy", "text": "Lên xuống 3 tầng trong vài giây, bản đồ nhỏ đổi theo tầng.", "pc": "E trước cửa thang", "mobile": "Tương tác trước cửa thang", "go": "Thang máy" },
+    { "id": "travel", "group": "work", "icon": "🗺️", "color": "#ecfccb", "title": "Đi nhanh tới", "text": "Chọn một nơi trong danh sách là có mặt ngay: phòng ban, sảnh, sân thượng…", "pc": "Bảng điều khiển → Đi nhanh tới", "mobile": "Bảng điều khiển → Đi nhanh tới" },
+
+    { "id": "karaoke", "group": "fun", "icon": "🎤", "color": "#fce7f3", "title": "Phòng karaoke", "text": "Tối đa 10 người: chọn bài hot từ YouTube, ưu tiên bài, hát mic, chat riêng phòng, đèn vũ trường 7 màu và nút Quẩy.", "pc": "E ở buồng karaoke", "mobile": "Tương tác ở buồng", "go": "karaoke" },
+    { "id": "billiards", "group": "fun", "icon": "🎱", "color": "#d1fae5", "title": "Bi-a 2 người", "text": "Kéo thanh lực để đánh; bàn đủ người thì vào xem trận.", "pc": "E ở bàn bi-a · Space để giữ lực", "mobile": "Tương tác ở bàn", "go": "billiards" },
+    { "id": "tv", "group": "fun", "icon": "📺", "color": "#e0e7ff", "title": "Sofa xem TV", "text": "Ngồi sofa là TV bật, đồng nghiệp thấy bạn đang xem.", "pc": "E ở sofa", "mobile": "Tương tác ở sofa", "go": "Sofa xem TV" },
+    { "id": "music", "group": "fun", "icon": "🎵", "color": "#fef3c7", "title": "Góc âm nhạc", "text": "Phát nhạc YouTube cho cả công ty cùng nghe (người được CEO cấp quyền).", "pc": "E ở góc âm nhạc", "mobile": "Tương tác ở góc nhạc", "go": "Góc âm nhạc" },
+    { "id": "acts", "group": "fun", "icon": "💃", "color": "#fae8ff", "title": "Động tác", "text": "Vẫy tay, nhảy múa, gọi điện, uống cà phê, nhảy lên — ai cũng thấy.", "pc": "Space nhảy · Phím tắt → Động tác", "mobile": "Nút Nhảy · Phím tắt" },
+    { "id": "props", "group": "fun", "icon": "☕", "color": "#ffedd5", "title": "Đồ vật dùng được", "text": "Pha cà phê, in tài liệu, đọc sách, xoay địa cầu, cho cá ăn, vuốt mèo, chơi game.", "pc": "E khi đứng gần", "mobile": "Tương tác khi đứng gần" },
+
+    { "id": "lights", "group": "more", "icon": "💡", "color": "#fef9c3", "title": "Công tắc đèn", "text": "Cạnh máy chấm công: tắt/bật đèn chuyển cả công ty sang buổi tối (người được cấp quyền).", "pc": "E ở công tắc", "mobile": "Tương tác ở công tắc", "go": "Máy chấm công" },
+    { "id": "wc", "group": "more", "icon": "🚻", "color": "#e2e8f0", "title": "Nhà vệ sinh", "text": "Buồng có khoá — có người thì đừng gõ cửa kẻo bị quát 😡. Bồn rửa tay có gương soi thật.", "pc": "E ở buồng / bồn rửa", "mobile": "Tương tác" },
+    { "id": "blinds", "group": "more", "icon": "🪟", "color": "#e0f2fe", "title": "Rèm cửa sổ", "text": "Kéo hoặc hạ rèm, mọi người đều thấy và rèm giữ nguyên lần sau.", "pc": "F gần cửa sổ", "mobile": "Dùng trên máy tính (phím F)" },
+    { "id": "street", "group": "more", "icon": "🚗", "color": "#fee2e2", "title": "Ra đường cẩn thận", "text": "Xe chạy thật đó: bước xuống lòng đường là xe phanh gấp và bấm còi.", "pc": "Đi ra cổng", "mobile": "Đi ra cổng", "go": "Cổng công ty" },
+    { "id": "look", "group": "more", "icon": "👕", "color": "#dcfce7", "title": "Nhân vật của tôi", "text": "Đổi màu tóc, da, áo, quần cho nhân vật; dùng chung trên mọi thiết bị.", "pc": "Của tôi → Nhân vật của tôi", "mobile": "Của tôi → Nhân vật của tôi" },
+    { "id": "smoke", "group": "more", "icon": "🚭", "color": "#f1f5f9", "title": "Không hút thuốc trong văn phòng", "text": "Muốn hút thì ra ngoài trời nhé — trong nhà động tác này bị tắt.", "pc": "Ra sân / ngoài đường", "mobile": "Ra sân / ngoài đường" }
+  ]
+}
