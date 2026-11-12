@@ -7,6 +7,9 @@ import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { findDepartment } from '../shared/departments.js';
 
+// Đông người (100 người online): chỉ hiện nhãn của ~N người gần nhất (mình và chị hướng dẫn luôn hiện) — mỗi nhãn là một
+// phần tử HTML di chuyển mỗi khung hình và 2 tia kiểm tra tường che; 100 nhãn làm điện thoại tụt còn ~20 khung hình/giây.
+const MAX_TAGS = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches ? 18 : 40;
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 
 export class NameTags {
@@ -33,10 +36,24 @@ export class NameTags {
   /** entries: [{ key, name, dept, x, y, z, f, sit, bubble, guide }]; floor: tầng đang xem (null = mọi tầng); cam: vị trí camera. */
   update(entries, floor, cam, cs = 1) {
     this.seen.clear();
+    // người gần nhất (xếp lại ~3 lần/giây; ai đang hiện nhãn được ưu tiên giữ để nhãn không nhấp nháy)
+    const now0 = performance.now();
+    if (!this.keep || now0 - this.keepT > 330) {
+      this.keepT = now0; const c = [];
+      for (const e of entries) {
+        if (!e || !e.name || !(floor === null || floor === undefined || e.f === floor)) continue;
+        let d = Math.hypot(e.x - cam.x, e.z - cam.z); if (d >= 22) continue;
+        if (e.me || e.guide) d = -1; else if (this.keep?.has(e.key)) d *= 0.8;
+        c.push([d, e.key]);
+      }
+      this.keep = c.length > MAX_TAGS ? new Set(c.sort((a, b) => a[0] - b[0]).slice(0, MAX_TAGS).map(x => x[1])) : null;
+      this.near = new Set(c.map(x => x[1]));
+    }
+    const step = 140 * Math.max(1, Math.min(this.keep ? this.keep.size : this.near.size, MAX_TAGS) / 15);   // (nhiều nhãn: kiểm tra tường che thưa hơn)
     for (const e of entries) {
       if (!e || !e.name) continue;
       let it = this.items.get(e.key);
-      const near = (floor === null || floor === undefined || e.f === floor) && Math.hypot(e.x - cam.x, e.z - cam.z) < 22;
+      const near = this.near.has(e.key) && (!this.keep || this.keep.has(e.key)) && (floor === null || floor === undefined || e.f === floor);
       if (!near) { if (it) { it.obj.visible = false; it.bobj.visible = false; } this.seen.add(e.key); continue; }
       if (!it) { it = this.make(e); this.items.set(e.key, it); }
       const sig = e.name + '|' + (e.dept || '') + '|' + (e.guide ? 1 : 0) + (e.me ? 1 : 0);
@@ -52,7 +69,7 @@ export class NameTags {
       // bị tường che? (mỗi nhãn kiểm tra ~7 lần/giây, so le nhau; mờ dần thay vì chớp tắt)
       const now = performance.now();
       if (e.me) it.hid = false; // (nhân vật của mình: Invisicam làm mờ vật chắn nên luôn thấy — nhãn luôn hiện)
-      else if (this.blocked && now - it.t > 140) { it.t = now + Math.random() * 30; it.hid = this.blocked(e.x, y - 0.1 * cs, e.z) && this.blocked(e.x, e.y + 0.9 * cs, e.z); }
+      else if (this.blocked && now - it.t > step) { it.t = now + Math.random() * 30; it.hid = this.blocked(e.x, y - 0.1 * cs, e.z) && this.blocked(e.x, e.y + 0.9 * cs, e.z); }
       it.tag.classList.toggle('tag--hidden', it.hid);
       it.obj.visible = true; it.obj.position.set(e.x, y, e.z);
       if (e.bubble && !it.hid) { if (it.txt.textContent !== e.bubble) it.txt.textContent = e.bubble; it.bobj.visible = true; it.bobj.position.set(e.x, y, e.z); }

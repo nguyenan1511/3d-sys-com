@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GlbPool, characterDef } from './glbCharacters.js';
-import { PixelBillboards, VIEW, chibiLookOf } from '../pixel/billboard.js';
+import { PixelBillboards, VIEW, chibiLookOf, billboardCamera } from '../pixel/billboard.js';
 // người dùng thật ở chế độ 3D: nhân vật chibi tô theo nhân vật pixel đã chọn
 // nhân vật dựng bằng code (characters.json format 'chibi', vd. con vật): ngoại hình khai báo sẵn + màu tuỳ chỉnh 3D của người
 // dùng (Áo → áo, Quần → quần, Giày → giày, Da → lông, Tóc → bờm)
@@ -342,10 +342,17 @@ export function staffConfig(a, def) {
     acc: L.glasses ? 'glasses' : (h % 7 === 0 ? 'headphones' : null) };
 }
 
+// Cấp chi tiết khi đông người (100 người online): chỉ ~N người gần camera nhất được dựng nhân vật 3D đầy đủ (mỗi người
+// ~4 MB bộ nhớ, ~7 lệnh vẽ, ~9 nghìn tam giác); người xa hơn vẽ bằng hình pixel phẳng (2 lệnh vẽ, gần như không tốn bộ nhớ).
+const COARSE = typeof matchMedia !== 'undefined' && matchMedia('(pointer: coarse)').matches;
+const _fr = new THREE.Frustum(), _pm = new THREE.Matrix4(), _sp = new THREE.Sphere(), _v2 = new THREE.Vector3();
+export const LOD_NEAR = { phone: 10, low: 12, desktop: 36 };
+
 export class AvatarSystem {
   /** opts.scale: tỉ lệ nhân vật (layout.json → scale.character); opts.seatH: cao độ khớp hông khi ngồi (theo ghế đã thu nhỏ). */
   constructor(scene, capacity, quality = 'high', opts = {}) {
     this.capacity = capacity;
+    this.near = COARSE ? LOD_NEAR.phone : quality === 'low' ? LOD_NEAR.low : LOD_NEAR.desktop;
     this.scale = opts.scale ?? 1; this.seatH = opts.seatH ?? 0.53;
     this.group = new THREE.Group(); this.group.name = 'avatars';
     scene.add(this.group);
@@ -499,6 +506,35 @@ export class AvatarSystem {
     return P;
   }
 
+  /** Ẩn suất chibi dùng chung thứ i (bỏ qua nếu đã ẩn: đông người thì đỡ ~6.000 lần ghi ma trận mỗi khung hình). */
+  hideAt(i) {
+    const h = (this._hid ||= []); if (h[i]) return; h[i] = true;
+    for (const p of this.parts) { if (p.side) { p.mesh.setMatrixAt(i * 2, HIDE); p.mesh.setMatrixAt(i * 2 + 1, HIDE); } else p.mesh.setMatrixAt(i, HIDE); }
+  }
+  /** Người ở tầng khác tầng mình đang đứng (không đứng trên cầu thang): bị sàn che, không cần vẽ. */
+  otherFloor(a, floor) { return floor != null && !a.local && a.onStair == null && (a.f ?? 0) !== floor; }
+  /** Tập người được vẽ 3D đầy đủ (null = không giới hạn): this.near người gần camera nhất, xếp lại ~3 lần/giây; người
+   *  đang được vẽ đầy đủ được ưu tiên giữ (tránh nhấp nháy đổi qua lại khi hai người cách camera gần bằng nhau). */
+  nearSet(agents, n, floor) {
+    let count = 0; for (let i = 0; i < n; i++) { const a = agents[i]; if (a && a.visible && !this.otherFloor(a, floor)) count++; }
+    if (count <= this.near) { this._full = null; return null; }
+    const now = performance.now();
+    if (this._full && now - (this._lodT || 0) < 330) return this._full;
+    this._lodT = now;
+    const camera = billboardCamera(), cam = camera?.position, cand = [];
+    // người ngoài khung nhìn (sau lưng camera…) xếp sau cùng: suất 3D dành cho người đang nhìn thấy
+    if (camera) { camera.updateMatrixWorld(); _fr.setFromProjectionMatrix(_pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)); }
+    for (let i = 0; i < n; i++) {
+      const a = agents[i]; if (!a || !a.visible || this.otherFloor(a, floor)) continue;
+      let d = a.local ? -1 : cam ? (cam.x - a.x) ** 2 + (cam.y - a.y) ** 2 + (cam.z - a.z) ** 2 : i;
+      if (camera && d > 0 && !_fr.intersectsSphere(_sp.set(_v2.set(a.x, a.y + 0.8, a.z), 1))) d += 1e6;
+      if (d > 0 && this._full?.has(a)) d *= 0.6;
+      cand.push([d, a]);
+    }
+    cand.sort((p, q) => p[0] - q[0]);
+    return (this._full = new Set(cand.slice(0, this.near).map(c => c[1])));
+  }
+
   update(agents, opts = {}) {
     const J = this.J, hiddenY = opts.hideAbove;
     // chỉ vẽ đúng số nhân vật đang có (không vẽ các suất dự phòng)
@@ -506,6 +542,7 @@ export class AvatarSystem {
     for (const p of this.parts) { p.mesh.count = n * (p.side ? 2 : 1); p.mesh.visible = n > 0; if (p.outline) { p.outline.count = p.mesh.count; p.outline.visible = n > 0 && OUTLINE.on; } }
     this.glb.begin(); this.pixel.begin(); this.vrm.begin(); this.rigged.begin(); this.mo.begin();
     let instUsed = 0; // số người vẽ bằng chibi dùng chung mesh (còn lại: chibi my-office, pixel…)
+    const full = this.nearSet(agents, n, opts.floor);
     // đầu tự quay nhìn người ở gần (mỗi 0,3 s): người gần nhất trong 2,5 m, phía trước (±100°)
     { const now = performance.now(); if (now - (this._lookT || 0) > 300) { this._lookT = now;
       for (let i = 0; i < n; i++) { const a = agents[i]; if (!a) continue; let best = 6.25, yaw = 0;
@@ -516,20 +553,25 @@ export class AvatarSystem {
         a._lookYaw = yaw; } } }
     for (let i = 0; i < n; i++) {
       const a = agents[i];
-      const show = a && a.visible && !a._fpHide && !(hiddenY != null && a.y > hiddenY);
+      const show = a && a.visible && !a._fpHide && !(hiddenY != null && a.y > hiddenY) && !this.otherFloor(a, opts.floor);
       // nhân vật chọn model GLB: vẽ bằng SkinnedMesh (khi model chưa tải xong thì tạm vẽ chibi)
       // người dùng thật (có key): nhân vật pixel (sprite quay về camera); model 3D chỉ khi chọn rõ; nhân viên mô phỏng: chibi
       const mid = show && a.emp && a.emp.look && a.emp.look.model;
       // nhân vật my-office: người chơi chọn (format 'mo'), hoặc nhân viên mô phỏng khi bật moStaff
       {
         const md = mid && characterDef(mid), staffMo = !a?.key && !mid && this.moStaff && VIEW.mode === '3d';
+        if (show && VIEW.mode === '3d' && ((md && md.format === 'mo') || staffMo) && full && !full.has(a)) {   // (ở xa khi đông người: hình pixel)
+          this.pixel.draw(a, (a.emp?.look?.height || 1) * this.scale);
+          this.hideAt(i);
+          continue;
+        }
         if (show && VIEW.mode === '3d' && ((md && md.format === 'mo') || staffMo)) {
           const def = md && md.format === 'mo' ? md : this.moStaff;
           const cfg = md && md.format === 'mo' ? moConfig(def, a.emp.look, a.key) : staffConfig(a, def);
           const nowS = performance.now() / 1000, dt = Math.min(0.1, Math.max(0, nowS - (a._mcNow ?? nowS))); a._mcNow = nowS;
           gaitMotion(a, (a.emp?.look?.height || 1) * this.scale, CHIBI_LEG); // pha bước theo quãng đường thật (chân không trượt)
           this.mo.get(a, def, cfg).apply(a, (a.emp?.look?.height || 1) * this.scale, this.seatH, dt);
-          for (const p of this.parts) { if (p.side) { p.mesh.setMatrixAt(i * 2, HIDE); p.mesh.setMatrixAt(i * 2 + 1, HIDE); } else p.mesh.setMatrixAt(i, HIDE); }
+          this.hideAt(i);
           continue;
         }
       }
@@ -538,12 +580,12 @@ export class AvatarSystem {
       const vi = isVrm ? (cdef.format === 'vrm' ? this.vrm : this.rigged).get(a, cdef) : null;
       if (isVrm && (!vi || !(this.mocap && MOCAP.ready))) {
         if (vi) vi.group.visible = false;
-        for (const p of this.parts) { if (p.side) { p.mesh.setMatrixAt(i * 2, HIDE); p.mesh.setMatrixAt(i * 2 + 1, HIDE); } else p.mesh.setMatrixAt(i, HIDE); }
+        this.hideAt(i);
         continue;
       }
       const gi = vi || (cdef && !isVrm && !['vrm', 'rigged', 'chibi', 'mo'].includes(cdef.format) ? this.glb.get(a, mid) : null);
       const px = !gi && show && a.key && VIEW.mode === '2d' && this.pixel.draw(a, (a.emp?.look?.height || 1) * this.scale);
-      if (px) { for (const p of this.parts) { if (p.side) { p.mesh.setMatrixAt(i * 2, HIDE); p.mesh.setMatrixAt(i * 2 + 1, HIDE); } else p.mesh.setMatrixAt(i, HIDE); } continue; }
+      if (px) { this.hideAt(i); continue; }
       if (gi) {
         const s = (a.emp?.look?.height || 1) * this.scale, u = gi.unit(s), P = this.pose(a, u, gi.leg);
         const nowS = performance.now() / 1000, dt = Math.min(0.1, Math.max(0, nowS - (a._mcNow ?? nowS))); a._mcNow = nowS;
@@ -552,10 +594,10 @@ export class AvatarSystem {
         else if (mc) gi.applyMocap(a, P, s, mc); else gi.apply(a, P, s);
       }
       if (!show || gi) {
-        for (const p of this.parts) { if (p.side) { p.mesh.setMatrixAt(i * 2, HIDE); p.mesh.setMatrixAt(i * 2 + 1, HIDE); } else p.mesh.setMatrixAt(i, HIDE); }
+        this.hideAt(i);
         continue;
       }
-      instUsed++;
+      instUsed++; if (this._hid) this._hid[i] = false;
       const look = lookOf(a);
       const s = (look.height || 1) * this.scale, P = this.pose(a, s);
       J.root.compose(_v.set(a.x, a.y + (a.jumpH || 0), a.z), _q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), a.yaw), new THREE.Vector3(s, s, s));

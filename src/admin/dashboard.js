@@ -9,19 +9,22 @@ import { footprint } from '../model/layoutModel.js';
 import { defaultEquipment } from '../shared/equipment.js';
 import { parseLogin } from '../shared/identity.js';
 import { openAvatarEditor } from '../session/avatarEditor.js';
+import { icon } from '../ui/icons.js';
 
 const $ = id => document.getElementById(id);
+const ACTION_LABEL = { 'login.new': 'Đăng ký mới', 'look.create': 'Tạo nhân vật', 'look.update': 'Đổi nhân vật', 'attendance.checkin': 'Chấm công vào', 'attendance.checkout': 'Chấm công ra', 'login.return': 'Vào lại', 'seat.claim': 'Nhận chỗ', 'seat.move': 'Tự đổi chỗ', 'seat.equipment': 'Sửa dụng cụ', 'seat.sit': 'Ngồi', 'admin.login': 'CEO đăng nhập', 'admin.login.fail': 'CEO đăng nhập sai', 'admin.seat.assign': 'Gán chỗ', 'admin.seat.release': 'Giải phóng chỗ', 'admin.seat.lock': 'Khóa chỗ', 'admin.seat.unlock': 'Mở khóa chỗ', 'admin.employee.update': 'Sửa nhân viên', 'admin.employee.delete': 'Xóa nhân viên', 'admin.employee.logout': 'Buộc đăng xuất', 'admin.csv.import': 'Nhập CSV', 'admin.csv.export': 'Xuất CSV', 'admin.backup': 'Sao lưu database', 'admin.backup.download': 'Tải bản sao lưu', 'admin.password.change': 'Đổi mật khẩu', logout: 'Đăng xuất', 'admin.seed': 'Tạo tài khoản CEO', 'layout.desk_removed': 'Bàn bị bỏ khỏi layout' };
 const fmt = ts => ts ? new Date(ts).toLocaleString('vi-VN') : '—';
 
 export class Dashboard {
   constructor(app, session) {
     this.app = app; this.session = session;
-    this.tab = 'emp'; this.floor = 1; this.employees = []; this.q = ''; this.ff = 'all'; this.sf = 'all';
+    this.tab = 'home'; this.floor = 1; this.employees = []; this.q = ''; this.ff = 'all'; this.sf = 'all';
     const el = this.el = document.createElement('section');
     el.id = 'dash'; el.hidden = true; el.setAttribute('aria-label', 'Bảng quản trị');
     $('stage').appendChild(el);
     session.onSeats(() => { if (!el.hidden) this.render(); });
     this._t = setInterval(() => { if (!el.hidden && this.tab === 'map') this.drawMap(); if (!el.hidden && this.tab === 'emp') this.renderRows(); }, 1000);
+    this._th = setInterval(() => { if (!el.hidden && this.tab === 'home') this.renderHome(true); }, 15000);
   }
   async toggle(force) {
     const show = force ?? this.el.hidden;
@@ -39,17 +42,94 @@ export class Dashboard {
     this.render();
   }
 
+  // Giao diện kiểu bảng điều khiển đám mây: thanh bên tối chia nhóm, thanh trên có "đường dẫn", tiêu đề lớn, các thẻ số liệu.
   render() {
-    const tabs = [['emp', 'Nhân viên'], ['map', 'Sơ đồ chỗ ngồi'], ['audit', 'Nhật ký'], ['backup', 'Sao lưu']];
-    this.el.innerHTML = `<div class="dash-head"><h2>Bảng quản trị</h2>
-      <div class="seg" role="tablist">${tabs.map(([k, l]) => `<button role="tab" aria-selected="${this.tab === k}" class="${this.tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>
-      <button id="dashClose" aria-label="Đóng bảng quản trị">Đóng ✕</button></div><div id="dashBody"></div>`;
+    const groups = [
+      [null, [['home', 'Tổng quan', 'grid']]],
+      ['Nhân sự', [['emp', 'Nhân viên', 'users'], ['map', 'Sơ đồ chỗ ngồi', 'map']]],
+      ['Dữ liệu', [['audit', 'Nhật ký', 'history'], ['backup', 'Sao lưu', 'db']]]
+    ];
+    const titles = { home: 'Tổng quan văn phòng', emp: 'Nhân viên', map: 'Sơ đồ chỗ ngồi', audit: 'Nhật ký thao tác', backup: 'Sao lưu dữ liệu' };
+    this.el.innerHTML = `<div class="atl">
+      <aside class="atl-side" aria-label="Mục quản trị">
+        <div class="atl-brand"><img src="logo/sysone-logo.svg" alt="SYSONE" width="104" height="12"><span>Quản trị</span></div>
+        <nav role="tablist" aria-orientation="vertical">${groups.map(([g, items]) => `${g ? `<h4>${icon(g === 'Nhân sự' ? 'users' : 'db', 15)}${g}</h4>` : ''}
+          ${items.map(([k, l, ic]) => `<button role="tab" aria-selected="${this.tab === k}" class="atl-nav${this.tab === k ? ' on' : ''}${g ? '' : ' top'}" data-tab="${k}">${g ? '' : icon(ic, 16)}<span>${l}</span></button>`).join('')}`).join('')}</nav>
+      </aside>
+      <div class="atl-main">
+        <header class="atl-top">
+          <div class="atl-crumb"><span><small>Tổ chức</small><b>SYSONE</b></span>${icon('chevDown', 14, 'atl-chev')}<span><small>Văn phòng</small><b>33 Dương Quang Đông</b></span></div>
+          <button id="dashClose" class="atl-btn" aria-label="Đóng bảng quản trị">${icon('close', 14)} Đóng</button>
+        </header>
+        <div class="atl-content"><h1 class="atl-title">${titles[this.tab]}</h1><div id="dashBody"></div></div>
+      </div></div>`;
     this.el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { this.tab = b.dataset.tab; this.render(); });
     $('dashClose').onclick = () => this.toggle(false);
-    if (this.tab === 'emp') this.renderEmployees();
+    if (this.tab === 'home') this.renderHome();
+    else if (this.tab === 'emp') this.renderEmployees();
     else if (this.tab === 'map') this.renderMap();
     else if (this.tab === 'backup') this.renderBackups();
     else this.renderAudit();
+  }
+
+  // ---------- tổng quan ----------
+  async renderHome(quiet = false) {
+    const body = $('dashBody'); if (!body) return;
+    if (!quiet) body.innerHTML = '<div class="atl-panel atl-skel"></div>';
+    const [st, att, au] = await Promise.all([api('GET', '/api/admin/stats'), api('GET', '/api/attendance/today'), api('GET', '/api/admin/audit?limit=8')]);
+    if (this.tab !== 'home' || this.el.hidden) return;
+    if (!st.ok) { body.textContent = st.error; return; }
+    const emps = this.employees.filter(e => e.status !== 'disabled'), total = emps.length;
+    const seats = [...this.session.seats.values()], owned = seats.filter(s => s.owner).length, locked = seats.filter(s => s.locked).length, free = seats.length - owned - locked;
+    const list = att.ok ? att.list : [], late = list.filter(r => r.lateMin > 0).length, came = list.length;
+    const up = s => s < 3600 ? `${Math.floor(s / 60)} phút` : s < 86400 ? `${Math.floor(s / 3600)} giờ ${Math.floor(s % 3600 / 60)} phút` : `${Math.floor(s / 86400)} ngày`;
+    const ago = t => { if (!t) return '—'; const d = (Date.now() - t) / 1000; return d < 60 ? 'vừa xong' : d < 3600 ? `${Math.floor(d / 60)} phút trước` : `${Math.floor(d / 3600)} giờ trước`; };
+    const badge = (on, a = 'BẬT', b = 'TẮT') => `<span class="atl-badge ${on ? 'ok' : 'warn'}">${on ? a : b}</span>`;
+    const m = st.mongo || {};
+    const card = (title, go, inner) => `<section class="atl-card"><header>${icon('info', 15)}<h3>${title}</h3>${go ? `<button class="atl-go" data-go="${go}" aria-label="Mở ${title}">${icon('arrowRight', 16)}</button>` : ''}</header><div class="atl-card-b">${inner}</div></section>`;
+    const bar = (parts) => `<div class="atl-stack">${parts.map(([n, c]) => n ? `<i style="flex:${n};background:${c}"></i>` : '').join('')}</div>`;
+    const legend = rows => `<ul class="atl-leg">${rows.map(([c, l, v]) => `<li><i style="background:${c}"></i>${l}<b>${v}</b></li>`).join('')}</ul>`;
+    body.innerHTML = `
+      <section class="atl-panel">
+        <header class="atl-panel-h"><h2>Văn phòng 3D</h2><span class="atl-badge ok">HOẠT ĐỘNG</span>
+          <div class="atl-acts"><button class="atl-btn green" data-go="emp">${icon('users', 14)} Nhân viên</button><button class="atl-btn" data-go="map">${icon('map', 14)} Sơ đồ</button><button class="atl-btn" data-go="audit">Nhật ký</button></div></header>
+        <div class="atl-cards">
+          ${card('Cấu hình', 'backup', `<dl class="atl-dl">
+            <div><dt>Phiên bản</dt><dd>${esc(st.version)}</dd></div>
+            <div><dt>Đã chạy</dt><dd>${up(st.uptimeSec)}</dd></div>
+            <div><dt>Lưu MongoDB</dt><dd>${badge(m.enabled && !m.error, 'BẬT', m.enabled ? 'LỖI' : 'TẮT')}</dd></div>
+            <div><dt>Lần lưu gần nhất</dt><dd>${m.enabled ? ago(m.lastSaveAt || m.restoredAt) : '—'}</dd></div></dl>
+            ${m.enabled ? '' : '<p class="atl-note">Chưa đặt MONGODB_URI: server khởi động lại (Render miễn phí) sẽ mất dữ liệu.</p>'}`)}
+          ${card('Đang online', 'emp', `<p class="atl-big"><b>${st.now}</b> / ${total} <small>nhân viên</small></p>${this.chart([...st.online, { t: Date.now(), n: st.now }])}`)}
+          ${card('Chấm công hôm nay', null, `<p class="atl-big"><b>${came}</b> / ${total} <small>đã đến</small></p>
+            ${bar([[came - late, '#00ED64'], [late, '#FFC010'], [Math.max(0, total - came), '#3D4F58']])}
+            ${legend([['#00ED64', 'Đúng giờ', came - late], ['#FFC010', 'Đi muộn', late], ['#3D4F58', 'Chưa đến', Math.max(0, total - came)]])}`)}
+          ${card('Chỗ ngồi', 'map', `<p class="atl-big"><b>${owned}</b> / ${seats.length} <small>đã có chủ</small></p>
+            ${bar([[owned, '#0498EC'], [free, '#00A35C'], [locked, '#DB3030']])}
+            ${legend([['#0498EC', 'Có chủ', owned], ['#00A35C', 'Trống', free], ['#DB3030', 'Khoá', locked]])}`)}
+        </div>
+      </section>
+      <div class="atl-row">
+        <section class="atl-panel"><header class="atl-panel-h"><h2>Hoạt động gần đây</h2><div class="atl-acts"><button class="atl-btn" data-go="audit">Xem tất cả</button></div></header>
+          <ul class="atl-feed">${(au.ok ? au.audit : []).map(a => `<li><time>${ago(a.ts)}</time><span>${esc(this.actorName(a.actor))}</span><b>${esc(ACTION_LABEL[a.action] || a.action)}</b><em>${esc(a.target || '')}</em></li>`).join('') || '<li class="muted">Chưa có hoạt động.</li>'}</ul></section>
+        <section class="atl-panel"><header class="atl-panel-h"><h2>Đang ở văn phòng</h2></header>
+          <ul class="atl-feed">${this.employees.filter(e => this.isOnline(e.code)).slice(0, 12).map(e => `<li><span class="atl-dot"></span><b>${esc(e.code)}</b><span>${esc(e.name)}</span><em>${esc(e.seat?.deskId || '')}</em></li>`).join('') || '<li class="muted">Chưa có ai online.</li>'}</ul></section>
+      </div>`;
+    body.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { this.tab = b.dataset.go; this.render(); });
+  }
+  /** "emp:1151" → "1151-An"; "admin:x" → "CEO". */
+  actorName(k) { const s = String(k || ''); if (s.startsWith('emp:')) { const e = this.employees.find(x => x.code === s.slice(4)); return e ? `${e.code}-${e.name}` : s.slice(4); } return s.startsWith('admin') ? 'CEO' : s; }
+  /** Biểu đồ đường số người online (6 giờ gần nhất), trục giống thẻ số liệu: -6h … Bây giờ. */
+  chart(pts = []) {
+    const W = 230, H = 130, L = 24, B = 18, now = Date.now(), t0 = now - 6 * 3600e3;
+    const max = Math.max(4, ...pts.map(p => p.n)), top = Math.ceil(max / 4) * 4;   // (bội của 4: vạch chia là số nguyên)
+    const X = t => L + (t - t0) / (now - t0) * (W - L - 6), Y = n => 6 + (1 - n / top) * (H - B - 6);
+    let g = '';
+    for (let i = 0; i <= 4; i++) { const v = top * i / 4, y = Y(v); g += `<line x1="${L}" x2="${W - 6}" y1="${y}" y2="${y}"/><text x="${L - 5}" y="${y + 3}" text-anchor="end">${Math.round(v)}</text>`; }
+    for (const [h, lbl] of [[6, '-6h'], [4, '-4h'], [2, '-2h'], [0, 'Bây giờ']]) g += `<text x="${X(now - h * 3600e3)}" y="${H - 3}" text-anchor="middle">${lbl}</text>`;
+    const pp = pts.filter(p => p.t >= t0).map(p => `${X(p.t).toFixed(1)},${Y(p.n).toFixed(1)}`);
+    const line = pp.length > 1 ? `<path class="ln-a" d="M${pp[0].split(',')[0]},${Y(0)} L${pp.join(' L')} L${pp.at(-1).split(',')[0]},${Y(0)}Z"/><polyline class="ln" points="${pp.join(' ')}"/>` : pp.length ? `<circle class="ln-p" cx="${pp[0].split(',')[0]}" cy="${pp[0].split(',')[1]}" r="3"/>` : '';
+    return `<svg class="atl-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Số người online 6 giờ gần nhất">${g}${line}</svg>`;
   }
 
   // ---------- nhân viên ----------
@@ -249,7 +329,7 @@ export class Dashboard {
     this._svg = null;
     const floors = this.app.model.floors;
     $('dashBody').innerHTML = `<div class="row tight wrap"><div class="seg" role="group" aria-label="Tầng">${floors.map(f => `<button data-mf="${f.id}" class="${f.id === this.floor ? 'on' : ''}">${esc(f.name)}</button>`).join('')}</div>
-      <span class="legend"><i style="background:#2d7a4a"></i>Trống <i style="background:#3a3f4a"></i>Có chủ <i style="background:#1b2a8c"></i>Chủ đang online <i style="background:#8a2417"></i>Khóa <i class="pin"></i>Người online</span></div>
+      <span class="legend"><i style="background:#00A35C"></i>Trống <i style="background:#3D4F58"></i>Có chủ <i style="background:#0498EC"></i>Chủ đang online <i style="background:#DB3030"></i>Khóa <i class="pin"></i>Người online</span></div>
       <div id="mapWrap"></div><p class="muted small">Bấm vào bàn để gán, đổi, giải phóng, khóa chỗ hoặc sửa dụng cụ. Bấm vào chấm tròn để camera bám theo người đó.</p>`;
     this.el.querySelectorAll('[data-mf]').forEach(b => b.onclick = () => { this.floor = +b.dataset.mf; this.renderMap(); });
     this.drawMap();
@@ -257,18 +337,21 @@ export class Dashboard {
   drawMap() {
     const wrap = $('mapWrap'); if (!wrap) return;
     const m = this.app.model, f = this.floor;
-    const areas = (m.nav.areas || []).filter(a => a.floor === f && (a.x1 - a.x0) < 12);
-    const x0 = Math.min(...areas.map(a => a.x0)) - 0.3, x1 = Math.max(...areas.map(a => a.x1)) + 0.3, z0 = Math.min(...areas.map(a => a.z0)) - 0.3, z1 = Math.min(Math.max(...areas.map(a => a.z1)), 9.2) + 0.3;
-    // nhìn từ trên, đường phố ở dưới: trục ngang = x, trục dọc = z
-    const S = Math.max(44, Math.min(78, 640 / (z1 - z0))), W = (x1 - x0) * S, H = (z1 - z0) * S, X = x => (x - x0) * S, Z = z => (z - z0) * S;
+    // khung: bao trọn các vùng đi lại và bàn của tầng (trước đây bỏ vùng rộng > 12 m — toà nhà hiện tại rộng ~22 m nên sơ đồ trống)
+    const areas = (m.nav.areas || []).filter(a => a.floor === f), fd = m.desks.filter(d => d.floor === f);
+    const xs = [...areas.flatMap(a => [a.x0, a.x1]), ...fd.map(d => d.x)], zs = [...areas.flatMap(a => [a.z0, a.z1]), ...fd.map(d => d.z)];
+    if (!xs.length) { wrap.innerHTML = '<p class="muted">Tầng này chưa có dữ liệu.</p>'; return; }
+    const x0 = Math.min(...xs) - 0.3, x1 = Math.max(...xs) + 0.3, z0 = Math.min(...zs) - 0.3, z1 = Math.max(...zs) + 0.3;
+    // nhìn từ trên, đường phố ở dưới: trục ngang = x, trục dọc = z; co theo bề ngang khung (điện thoại vẫn thấy cả tầng)
+    const S = Math.max(16, Math.min(60, ((wrap.clientWidth || 900) - 4) / (x1 - x0))), W = (x1 - x0) * S, H = (z1 - z0) * S, X = x => (x - x0) * S, Z = z => (z - z0) * S;
     let svg = `<svg viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" width="${W.toFixed(0)}" height="${H.toFixed(0)}" role="img" aria-label="Sơ đồ chỗ ngồi ${esc(m.floorById.get(f).name)}">`;
-    for (const a of areas) svg += `<rect x="${X(a.x0)}" y="${Z(a.z0)}" width="${(a.x1 - a.x0) * S}" height="${(Math.min(a.z1, 9.2) - a.z0) * S}" fill="#f4f1ea" stroke="#d8d2c4"/>`;
-    for (const o of m.obstacles.get(f) || []) if (['wall', 'stair', 'stairwell'].includes(o.type)) svg += `<rect x="${X(o.x0)}" y="${Z(o.z0)}" width="${(o.x1 - o.x0) * S}" height="${(o.z1 - o.z0) * S}" fill="${o.type === 'wall' ? '#8d8a83' : '#d7dbe2'}"/>`;
-    for (const t of m.tables.filter(t => t.floor === f)) svg += `<rect x="${X(t.x - t.w / 2)}" y="${Z(t.z - t.d / 2)}" width="${t.w * S}" height="${t.d * S}" rx="4" fill="#e4d6bd"/><text x="${X(t.x)}" y="${Z(t.z) + 4}" text-anchor="middle" font-size="11" fill="#7a4b12">${esc(t.id)}</text>`;
+    for (const a of areas) svg += `<rect x="${X(a.x0)}" y="${Z(a.z0)}" width="${(a.x1 - a.x0) * S}" height="${(a.z1 - a.z0) * S}" fill="#0C2A38" stroke="#1C4458"/>`;
+    for (const o of m.obstacles.get(f) || []) if (['wall', 'stair', 'stairwell'].includes(o.type)) svg += `<rect x="${X(o.x0)}" y="${Z(o.z0)}" width="${(o.x1 - o.x0) * S}" height="${(o.z1 - o.z0) * S}" fill="${o.type === 'wall' ? '#5C6C75' : '#1C2D38'}"/>`;
+    for (const t of m.tables.filter(t => t.floor === f)) svg += `<rect x="${X(t.x - t.w / 2)}" y="${Z(t.z - t.d / 2)}" width="${t.w * S}" height="${t.d * S}" rx="4" fill="#3D4F58"/><text x="${X(t.x)}" y="${Z(t.z) + 4}" text-anchor="middle" font-size="11" fill="#C1C7C6">${esc(t.id)}</text>`;
     for (const d of m.desks.filter(d => d.floor === f)) {
       const s = this.session.seats.get(d.id), fp = footprint(d.x, d.z, d.w || 1, d.d || 0.6, d.facing);
       const on = s?.owner && this.isOnline(s.owner.code);
-      const col = s?.locked ? '#8a2417' : on ? '#1b2a8c' : s?.owner ? '#3a3f4a' : '#2d7a4a';
+      const col = s?.locked ? '#DB3030' : on ? '#0498EC' : s?.owner ? '#3D4F58' : '#00A35C';
       const label = s?.owner ? s.owner.display : d.id;
       svg += `<g class="mdesk" data-desk="${esc(d.id)}" tabindex="0" role="button" aria-label="${esc(d.id)}: ${esc(s?.owner ? s.owner.display : s?.locked ? 'khóa' : 'trống')}">
         <rect x="${X(fp.x0)}" y="${Z(fp.z0)}" width="${(fp.x1 - fp.x0) * S}" height="${(fp.z1 - fp.z0) * S}" rx="3" fill="${col}"/>
@@ -277,8 +360,8 @@ export class Dashboard {
         <text x="${X(d.x)}" y="${Z(d.z) + 9}" text-anchor="middle" font-size="8.5" fill="#fff">${esc(s?.owner ? label.slice(0, 14) : (s?.locked ? 'khóa' : 'trống'))}</text></g>`;
     }
     for (const a of this.session.remote.list) {
-      if (a.f !== f || a.z > 9.2) continue;
-      svg += `<g class="mpin" data-key="${esc(a.key)}" tabindex="0" role="button" aria-label="Bám theo ${esc(a.display)}"><circle cx="${X(a.x)}" cy="${Z(a.z)}" r="7" fill="#f3a21f" stroke="#fff" stroke-width="2"/><text x="${X(a.x) + 9}" y="${Z(a.z) - 8}" font-size="10" font-weight="700" fill="#202124">${esc(a.display)}</text></g>`;
+      if (a.f !== f) continue;
+      svg += `<g class="mpin" data-key="${esc(a.key)}" tabindex="0" role="button" aria-label="Bám theo ${esc(a.display)}"><circle cx="${X(a.x)}" cy="${Z(a.z)}" r="7" fill="#f3a21f" stroke="#fff" stroke-width="2"/><text x="${X(a.x) + 9}" y="${Z(a.z) - 8}" font-size="10" font-weight="700" fill="#E8EDEB">${esc(a.display)}</text></g>`;
     }
     svg += '</svg>';
     if (svg === this._svg) return;
@@ -292,8 +375,7 @@ export class Dashboard {
     $('dashBody').innerHTML = '<p class="muted">Đang tải…</p>';
     const r = await api('GET', '/api/admin/audit?limit=300');
     if (!r.ok) { $('dashBody').textContent = r.error; return; }
-    const label = { 'login.new': 'Đăng ký mới', 'login.return': 'Vào lại', 'seat.claim': 'Nhận chỗ', 'seat.move': 'Tự đổi chỗ', 'seat.equipment': 'Sửa dụng cụ', 'seat.sit': 'Ngồi', 'admin.login': 'CEO đăng nhập', 'admin.login.fail': 'CEO đăng nhập sai', 'admin.seat.assign': 'Gán chỗ', 'admin.seat.release': 'Giải phóng chỗ', 'admin.seat.lock': 'Khóa chỗ', 'admin.seat.unlock': 'Mở khóa chỗ', 'admin.employee.update': 'Sửa nhân viên', 'admin.employee.delete': 'Xóa nhân viên', 'admin.employee.logout': 'Buộc đăng xuất', 'admin.csv.import': 'Nhập CSV', 'admin.csv.export': 'Xuất CSV', 'admin.backup': 'Sao lưu database', 'admin.backup.download': 'Tải bản sao lưu', 'admin.password.change': 'Đổi mật khẩu', logout: 'Đăng xuất', 'admin.seed': 'Tạo tài khoản CEO', 'layout.desk_removed': 'Bàn bị bỏ khỏi layout' };
-    $('dashBody').innerHTML = `<div class="table-wrap"><table class="dtable"><thead><tr><th>Thời gian</th><th>Người làm</th><th>Thao tác</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead><tbody>${r.audit.map(a => `<tr><td class="small">${fmt(a.ts)}</td><td>${esc(a.actor)}</td><td>${esc(label[a.action] || a.action)}</td><td>${esc(a.target || '')}</td><td class="small muted">${esc(a.detail ? JSON.stringify(a.detail).slice(0, 160) : '')}</td></tr>`).join('')}</tbody></table></div>`;
+    $('dashBody').innerHTML = `<div class="table-wrap"><table class="dtable"><thead><tr><th>Thời gian</th><th>Người làm</th><th>Thao tác</th><th>Đối tượng</th><th>Chi tiết</th></tr></thead><tbody>${r.audit.map(a => `<tr><td class="small">${fmt(a.ts)}</td><td>${esc(a.actor)}</td><td>${esc(ACTION_LABEL[a.action] || a.action)}</td><td>${esc(a.target || '')}</td><td class="small muted">${esc(a.detail ? JSON.stringify(a.detail).slice(0, 160) : '')}</td></tr>`).join('')}</tbody></table></div>`;
   }
 
   // ---------- sao lưu ----------

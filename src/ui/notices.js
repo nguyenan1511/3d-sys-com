@@ -1,6 +1,6 @@
 // Thông báo kiểu game (máy tính: góc trên phải dưới hàng nút; điện thoại: giữa phía trên, rộng gần hết màn):
 // thẻ có biểu tượng tròn theo loại, tiêu đề + nội dung + "vừa xong", nút ✕, thanh thời gian chạy ngược; tối đa 3 cái,
-// mới nhất ở trên. Rê chuột / chạm giữ thì dừng đếm; vuốt ngang để tắt (điện thoại). Bấm thẻ có onClick thì làm việc đó.
+// mới nhất ở trên (điện thoại: 1 cái). Rê chuột / chạm giữ thì dừng đếm; vuốt ngang để tắt (điện thoại). Bấm thẻ có onClick thì làm việc đó.
 import { esc } from '../session/ui.js';
 import { icon as svg } from './icons.js';
 
@@ -17,7 +17,9 @@ export function notice({ title, text = '', icon = '', tone = 'info', onClick = n
   el.querySelector('.nt-x').onclick = e => { e.stopPropagation(); close(); };
   if (onClick) { el.tabIndex = 0; el.setAttribute('role', 'button'); el.onclick = () => { onClick(); close(); }; el.onkeydown = e => { if (e.key === 'Enter') el.onclick(); }; }
   box.prepend(el);
-  while (box.children.length > 3) box.lastElementChild.remove();
+  // (điện thoại: chỉ 1 thẻ — công ty đông người chat liên tục thì 3 thẻ che nửa màn hình)
+  const max = matchMedia('(max-width: 640px), (max-height: 500px)').matches ? 1 : 3;
+  while (box.children.length > max) box.lastElementChild.remove();
   // tự ẩn; dừng khi rê chuột / chạm giữ
   let left = ms, started = performance.now(), t = setTimeout(close, ms);
   const pause = () => { clearTimeout(t); left -= performance.now() - started; el.classList.add('paused'); };

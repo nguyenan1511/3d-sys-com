@@ -2077,3 +2077,141 @@ body.in-room #c3 { cursor: default; }
 .wc-card.show { opacity: 1; transform: translate(-50%, 0); } .wc-card[hidden] { display: none; }
 .wc-card b { font: 700 14px var(--font); } .wc-card span { font: 400 12px var(--font); color: rgba(255,255,255,.7); }
 #appRoot .wc-card button, .wc-card button { margin-top: 4px; height: 38px; padding: 0 16px; border-radius: 12px; border: 0; background: #ef6c35; color: #fff; font: 700 13px var(--font); cursor: pointer; box-shadow: none; }
+
+/* ===== Bảng quản trị CEO — kiểu bảng điều khiển đám mây tối (xanh đen, điểm nhấn xanh lá) =====
+   Thanh bên chia nhóm, thanh trên có đường dẫn Tổ chức › Văn phòng, tiêu đề lớn có chân, thẻ số liệu viền mảnh + biểu đồ nhỏ. */
+#dash {
+  --a-bg: #001E2B; --a-side: #001E2B; --a-panel: #0B2735; --a-card: #001E2B; --a-line: #3D4F58; --a-line2: #1C2D38;
+  --a-text: #E8EDEB; --a-muted: #889397; --a-green: #00ED64; --a-green2: #00A35C; --a-blue: #0498EC; --a-warn: #FFC010;
+  inset: 0 !important; z-index: 35; padding: 0 !important; border: 0 !important; border-radius: 0 !important; box-shadow: none !important;
+  background: var(--a-bg) !important; color: var(--a-text) !important; overflow: hidden; font-family: var(--font, system-ui);
+}
+#dash .atl { display: grid; grid-template-columns: 248px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; animation: ui-fade-in .2s ease both; }
+#dash .atl-side { background: var(--a-side); border-right: 1px solid var(--a-line); display: flex; flex-direction: column; overflow: auto; }
+#dash .atl-brand { display: flex; align-items: center; gap: 10px; height: 64px; padding: 0 20px; border-bottom: 1px solid var(--a-line); }
+#dash .atl-brand img { filter: brightness(0) invert(1); opacity: .95; }
+#dash .atl-brand span { font-size: 13px; color: var(--a-green); font-weight: 600; letter-spacing: .02em; }
+#dash .atl-side nav { padding: 12px 0 20px; display: flex; flex-direction: column; }
+#dash .atl-side h4 { display: flex; align-items: center; gap: 10px; margin: 18px 20px 4px; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--a-green); }
+#dash .atl-nav { display: flex; align-items: center; gap: 12px; width: 100%; text-align: left; border: 0 !important; border-radius: 0 !important; background: transparent !important; color: var(--a-text) !important;
+  font-size: 14px; padding: 9px 20px 9px 45px; box-shadow: none !important; transition: background .15s ease; position: relative; }
+#dash .atl-nav.top { padding-left: 20px; font-size: 15px; border-bottom: 1px solid var(--a-line) !important; padding-block: 14px; margin-bottom: 4px; }
+#dash .atl-nav:hover { background: #112733 !important; }
+#dash .atl-nav.on { background: #023430 !important; color: var(--a-green) !important; font-weight: 600; }
+#dash .atl-nav.on::before { content: ''; position: absolute; left: 0; top: 6px; bottom: 6px; width: 4px; border-radius: 0 4px 4px 0; background: var(--a-green); }
+#dash .atl-main { display: flex; flex-direction: column; min-width: 0; min-height: 0; height: 100%; }
+#dash .atl-top { display: flex; align-items: center; gap: 16px; height: 64px; padding: 0 24px; border-bottom: 1px solid var(--a-line); flex: none; }
+#dash .atl-crumb { display: flex; align-items: center; gap: 18px; min-width: 0; }
+#dash .atl-crumb span { display: flex; flex-direction: column; line-height: 1.25; min-width: 0; }
+#dash .atl-crumb small { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--a-muted); }
+#dash .atl-crumb span + .atl-chev + span small { color: var(--a-green); }
+#dash .atl-crumb b { font-size: 14.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#dash .atl-chev { transform: rotate(-90deg); color: var(--a-muted); flex: none; }
+#dash .atl-top #dashClose { margin-left: auto; }
+#dash .atl-content { flex: 1; overflow: auto; padding: 28px 32px 40px; }
+#dash .atl-title { font-family: Georgia, 'Times New Roman', serif; font-weight: 400; font-size: 34px; letter-spacing: -.01em; margin: 0 0 24px; color: var(--a-text); }
+
+/* nút */
+#dash button, #dash .btn, #dash label.file { background: transparent !important; color: var(--a-text) !important; border: 1px solid var(--a-line) !important; border-radius: 6px !important; box-shadow: none !important; font-size: 13.5px; }
+#dash button:hover, #dash .btn:hover, #dash label.file:hover { background: #112733 !important; border-color: #5C6C75 !important; }
+#dash .atl-btn { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; background: #112733 !important; border-color: #5C6C75 !important; font-weight: 500; }
+#dash .atl-btn.green, #dash button.primary { border-color: var(--a-green2) !important; color: var(--a-green) !important; background: transparent !important; font-weight: 600; }
+#dash .atl-btn.green:hover, #dash button.primary:hover { background: #023430 !important; }
+#dash button.danger { color: #FF6960 !important; border-color: #8F221B !important; }
+#dash button.on { background: #023430 !important; color: var(--a-green) !important; border-color: var(--a-green2) !important; }
+#dash input[type=search], #dash select, #dash input[type=text] { background: #112733 !important; color: var(--a-text) !important; border: 1px solid var(--a-line) !important; border-radius: 6px !important; padding: 7px 10px; }
+#dash input::placeholder { color: var(--a-muted); }
+#dash :focus-visible { outline: 2px solid var(--a-blue) !important; outline-offset: 1px; }
+#dash .muted, #dash .legend { color: var(--a-muted) !important; }
+#dash code { background: #112733; color: var(--a-green); padding: 1px 5px; border-radius: 4px; }
+#dash a { color: var(--a-blue); }
+
+/* thẻ tổng quan */
+#dash .atl-panel { border: 1px solid var(--a-line); border-radius: 24px; padding: 22px 32px 28px; background: var(--a-bg); margin-bottom: 24px; animation: ui-fade-in .22s ease both; }
+#dash .atl-skel { height: 420px; background: linear-gradient(90deg, #001E2B, #0B2735, #001E2B); background-size: 200% 100%; animation: atl-sh 1.2s linear infinite; }
+@keyframes atl-sh { to { background-position: -200% 0; } }
+#dash .atl-panel-h { display: flex; align-items: center; gap: 12px; padding-bottom: 18px; margin-bottom: 22px; border-bottom: 1px solid var(--a-line); flex-wrap: wrap; }
+#dash .atl-panel-h h2 { margin: 0; font-size: 20px; font-weight: 500; color: var(--a-blue); }
+#dash .atl-acts { margin-left: auto; display: flex; gap: 10px; flex-wrap: wrap; }
+#dash .atl-badge { display: inline-block; font-size: 12.5px; font-weight: 700; letter-spacing: .06em; padding: 2px 9px; border-radius: 999px; border: 1px solid; }
+#dash .atl-badge.ok { color: var(--a-green); background: #023430; border-color: var(--a-green2); }
+#dash .atl-badge.warn { color: var(--a-warn); background: #4C2100; border-color: #944F01; }
+#dash .atl-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 24px; }
+#dash .atl-card { border: 1px solid var(--a-line); border-radius: 12px; background: var(--a-card); min-height: 260px; display: flex; flex-direction: column; }
+#dash .atl-card > header { display: flex; align-items: center; gap: 8px; min-height: 52px; box-sizing: border-box; padding: 10px 18px; border-bottom: 1px solid var(--a-line); }
+#dash .atl-card > header h3 { margin: 0; font-size: 15px; font-weight: 500; }
+#dash .atl-card > header .ico { color: var(--a-muted); }
+#dash .atl-go { margin-left: auto; border: 0 !important; padding: 2px 4px; }
+#dash .atl-card-b { padding: 16px 18px; flex: 1; display: flex; flex-direction: column; gap: 12px; }
+#dash .atl-dl { margin: 0; display: flex; flex-direction: column; gap: 14px; }
+#dash .atl-dl div { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#dash .atl-dl dt { color: var(--a-text); } #dash .atl-dl dt::after { content: ':'; }
+#dash .atl-dl dd { margin: 0; color: var(--a-text); font-weight: 500; }
+#dash .atl-note { margin: 0; font-size: 12.5px; color: var(--a-warn); line-height: 1.45; }
+#dash .atl-big { margin: 0; font-size: 14px; color: var(--a-muted); }
+#dash .atl-big b { font-size: 30px; font-weight: 500; color: var(--a-text); margin-right: 2px; }
+#dash .atl-big small { font-size: 13px; }
+#dash .atl-chart { width: 100%; height: auto; overflow: visible; }
+#dash .atl-chart line { stroke: var(--a-line); stroke-width: 1; }
+#dash .atl-chart text { fill: var(--a-muted); font-size: 10.5px; font-family: inherit; }
+#dash .atl-chart .ln { fill: none; stroke: var(--a-blue); stroke-width: 2; stroke-linejoin: round; }
+#dash .atl-chart .ln-a { fill: rgba(4,152,236,.14); }
+#dash .atl-chart .ln-p { fill: var(--a-blue); }
+#dash .atl-stack { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: #112733; gap: 2px; }
+#dash .atl-stack i { display: block; min-width: 3px; transition: flex .4s ease; }
+#dash .atl-leg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13.5px; }
+#dash .atl-leg li { display: flex; align-items: center; gap: 8px; }
+#dash .atl-leg i { width: 9px; height: 9px; border-radius: 50%; }
+#dash .atl-leg b { margin-left: auto; font-weight: 500; }
+#dash .atl-row { display: grid; grid-template-columns: 3fr 2fr; gap: 24px; }
+#dash .atl-row .atl-panel { padding: 20px 26px 22px; }
+#dash .atl-row .atl-panel-h h2 { color: var(--a-text); font-size: 20px; }
+#dash .atl-feed { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+#dash .atl-feed li { display: grid; grid-template-columns: 92px auto 1fr auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--a-line2); font-size: 13.5px; }
+#dash .atl-feed li:last-child { border-bottom: 0; }
+#dash .atl-feed time { color: var(--a-muted); font-size: 12.5px; }
+#dash .atl-feed b { font-weight: 500; }
+#dash .atl-feed em { font-style: normal; color: var(--a-muted); font-size: 12.5px; text-align: right; }
+#dash .atl-feed li:has(.atl-dot) { grid-template-columns: 12px 56px 1fr auto; }
+#dash .atl-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--a-green); box-shadow: 0 0 0 3px rgba(0,237,100,.18); }
+
+/* bảng, sơ đồ, sao lưu trong giao diện tối */
+#dash .table-wrap { border: 1px solid var(--a-line); border-radius: 12px; overflow: auto; margin-top: 12px; }
+#dash .dtable th { background: #0B2735 !important; color: var(--a-muted) !important; border-bottom: 1px solid var(--a-line) !important; padding: 10px 12px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+#dash .dtable td { border-bottom: 1px solid var(--a-line2) !important; padding: 9px 12px; color: var(--a-text); }
+#dash .dtable tbody tr:hover td { background: #0B2735; }
+#dash .dtable tbody tr:last-child td { border-bottom: 0 !important; }
+#dash #mapWrap svg { background: #001E2B !important; border: 1px solid var(--a-line); border-radius: 12px; }
+#dash #mapWrap .mdesk:hover rect { filter: brightness(1.2); }
+#dash .row.tight { gap: 10px; }
+#dash .seg button { border-radius: 0 !important; }
+#dash .seg button:first-child { border-radius: 6px 0 0 6px !important; } #dash .seg button:last-child { border-radius: 0 6px 6px 0 !important; }
+
+/* điện thoại / màn hẹp: thanh bên thành dải tab cuộn ngang ở trên */
+@media (max-width: 860px) {
+  #dash .atl { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  #dash .atl-side { min-height: 52px; flex: none; }
+  #dash .atl-side { flex-direction: row; align-items: center; border-right: 0; border-bottom: 1px solid var(--a-line); overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+  #dash .atl-brand { height: 52px; padding: 0 14px; border-bottom: 0; flex: none; }
+  #dash .atl-brand span { display: none; }
+  #dash .atl-side nav { flex-direction: row; padding: 0 8px 0 0; }
+  #dash .atl-side h4 { display: none; }
+  #dash .atl-nav, #dash .atl-nav.top { padding: 16px 12px !important; white-space: nowrap; border-bottom: 0 !important; margin: 0; font-size: 14px; }
+  #dash .atl-nav .ico { display: none; }
+  #dash .atl-nav.on::before { left: 10px; right: 10px; top: auto; bottom: 0; width: auto; height: 3px; border-radius: 3px 3px 0 0; }
+  #dash .atl-top { height: 52px; padding: 0 14px; }
+  #dash .atl-crumb span:first-child, #dash .atl-chev { display: none; }
+  #dash .atl-content { padding: 18px 14px 28px; }
+  #dash .atl-title { font-size: 26px; margin-bottom: 16px; }
+  #dash .atl-panel { padding: 16px 16px 20px; border-radius: 16px; }
+  #dash .atl-acts { margin-left: 0; width: 100%; }
+  #dash .atl-cards { grid-template-columns: 1fr; gap: 14px; }
+  #dash .atl-card { min-height: 0; }
+  #dash .atl-row { grid-template-columns: 1fr; gap: 0; }
+  #dash .atl-feed li { grid-template-columns: 76px 1fr; } #dash .atl-feed li em { display: none; }
+  #dash .atl-feed li > span:not(.atl-dot) { display: none; } #dash .atl-feed li:has(.atl-dot) > span:not(.atl-dot) { display: inline; }
+  #dash .atl-feed li:has(.atl-dot) { grid-template-columns: 12px 48px 1fr; }
+}
+
+/* bảng quản trị phủ kín màn hình: thông báo chat nổi không đè lên các nút của bảng */
+body:has(#dash:not([hidden])) .notices { display: none; }

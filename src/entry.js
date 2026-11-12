@@ -12,6 +12,7 @@ import '@fontsource/be-vietnam-pro/latin-700.css';
 import { api } from './net/api.js';
 import { loading } from './ui/loading.js';
 import { showLogin } from './auth/login.js';
+import { savedLogin, forgetLogin } from './auth/remember.js';
 
 const loginRoot = document.getElementById('login');
 const appRoot = document.getElementById('appRoot');
@@ -39,6 +40,7 @@ function webglSupport() {
   } catch { return false; }
 }
 
+let autoTried = false;
 async function boot(notice) {
   const me = await api('GET', '/api/me');
   if (me.status === 0) { // không kết nối được máy chủ (mất mạng / máy chủ đang khởi động lại)
@@ -47,8 +49,17 @@ async function boot(notice) {
     return;
   }
   if (!me.ok || !me.authenticated) {
+    // máy này đã đăng nhập trước đó nhưng server không còn phiên (server mất dữ liệu / phiên hết hạn): tự đăng nhập lại bằng
+    // mã đã nhớ — không bị buộc đăng xuất (notice) và chỉ thử một lần; mã sai / bị khoá thì quên mã, hiện màn hình đăng nhập
+    const saved = !notice && !autoTried && savedLogin();
+    if (saved) {
+      autoTried = true;
+      const r = await api('POST', '/api/login/employee', { input: saved });
+      if (r.ok) return boot();
+      if (r.status === 400 || r.status === 403) forgetLogin();
+    }
     appRoot.hidden = true;
-    showLogin(loginRoot, { notice, onSuccess: () => boot() });
+    showLogin(loginRoot, { notice, prefill: savedLogin() || '', onSuccess: () => boot() });
     prefetchMain();
     return;
   }
@@ -64,6 +75,7 @@ async function boot(notice) {
   catch (e) { console.error(e); loading.error('Không tải được văn phòng 3D (mạng chập chờn?).'); return; }
   await startApp(me, {
     logout: async (reason) => {
+      forgetLogin();   // (tự bấm đăng xuất, hoặc bị buộc đăng xuất: lần sau phải tự đăng nhập)
       await api('POST', '/api/logout', {});
       sessionStorage.setItem('sysone_notice', reason || 'Bạn đã đăng xuất.');
       location.reload();

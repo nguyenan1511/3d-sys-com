@@ -9,6 +9,7 @@ let SPECS = new Map(), LIST = [], CAMERA = null;
 export function setPixelSpecs(list) { LIST = list || []; SPECS = new Map(LIST.map(c => [c.id, c])); }
 export const pixelSpecs = () => LIST;
 export function setBillboardCamera(cam) { CAMERA = cam; }
+export const billboardCamera = () => CAMERA;
 /** Chế độ hiển thị: '2d' (mặc định: trong khuôn viên vẽ 2D, ngoài trời sprite pixel) hoặc '3d' (toàn 3D, nhân vật chibi 3D). */
 /** Bản 2D tạm ẩn (giữ nguyên code để bật lại sau: đặt ENABLE_2D = true). Khi ẩn: luôn 3D, không có nút đổi 2D/3D. */
 export const ENABLE_2D = false;

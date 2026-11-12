@@ -26,6 +26,7 @@ import { MatrixFreezer } from './scene/freeze.js';
 import { FloorCuller } from './scene/floorCull.js';
 import { disposeObject } from './scene/dispose.js';
 import { releaseGeometryRam } from './scene/releaseRam.js';
+import { DetailCuller, HIDE_LAYER } from './scene/detailCull.js';
 import { buildDesk, NameplateAtlas } from './interior/deskKit.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildCeilings } from './interior/ceiling.js';
@@ -71,7 +72,9 @@ function detectQuality() {
 const QUALITY = detectQuality();
 const DPR = Math.min(Math.max(window.devicePixelRatio || 1, 1), 2.5);
 /** Độ phân giải tối đa: cao → 2,5× (điện thoại) / 2× (máy tính); thấp → 1,5×. */
-const PR_MAX = QUALITY === 'low' ? Math.min(DPR, 1.5) : Math.min(DPR, isMobile ? 2.5 : 2);
+const PR_MAX = QUALITY === 'low' ? Math.min(DPR, 1.5) : Math.min(DPR, 2);
+/** Độ phân giải lúc mở: điện thoại bắt đầu 1,5× (đủ nét, nhẹ cho GPU di động) rồi tự nâng tới PR_MAX nếu máy chạy mượt. */
+const PR_START = isMobile ? Math.min(PR_MAX, 1.5) : PR_MAX;
 
 /** Thử lại khi mạng chập chờn: lỗi kết nối, quá thời gian, máy chủ quá tải (5xx/429) — tối đa 3 lần, chờ tăng dần. */
 async function retry(fn, bad, tries = 3) {
@@ -133,7 +136,7 @@ export async function startApp(me, hooks = {}) {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: QUALITY !== 'low', powerPreference: 'high-performance', preserveDrawingBuffer: params.has('shot') }); // (alpha: màn hình TV khoét lỗ cho video YouTube bên dưới — scene/tvVideo.js)
   // ?pr=0.6: vẽ ở độ phân giải thấp hơn (máy yếu; kiểm thử trên GPU giả lập)
   const PR = +(params.get('pr') || window.__PIXEL_RATIO || 0);
-  renderer.setPixelRatio(PR > 0 ? Math.min(2, PR) : PR_MAX); // (tự hạ nếu khung hình tụt — xem "độ phân giải tự điều chỉnh" trong vòng vẽ)
+  renderer.setPixelRatio(PR > 0 ? Math.min(2, PR) : PR_START); // (tự hạ nếu khung hình tụt — xem "độ phân giải tự điều chỉnh" trong vòng vẽ)
   // không có GPU (máy ảo, CI, trình duyệt rơi về SwiftShader): mọi khung hình do CPU vẽ — chạy nhẹ như my-office (scene/renderer.js):
   // độ phân giải thấp, không bóng đổ, tắt đèn phòng (chỉ còn nắng + bầu trời + ánh sáng môi trường)
   const SOFT_GL = (() => { try { const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info'); return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : ''); } catch { return false; } })();
@@ -143,11 +146,22 @@ export async function startApp(me, hooks = {}) {
   // GPU bị thu hồi (máy hết bộ nhớ đồ hoạ, driver khởi động lại, điện thoại chuyển app lâu): three.js tự dựng lại khi trình
   // duyệt trả ngữ cảnh; trong lúc chờ báo cho người dùng, quá 10 s không về thì mời tải lại trang
   let glLostT = 0, ramReleased = 0; // (ramReleased: số mesh đã bỏ bản trong RAM — xem releaseRam bên dưới)
-  canvas.addEventListener('webglcontextlost', e => { e.preventDefault(); loading.flash('Đang khôi phục đồ hoạ…'); clearTimeout(glLostT); glLostT = setTimeout(() => loading.error('Mất kết nối với bộ xử lý đồ hoạ (GPU).', { hint: 'Đóng bớt tab / ứng dụng nặng rồi bấm Thử lại.' }), 10000); });
+  // (điện thoại: thoát ra màn hình chính / app khác một lúc, trình duyệt hay thu hồi GPU của trang. Đang ở nền thì không báo
+  // lỗi; quay lại mà sau 2,5 s GPU vẫn chưa trả → tải lại ngay — thay vì treo màn hình "đang khôi phục" 10 s rồi báo lỗi)
+  const glLost = () => renderer.getContext().isContextLost?.();
+  const reloadForGpu = () => { loading.flash('Đang tải lại văn phòng…'); setTimeout(() => location.reload(), 300); };
+  canvas.addEventListener('webglcontextlost', e => {
+    e.preventDefault(); clearTimeout(glLostT);
+    if (document.hidden) return;
+    loading.flash('Đang khôi phục đồ hoạ…'); glLostT = setTimeout(reloadForGpu, 4000);
+  });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && glLost()) { loading.flash('Đang khôi phục đồ hoạ…'); clearTimeout(glLostT); glLostT = setTimeout(() => { if (glLost()) reloadForGpu(); }, 2500); } });
+  // (trang được trình duyệt "đóng băng" rồi trả lại từ bộ nhớ đệm — bfcache: mạng / GPU có thể đã mất → kiểm tra lại)
+  window.addEventListener('pageshow', e => { if (e.persisted && glLost()) reloadForGpu(); });
   canvas.addEventListener('webglcontextrestored', () => {
     clearTimeout(glLostT);
     // hình tĩnh đã bỏ bản trong RAM (scene/releaseRam.js) không nạp lại lên GPU được: tải lại trang (giữ phiên đăng nhập)
-    if (ramReleased) { loading.flash('Đang tải lại văn phòng…'); setTimeout(() => location.reload(), 300); return; }
+    if (ramReleased) { reloadForGpu(); return; }
     loading.hideFlash();
   });
   // thế giới văn phòng của my-office (layout.world = 'my-office'): dùng cảnh của nó làm cảnh chính
@@ -324,7 +338,7 @@ export async function startApp(me, hooks = {}) {
       // bất kỳ ai nhận/trả chỗ, và lúc vào trang server gửi lại đúng dữ liệu vừa tải (trước đây dựng lại hai lần)
       const sig = model.desks.map(d => { const e = session.equipFor(d) || {}; return JSON.stringify(BIG ? e.equipment ?? null : [e.equipment ?? null, e.nameplate ?? null]); }).join('|');
       if (!force && sig === deskSig) return; deskSig = sig;
-      inter.rebuildDesks(d => session.equipFor(d), { receiveShadow: QUALITY !== 'low' }); if (cutFloor !== null) setCut(cutFloor); app.freezer?.add(scene, o => o.name === 'avatars' || o.name === 'nameTags'); app.releaseRam?.();
+      inter.rebuildDesks(d => session.equipFor(d), { receiveShadow: QUALITY !== 'low' }); if (cutFloor !== null) setCut(cutFloor); app.freezer?.add(scene, o => o.name === 'avatars' || o.name === 'nameTags'); app.detail?.add(scene, o => o.name === 'avatars' || o.name === 'nameTags' || o.isLight); app.releaseRam?.();
     },
     showFloor(f, moveCam = true) { app.autoCut = false; setCut(f); if (moveCam && f !== null) floorView(f); },
     cutFloor: () => cutFloor,
@@ -390,11 +404,15 @@ export async function startApp(me, hooks = {}) {
   // tầng), đặt theo các phòng của tầng đang xem; ban ngày tắt hẳn (không tốn gì).
   const night = { k: 0, want: 0, base: null, lamps: [], floor: -1, check: 0 };
   {
-    const N = QUALITY === 'low' || SOFT_GL ? 4 : 9;
-    for (let i = 0; i < N; i++) { const l = new THREE.PointLight(0xffc27a, 0, 9, 1.7); l.visible = false; l.castShadow = false; l.name = 'nightLamp'; scene.add(l); night.lamps.push(l); }
+    // số đèn KHÔNG đổi theo ngày/đêm (ban ngày cường độ 0): đổi số đèn bắt GPU dịch lại shader của mọi vật liệu — khựng vài
+    // giây trên điện thoại mỗi lần có người bật/tắt đèn. Điện thoại / máy yếu: không dùng đèn điểm (mỗi đèn tốn thêm cho mọi
+    // điểm ảnh) — buổi tối giả bằng ánh sáng trời dịu, ấm
+    night.lite = isMobile || QUALITY === 'low' || SOFT_GL;
+    const N = night.lite ? 0 : 6;
+    for (let i = 0; i < N; i++) { const l = new THREE.PointLight(0xffc27a, 0, 10, 1.6); l.castShadow = false; l.name = 'nightLamp'; scene.add(l); night.lamps.push(l); }
     night.dayBg = scene.background?.isColor ? scene.background.clone() : new THREE.Color(0xe7edf3);
   }
-  const NIGHT_BG = new THREE.Color(0x0c1426), NIGHT_SKY = new THREE.Color(0x4a5a8a), NIGHT_SUN = new THREE.Color(0x9fb4ff), _c = new THREE.Color();
+  const NIGHT_WARM = new THREE.Color(0xffc98f), NIGHT_BG = new THREE.Color(0x0c1426), NIGHT_SKY = new THREE.Color(0x4a5a8a), NIGHT_SUN = new THREE.Color(0x9fb4ff), _c = new THREE.Color();
   /** Đặt bộ đèn phòng theo các phòng của tầng f (nhiều đèn hơn cho phòng rộng). */
   function placeNightLamps(f) {
     night.floor = f;
@@ -421,15 +439,15 @@ export async function startApp(me, hooks = {}) {
     if (night.k !== night.want) { const d = night.want - night.k, st = dt / 1.5; night.k = Math.abs(d) <= st ? night.want : night.k + Math.sign(d) * st; }
     const k = night.k * night.k * (3 - 2 * night.k);   // (smoothstep)
     for (const x of b.ls) {
-      x.o.intensity = x.i * (1 - k * (x.o.isDirectionalLight ? 0.94 : 0.85));
-      x.o.color.copy(x.c).lerp(x.o.isDirectionalLight ? NIGHT_SUN : NIGHT_SKY, k * 0.7);
+      x.o.intensity = x.i * (1 - k * (x.o.isDirectionalLight ? 0.94 : night.lite ? 0.5 : 0.85));
+      x.o.color.copy(x.c).lerp(x.o.isDirectionalLight ? NIGHT_SUN : night.lite ? NIGHT_WARM : NIGHT_SKY, k * 0.7);
     }
-    scene.environmentIntensity = b.env * (1 - k * 0.86);
+    scene.environmentIntensity = b.env * (1 - k * (night.lite ? 0.8 : 0.86));
     if (scene.background?.isColor) scene.background.copy(_c.copy(night.dayBg).lerp(NIGHT_BG, k));
     // đèn phòng: theo tầng mình đang đứng / đang xem
     const me = session.player?.agent, f = me && !me.onStair ? me.f : (cutFloor ?? 0);
     if (night.k > 0) { night.check = performance.now(); if (f !== night.floor) placeNightLamps(f); }
-    for (const l of night.lamps) { l.visible = night.k > 0.002 && l.userData.on; l.intensity = 4.2 * k; }
+    for (const l of night.lamps) l.intensity = l.userData.on ? 5 * k : 0;
   }
   // ---- camera tạm (soi gương ở nhà vệ sinh — src/session/restroom.js): trộn êm giữa camera bám theo và góc đặt sẵn
   const camOv = { k: 0, want: 0, eye: new THREE.Vector3(), look: new THREE.Vector3() }, _e = new THREE.Vector3(), _l = new THREE.Vector3(), _f = new THREE.Vector3();
@@ -495,6 +513,8 @@ export async function startApp(me, hooks = {}) {
   }
   // cửa sổ Phím tắt (mở/đóng có hiệu ứng)
   const km = $('keysModal');
+  // (nút Phím tắt: gắn bằng JS — CSP bản production chặn onclick viết trong HTML)
+  document.addEventListener('click', e => { if (e.target.closest?.('.keys-btn')) app.openKeys(); });
   app.openKeys = () => { km.querySelector('.km-keys').innerHTML = keyFull(app.mode2d ? KEYROWS2D : KEYROWS3D); km.hidden = false; requestAnimationFrame(() => km.classList.add('show')); $('keysClose').focus(); };
   app.closeKeys = () => { km.classList.remove('show'); setTimeout(() => { km.hidden = true; }, 220); };
   $('keysClose').onclick = app.closeKeys;
@@ -532,7 +552,7 @@ export async function startApp(me, hooks = {}) {
     ['pointerup', 'pointerleave', 'pointercancel'].forEach(n => el.addEventListener(n, () => { rig.holds[el.dataset.hold] = false; }));
   });
   // bấm vào avatar
-  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+  const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(); ray.layers.enable(HIDE_LAYER);   // (bấm trúng cả vật nhỏ ở xa đang tạm không vẽ — scene/detailCull.js)
   // đang chọn chỗ: rê chuột lên bàn thì bàn sáng viền (như my-office khi trỏ vào đồ vật)
   let hoverAt = 0;
   canvas.addEventListener('pointermove', e => {
@@ -594,7 +614,7 @@ export async function startApp(me, hooks = {}) {
   // gợi ý phím: một dòng 3 phím chính + nút "Phím tắt" (mở cửa sổ đầy đủ)
   const keyCaps = k => k.split(' ').map(x => `<span class="key">${x}</span>`).join('');
   const keyFull = rows => '<ul class="keylist">' + rows.map(([k, t]) => `<li><span class="keys">${keyCaps(k)}</span><span class="what">${t}</span></li>`).join('') + '</ul>';
-  const keyLine = (rows, n = 3) => `<span class="keys-short">${rows.slice(0, n).map(([k, t]) => `<span class="ks">${keyCaps(k)}<span class="what">${t}</span></span>`).join('')}</span><button type="button" class="keys-btn" onclick="window.__app.app.openKeys()" title="Xem tất cả phím tắt và động tác">${icon('keyboard')} Phím tắt</button>`;
+  const keyLine = (rows, n = 3) => `<span class="keys-short">${rows.slice(0, n).map(([k, t]) => `<span class="ks">${keyCaps(k)}<span class="what">${t}</span></span>`).join('')}</span><button type="button" class="keys-btn" title="Xem tất cả phím tắt và động tác">${icon('keyboard')} Phím tắt</button>`;
   const KEYROWS3D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['B', 'Về bàn làm việc (tự đi tới và ngồi)'], ['T', 'Chat nội bộ'], ['Space', 'Nhảy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['V', 'Góc nhìn thứ nhất / thứ ba'], ['C', 'Đưa camera về sau lưng'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Kéo', 'Xoay camera — khi đang xem xung quanh (Esc)'], ['Cuộn + −', 'Phóng to / thu nhỏ'], ['2 ngón', 'Điện thoại: chụm để zoom, kéo ngang để xoay'], ['Esc', 'Xem xung quanh bằng chuột (bật / tắt) · đi tiếp: camera theo lại sau lưng']];
   const KEYROWS2D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Chuột', 'Bấm bàn để xem chủ chỗ'], ['Cầu thang', 'Đi vào cầu thang để lên / xuống tầng'], ['Esc', 'Xem xung quanh bằng chuột (bật / tắt) · đi tiếp: camera theo lại sau lưng']];
   const KEYS3D = keyLine([...KEYROWS3D.slice(0, 3), ['Esc', 'Xem xung quanh']], 4), KEYS2D = keyLine(KEYROWS2D); // (3D: thêm Esc — xoay camera bằng chuột)
@@ -835,6 +855,7 @@ export async function startApp(me, hooks = {}) {
     if (++followCheck % 6 === 1) updateFollowBtn();
     // (kiểm thử trên GPU giả lập: window.__RENDER_EVERY_MS — chỉ vẽ thưa; logic vẫn chạy đủ, ma trận vẫn cập nhật cho việc bấm chuột)
     floorCull.update(camera.position, cutFloor, session.player?.agent);
+    detail.update(camera.position);
     freezer.sync(); // (vật đứng yên: không tính lại ma trận; vật vừa đổi chỗ thì tính — scene/freeze.js)
     const every = window.__RENDER_EVERY_MS || 0, drawNow = !every || now - lastDraw >= every;
     if (!drawNow) scene.updateMatrixWorld();
@@ -863,8 +884,19 @@ export async function startApp(me, hooks = {}) {
     for (const n of ['blinds', 'deptSigns']) floorCull.addChildrenByBox(scene.getObjectByName(n));
     if (deskInfo) for (const [f, g] of deskInfo.floors) floorCull.add(g, f);
   };
-  registerFloorParts(); freezer.add(scene, noFreeze);
-  setTimeout(() => { registerFloorParts(); freezer.add(scene, noFreeze); }, 4000);
+  // vật nhỏ ở xa camera: không vẽ (điện thoại giữ gần hơn) — scene/detailCull.js; ?cull=off để tắt
+  const detail = new DetailCuller(isMobile || QUALITY === 'low' ? { base: 11, k: 12 } : { base: 22, k: 16 });
+  const noDetail = o => noFreeze(o) || o.name === 'remoteTags' || o.name === 'nightLamp' || o.name === 'wcMirror' || o.isLight;
+  const registerDetail = () => { if (params.get('cull') !== 'off') detail.add(scene, noDetail); };
+  // RAM: bỏ bản sao hình tĩnh trong RAM sau khi đã lên GPU (scene/releaseRam.js; ?ram=keep để giữ). Điện thoại giữ lại: khi
+  // quay lại app sau lúc ở nền, trình duyệt có thể đã thu hồi GPU — còn bản trong RAM thì khôi phục tại chỗ, khỏi tải lại trang
+  app.releaseRam = () => {
+    if (isMobile || params.get('ram') === 'keep') return;
+    const r = releaseGeometryRam(scene, { skip: noDetail }); ramReleased += r.meshes;
+  };
+  registerFloorParts(); freezer.add(scene, noFreeze); registerDetail();
+  setTimeout(() => { registerFloorParts(); freezer.add(scene, noFreeze); registerDetail(); app.releaseRam(); }, 4000);
+  app.detail = detail;
   app.freezer = freezer; app.floorCull = floorCull;
   // biên dịch sẵn shader của mọi vật liệu trong cảnh (song song nếu GPU hỗ trợ) trước khi bỏ màn hình chờ: tránh khựng
   // nhiều giây ở khung hình đầu (máy yếu / GPU giả lập phải biên dịch hàng chục chương trình shader một lúc)

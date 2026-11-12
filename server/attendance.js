@@ -14,8 +14,9 @@ export function migrateAttendance(db) {
   );`);
 }
 /** Ngày (YYYY-MM-DD) và phút trong ngày theo giờ Việt Nam. */
+const FMT = new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); // (tạo mới mỗi lần rất tốn CPU)
 export function vnDay(ts = Date.now()) {
-  const p = Object.fromEntries(new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(ts).map(x => [x.type, x.value]));
+  const p = Object.fromEntries(FMT.formatToParts(ts).map(x => [x.type, x.value]));
   return { day: `${p.year}-${p.month}-${p.day}`, min: Number(p.hour) * 60 + Number(p.minute) };
 }
 const toMin = s => { const [h, m] = String(s).split(':').map(Number); return h * 60 + (m || 0); };

@@ -6,7 +6,9 @@ import { MODES, getMode, saveMode, REAL_ENABLED } from '../core/mode.js';
 
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-export function showLogin(root, { onSuccess, notice } = {}) {
+import { rememberLogin, forgetLogin } from './remember.js';
+
+export function showLogin(root, { onSuccess, notice, prefill = '' } = {}) {
   root.hidden = false;
   root.innerHTML = `
   <div class="login-card" role="main">
@@ -50,6 +52,7 @@ export function showLogin(root, { onSuccess, notice } = {}) {
 
   // ----- nhân viên -----
   const inp = $('empInput'), err = $('empErr'), btn = $('empSubmit');
+  if (prefill) inp.value = prefill;
   let touched = false;
   const validate = () => {
     const p = parseLogin(inp.value);
@@ -73,6 +76,7 @@ export function showLogin(root, { onSuccess, notice } = {}) {
       inp.focus(); inp.select();
       return;
     }
+    rememberLogin(inp.value);   // (lần sau server mất phiên: máy tự đăng nhập lại)
     onSuccess?.();
   };
 
@@ -86,6 +90,7 @@ export function showLogin(root, { onSuccess, notice } = {}) {
     const r = await api('POST', '/api/login/admin', { username: u, password: pw });
     cb.disabled = false; cb.textContent = 'Đăng nhập';
     if (!r.ok) { cerr.textContent = r.error; $('ceoPass').value = ''; $('ceoPass').focus(); return; }
+    forgetLogin();   // (máy này giờ dùng tài khoản CEO: không tự đăng nhập lại mã nhân viên cũ)
     onSuccess?.();
   };
   inp.focus();

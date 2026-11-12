@@ -20,7 +20,7 @@ function tagSprite(text, color = '#1b2a8c') {
 }
 
 export class RemoteAvatars {
-  constructor(scene, model, quality, capacity = 48) {
+  constructor(scene, model, quality, capacity = 150) {
     this.model = model; this.capacity = capacity;
     this.sys = new AvatarSystem(scene, capacity, quality, { scale: model.cs, seatH: model.layout?.scale?.seatHip ?? 0.53 * model.fs });
     this.cs = model.cs;
@@ -48,7 +48,7 @@ export class RemoteAvatars {
       a.tag = tagSprite(p.display, p.tagColor || (p.kind === 'admin' ? '#202124' : '#1b2a8c')); this.tags.add(a.tag);
     }
     // nhân vật đổi tạo hình
-    if (p.look && JSON.stringify(p.look) !== JSON.stringify(a.emp.look)) { a.emp.look = p.look; this.sys.setColors(this.list); }
+    if (p.look && p.look !== a.emp.look && JSON.stringify(p.look) !== JSON.stringify(a.emp.look)) { a.emp.look = p.look; this.sys.setColors(this.list); }
     if (a.display !== p.display) { this.tags.remove(a.tag); a.tag = tagSprite(p.display, p.tagColor); this.tags.add(a.tag); a.display = p.display; }
     a.target = { x: p.x, y: p.y, z: p.z, yaw: p.yaw, seated: p.seated, walk: p.walk, run: p.run, f: p.f, act: p.act || '' };
     a.f = p.f; a.seated = p.seated; if (p.department !== undefined) a.department = p.department;
@@ -85,6 +85,6 @@ export class RemoteAvatars {
       a.tag.position.set(a.x, a.y + (1.7 - 0.45 * a.sit) * this.cs + (a.jumpH || 0), a.z);
       a.tag.visible = a.visible && (hideAbove == null || a.y <= hideAbove) && (!this.local || this.local.f === a.f || this.local.onStair != null); // (nhãn người ở tầng khác không hiện xuyên sàn)
     }
-    this.sys.update(this.list, { hideAbove });
+    this.sys.update(this.list, { hideAbove, floor: this.local && this.local.onStair == null ? this.local.f : null });   // (người ở tầng khác bị sàn che: không vẽ)
   }
 }

@@ -26,6 +26,7 @@ import { Billiards } from './billiards.js';
 import { LightSwitch } from './lightSwitch.js';
 import { Restroom } from './restroom.js';
 import { notice } from '../ui/notices.js';
+import { savedLook, rememberLook } from '../auth/remember.js';
 import { MODES, getMode, switchMode, REAL_ENABLED } from '../core/mode.js';
 const MODE = getMode(), COMPACT = '(max-width: 760px), (max-height: 500px) and (max-width: 1100px)';
 
@@ -58,7 +59,7 @@ export class Session {
     this.seated = null;
     this.selecting = false; this.selected = null; this.draft = null; this.editing = false;
     this.labels = new THREE.Group(); this.labels.name = 'seatLabels'; this.labels.visible = false; app.scene.add(this.labels);
-    this.remote = new RemoteAvatars(app.scene, app.model, app.quality);
+    this.remote = new RemoteAvatars(app.scene, app.model, app.quality); this.profiles = new Map(); // (key → tên, nhân vật, phòng ban của người khác)
     this.remote.setSelf(this.key);
     this.toast = toast;
     this.fx = new SmokeFX(app.scene);
@@ -105,14 +106,16 @@ export class Session {
       if (this.seated && !m.presence.some(p => p.key === this.key && p.seated === this.seated)) api('POST', `/api/seats/${encodeURIComponent(this.seated)}/sit`, {}).then(r => { if (!r.ok) { this.seated = null; this.renderSeatBox(); } });
       this.online = m.online; this.renderOnline();
       this.known = new Set(m.online.map(o => o.key));
-      for (const p of m.presence) if ((p.mode || 'office') === MODE) this.remote.upsert(p);
+      this.profiles.clear();
+      for (const p of m.presence) { this.keepProfile(p); if ((p.mode || 'office') === MODE) this.remote.upsert(p); }
       for (const [id, open] of Object.entries(m.blinds || {})) this.blinds.set(id, open, true);
       this.synced = true; // đã nhận trạng thái chung (chỗ ngồi, rèm…) từ server
     });
     this.rt.on('blind', m => { const it = this.blinds.byId.get(m.id); if (it && it.open !== m.open) { this.blinds.set(m.id, m.open); if (m.by) toast(`${m.by} ${m.open ? 'kéo' : 'hạ'} ${it.name.toLowerCase()}.`); } });
     this.rt.on('online', m => { this.announceArrivals(m.list); this.online = m.list; this.renderOnline(); for (const k of [...this.remote.byKey.keys()]) if (k !== 'guide' && !m.list.some(o => o.key === k)) this.remote.remove(k); }); // (chị hướng dẫn chỉ có trên máy mình, không nằm trong danh sách online)
-    this.rt.on('positions', m => { for (const p of m.list) { if (p.key === this.key) this.syncSelf(p); if ((p.mode || 'office') === MODE) this.remote.upsert(p); else if (p.key !== this.key) this.remote.remove(p.key); } }); // (người ở chế độ kia: không hiện trong cảnh này)
-    this.rt.on('gone', m => this.remote.remove(m.key));
+    // gói vị trí rút gọn: tên / nhân vật / phòng ban chỉ gửi lần đầu hoặc khi đổi — ghép với hồ sơ đã nhận trước đó
+    this.rt.on('positions', m => { for (const raw of m.list) { const prof = this.keepProfile(raw), p = prof ? { ...prof, ...raw } : raw; if (p.key === this.key) this.syncSelf(raw); if ((p.mode || 'office') === MODE) this.remote.upsert(p); else if (p.key !== this.key) this.remote.remove(p.key); } }); // (người ở chế độ kia: không hiện trong cảnh này)
+    this.rt.on('gone', m => { this.profiles.delete(m.key); this.remote.remove(m.key); });
     this.rt.on('seats', m => this.applySeats(m.list, m.full));
     this.rt.on('kick', m => this.hooks.logout?.(m.reason));
     this.rt.on('employees', () => this.app.dashboard?.refresh());
@@ -124,6 +127,12 @@ export class Session {
   async firstSteps() {
     // chọn nhân vật chỉ khi chưa từng chọn, hoặc nhân vật đã lưu không còn trong bộ (server đánh dấu _repick); đã chọn rồi thì
     // lần nào vào cũng dùng lại nhân vật đã lưu trên tài khoản (mọi thiết bị)
+    // server không còn nhân vật (mất dữ liệu): dùng lại nhân vật máy này đã nhớ, không bắt chọn lại
+    if (!this.isAdmin && !this.me.employee.look) {
+      const l = savedLook(this.me.employee.code);
+      if (l) { const r = await api('PUT', '/api/me/look', { look: l }); if (r.ok) this.me.employee.look = r.look; }
+    }
+    if (!this.isAdmin) rememberLook(this.me.employee.code, this.me.employee.look);
     if (!this.isAdmin && (!this.me.employee.look || this.me.employee.look._repick)) await this.editLook(true);
     const mine = this.mySeat;
     if (mine) await this.sit(mine.deskId, { quiet: true, place: true });
@@ -138,11 +147,17 @@ export class Session {
       save: async look => { const r = await api('PUT', '/api/me/look', { look }); return r.ok ? { ok: true, look: r.look } : { ok: false, error: r.error }; }
     });
     if (look) {
-      this.me.employee.look = look;
+      this.me.employee.look = look; rememberLook(this.me.employee.code, look);
       if (this.player) { this.player.agent.emp.look = look; this.remote.refreshColors(); }
       if (!required) toast('Đã lưu nhân vật.');
     }
     return look;
+  }
+
+  /** Lưu phần hồ sơ (không đổi theo khung hình) của một người khi gói tin có kèm; trả về hồ sơ đã biết. */
+  keepProfile(p) {
+    if (p.display !== undefined) this.profiles.set(p.key, { kind: p.kind, code: p.code, display: p.display, look: p.look, department: p.department, tagColor: p.tagColor });
+    return this.profiles.get(p.key);
   }
 
   /** Server báo mình đã bị đứng dậy (vd. chỗ bị khóa/giải phóng). */
@@ -151,7 +166,7 @@ export class Session {
     // nhân vật vừa đổi ở thiết bị khác (cùng tài khoản): cập nhật ngay, không cần tải lại trang
     if (p.look && this.me.employee && !this.isAdmin) {
       const sig = JSON.stringify(p.look);
-      if (sig !== this._lookSig) { this._lookSig = sig; if (sig !== JSON.stringify(this.me.employee.look)) { this.me.employee.look = p.look; if (this.player) { this.player.agent.emp.look = p.look; this.remote.refreshColors(); } } }
+      if (sig !== this._lookSig) { this._lookSig = sig; if (sig !== JSON.stringify(this.me.employee.look)) { this.me.employee.look = p.look; rememberLook(this.me.employee.code, p.look); if (this.player) { this.player.agent.emp.look = p.look; this.remote.refreshColors(); } } }
     }
   }
 

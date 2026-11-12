@@ -2,7 +2,7 @@
 // phòng (chỉ người trong phòng nhận, phòng trống thì xoá); gợi ý bài: đọc kết quả tìm kiếm YouTube (server/ktvSuggest.js).
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Karaoke } from '../server/karaoke.js';
-import { parseResults } from '../server/ktvSuggest.js';
+import { parseResults, searchApi } from '../server/ktvSuggest.js';
 
 let hub, k, sent;
 const ws = key => ({ key });
@@ -58,5 +58,19 @@ describe('gợi ý bài karaoke', () => {
       { videoId: 'CCCCCCCCCCC', title: 'Karaoke CCCCCCCCCCC', duration: '3:01', channel: 'Kênh', views: '1.000 lượt xem' }
     ]);
     expect(parseResults('<html>no data</html>')).toEqual([]);
+  });
+});
+
+describe('gợi ý bài qua YouTube Data API', () => {
+  it('search.list (chỉ video nhúng được, khu vực VN) + videos.list → thời lượng, lượt xem; bỏ video phát trực tiếp; lỗi API thì ném lỗi', async () => {
+    const urls = [];
+    const fake = async url => { urls.push(url); const u = new URL(url);
+      if (u.pathname.endsWith('/search')) return { ok: true, json: async () => ({ items: [{ id: { videoId: 'AAAAAAAAAAA' }, snippet: { title: 'Karaoke &quot;Hạt Mưa&quot; Tone Nam', channelTitle: 'Kênh A' } }, { id: { videoId: 'LLLLLLLLLLL' }, snippet: { title: 'Live', channelTitle: 'B' } }] }) };
+      return { ok: true, json: async () => ({ items: [{ id: 'AAAAAAAAAAA', contentDetails: { duration: 'PT4M12S' }, statistics: { viewCount: '1520000' } }, { id: 'LLLLLLLLLLL', contentDetails: { duration: 'P0D' }, statistics: {} }] }) }; };
+    const items = await searchApi('karaoke hạt mưa', 'KEY', fake);
+    expect(items).toEqual([{ videoId: 'AAAAAAAAAAA', title: 'Karaoke "Hạt Mưa" Tone Nam', duration: '4:12', channel: 'Kênh A', views: '1,5 Tr lượt xem' }]);
+    const q = new URL(urls[0]).searchParams;
+    expect(q.get('videoEmbeddable')).toBe('true'); expect(q.get('regionCode')).toBe('VN'); expect(q.get('type')).toBe('video');
+    await expect(searchApi('x', 'KEY', async () => ({ ok: false, status: 403 }))).rejects.toThrow('403');
   });
 });

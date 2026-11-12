@@ -4,6 +4,7 @@ import { compressedStatic } from './static.js';
 import path from 'path';
 import { config as defaultConfig, ROOT } from './config.js';
 import { openDb, audit } from './db.js';
+import { initSync } from './mongoSync.js';
 import { Store, HttpError } from './store.js';
 import { Hub } from './realtime.js';
 import { requestLog, securityHeaders, rateLimit } from './http.js';
@@ -26,7 +27,9 @@ export const API_VERSION = '1.1.0';
 const DATA_FILE = /(^|\/)(layout|employees|equipment|appearance)\.json$/;
 
 export async function createApp(config = defaultConfig) {
+  const sync = await initSync(config);   // (có MONGODB_URI: tải dữ liệu đã lưu trên MongoDB về trước khi mở database)
   const db = openDb(config.dbPath);
+  sync.start(db);
   const store = new Store(db, config);
   const hub = new Hub(store, config);
   await seedAdmin(db, config);
@@ -71,10 +74,10 @@ export async function createApp(config = defaultConfig) {
   const ctx = { db, store, hub, config, guards: { needAuth, needAdmin, needEmployee } };
   // gợi ý bài karaoke từ YouTube (phòng hát): nhóm có sẵn (?cat=) hoặc tìm theo tên bài (?q=)
   api.get('/ktv/suggest', needAuth, rateLimit('ktv-suggest', { max: 30, windowMs: 60e3 }), async (req, res) => {
-    const r = await suggest({ cat: String(req.query.cat || ''), q: String(req.query.q || '') });
+    const r = await suggest({ cat: String(req.query.cat || ''), q: String(req.query.q || ''), key: config.youtubeApiKey });
     res.json({ categories: CATEGORIES.map(({ id, label }) => ({ id, label })), ...r });
   });
-  api.get('/health', (_req, res) => res.json({ ok: true, version: API_VERSION, time: Date.now(), uptimeSec: Math.round(process.uptime()) }));
+  api.get('/health', (_req, res) => res.json({ ok: true, version: API_VERSION, time: Date.now(), uptimeSec: Math.round(process.uptime()), ...(sync.status.enabled ? { mongo: { restoredAt: sync.status.restoredAt, lastSaveAt: sync.status.lastPushAt, ok: !sync.status.lastError } } : {}) }));
 
   // ---------- phiên làm việc ----------
   api.get('/me', (req, res) => {
@@ -95,7 +98,7 @@ export async function createApp(config = defaultConfig) {
       setSessionCookie(res, token, maxAge);
       hub.markPending(r.code);
       hub.kickSessions(`employee:${r.code}`, 'Mã của bạn vừa đăng nhập ở nơi khác.');
-      store.emit({ type: 'employees' });
+      store.emit({ type: 'employees', code: r.code });
       res.json({ ok: true, created: r.created, employee: store.employeeView(store.employee(r.code), hub.isOnline) });
     } catch (e) {
       if (e instanceof HttpError && e.status !== 400) recordFailure(db, 'emp-ip', ip(req));
@@ -185,6 +188,9 @@ export async function createApp(config = defaultConfig) {
     res.set('Content-Type', 'text/csv; charset=utf-8').set('Content-Disposition', 'attachment; filename="nhan-vien-cho-ngoi.csv"').send('﻿' + store.exportCsv());
   });
   api.post('/admin/import', needAdmin, (req, res) => res.json({ ok: true, ...store.importCsv(req.actor, req.body?.csv) }));
+  // tổng quan cho bảng quản trị: số người online theo phút (6 giờ), tình trạng server và lưu MongoDB
+  api.get('/admin/stats', needAdmin, (_req, res) => res.json({ online: hub.hist, now: hub.onlineEmployees(), version: API_VERSION, uptimeSec: Math.round(process.uptime()),
+    mongo: { enabled: sync.status.enabled, restoredAt: sync.status.restoredAt, lastSaveAt: sync.status.lastPushAt, error: sync.status.lastError } }));
   api.get('/admin/audit', needAdmin, (req, res) => res.json({ audit: store.auditLog(+req.query.limit || 200) }));
 
   /** Vé mở WebSocket thẳng tới server (khi giao diện đặt ở tên miền khác, ví dụ Vercel). */
@@ -217,7 +223,7 @@ export async function createApp(config = defaultConfig) {
   const watcher = (await import('fs')).watch(config.layoutPath, () => { clearTimeout(t); t = setTimeout(() => { try { store.loadLayout(); hub.onStore({ type: 'seats' }); } catch (e) { console.error('layout.json lỗi:', e.message); } }, 300); });
 
   const stopBackups = scheduleBackups(db, backupDir(config));
-  return { app, db, store, hub, finish, close() { stopBackups(); watcher.close(); hub.close(); db.close(); } };
+  return { app, db, store, hub, finish, sync, close() { stopBackups(); watcher.close(); hub.close(); sync.stop(); db.close(); } };
 }
 
 async function seedAdmin(db, config) {

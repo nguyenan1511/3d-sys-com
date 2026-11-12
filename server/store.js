@@ -162,7 +162,7 @@ export class Store {
     this.db.prepare('UPDATE employees SET look = ? WHERE code = ?').run(JSON.stringify(r.value), code);
     audit(this.db, actor.key, e.look ? 'look.update' : 'look.create', code, r.value);
     this.emit({ type: 'look', code, look: r.value });
-    this.emit({ type: 'employees' });
+    this.emit({ type: 'employees', code });
     return r.value;
   }
   lookOf(code) { const e = this.employee(code); return e?.look ? JSON.parse(e.look) : null; }

@@ -146,7 +146,7 @@ test('CEO thêm nhân viên; người đó đăng nhập đúng mã-tên thì v�
   const ceo = await newPage(browser);
   await loginAdminAPI(ceo);
   await ceo.goto('/'); await ceo.waitForFunction(() => window.__app?.ready, null, { timeout: 60_000 });
-  await ceo.click('#btnDash');
+  await ceo.click('#btnDash'); await ceo.click('[data-tab="emp"]');   // (bảng quản trị mở ở trang Tổng quan)
   await ceo.click('#dAdd');
   await ceo.fill('#nCode', `${code}-Ngô Thị Mai`); await ceo.fill('#nDept', 'Kế toán');
   await ceo.click('#mOk');

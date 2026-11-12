@@ -31,6 +31,9 @@ export const config = {
   employeeSessionHours: +(env.EMPLOYEE_SESSION_HOURS || 24 * 7),
   adminSessionHours: +(env.ADMIN_SESSION_HOURS || 12),
   onlineGraceMs: +(env.ONLINE_GRACE_MS || 30000),
+  // (tuỳ chọn) lưu database lên MongoDB để không mất dữ liệu khi server không có ổ đĩa (Render miễn phí) — server/mongoSync.js
+  mongodbUri: env.MONGODB_URI || '', mongoDbName: env.MONGODB_DB || 'sysone', mongoSnapshotId: env.MONGODB_SNAPSHOT_ID || 'sysone',
+  youtubeApiKey: env.YOUTUBE_API_KEY || '',   // (tuỳ chọn) gợi ý bài karaoke qua YouTube Data API v3 — server/ktvSuggest.js
   // giao diện đặt ở tên miền khác (ví dụ Vercel): các nguồn được phép gọi API ghi và mở WebSocket, cách nhau bằng dấu phẩy
   allowedOrigins: String(env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim().replace(/\/+$/, '')).filter(Boolean),
   // đứng sau proxy (Render, Vercel): 'loopback' (mặc định), true, số lớp proxy, hoặc danh sách IP — xem Express "trust proxy"

@@ -24,11 +24,15 @@ export class Hub {
     this.pending = new Map();   // code -> hạn "đang vào" sau khi đăng nhập, trước khi mở WS
     this.pendingSeat = new Map(); // key -> chỗ đã được duyệt ngồi trước khi WS kịp kết nối
     this.dirty = new Set();
-    this.timer = setInterval(() => this.flush(), 120);
+    this.timer = setInterval(() => this.flush(), 160);   // (≈ nhịp client gửi vị trí: 6 lần/giây)
     this.heartbeat = setInterval(() => this.sweep(), 15000);
+    // số nhân viên online mỗi phút, giữ 6 giờ (biểu đồ "Đang online" ở bảng quản trị; mất khi server khởi động lại)
+    this.hist = []; this.sampleOnline(); this.histTimer = setInterval(() => this.sampleOnline(), 60000); this.histTimer.unref?.();
     store.on(ev => this.onStore(ev));
   }
-  close() { clearInterval(this.timer); clearInterval(this.heartbeat); this.wss?.close(); }
+  close() { clearInterval(this.timer); clearInterval(this.heartbeat); clearInterval(this.histTimer); this.wss?.close(); }
+  onlineEmployees() { let n = 0; for (const k of this.sockets.keys()) if (k.startsWith('employee:')) n++; return n; }
+  sampleOnline() { const t = Date.now(); this.hist.push({ t, n: this.onlineEmployees() }); while (this.hist.length && this.hist[0].t < t - 6 * 3600e3) this.hist.shift(); }
 
   /** Mã đang online: có kết nối WS, hoặc vừa đăng nhập xong và đang tải cảnh. */
   isOnline = code => (this.sockets.get(`employee:${code}`)?.size || 0) > 0 || (this.pending.get(code) || 0) > Date.now();
@@ -68,7 +72,7 @@ export class Hub {
     ws.on('message', buf => this.onMessage(ws, buf));
     ws.on('close', () => this.onClose(ws));
     this.send(ws, { t: 'hello', you: id, online: this.onlineList(), seats: this.store.listSeats(), presence: [...this.presence.values()].filter(p => p.x !== null), blinds: this.blinds(), music: musicState(this.store), ktv: this.ktv.state(), bil: this.bil.state(), wc: this.wc.state(), lights: lightsState(this.store), canLights: canLights(this.store, this.actorOf(ws)), canMusic: canMusic(this.store, this.actorOf(ws)) });
-    if (first) { this.broadcast({ t: 'online', list: this.onlineList() }); if (id.code) this.store.emit({ type: 'employees' }); }
+    if (first) { this.onlineDirty = true; if (id.code) this.store.emit({ type: 'employees', code: id.code }); }
   }
 
   onClose(ws) {
@@ -82,8 +86,8 @@ export class Hub {
       const code = ws.key.startsWith('employee:') ? ws.key.slice(9) : null;
       if (code) this.store.db.prepare('UPDATE employees SET last_seen = ? WHERE code = ?').run(Date.now(), code);
       this.broadcast({ t: 'gone', key: ws.key });
-      this.broadcast({ t: 'online', list: this.onlineList() });
-      if (code) this.store.emit({ type: 'employees' });
+      this.onlineDirty = true;
+      if (code) this.store.emit({ type: 'employees', code });
     }
   }
 
@@ -157,11 +161,22 @@ export class Hub {
   }
   stand(key) { this.pendingSeat.delete(key); const p = this.presence.get(key); if (p && p.seated) { p.seated = null; this.dirty.add(key); } }
 
+  // Gói vị trí gửi ~8 lần/giây cho mọi người: chỉ gồm phần thay đổi liên tục (toạ độ làm tròn cm, bỏ trường rỗng). Hồ sơ
+  // (tên, nhân vật, phòng ban) chỉ kèm lần đầu người đó có vị trí hoặc khi đổi (p.pv tăng) — người vào sau đã có trong hello.
+  // (100 người, 1/3 đang đi lại: từ ~85 KB/s xuống ~15 KB/s mỗi người nhận)
   flush() {
+    if (this.onlineDirty) { this.onlineDirty = false; this.broadcast({ t: 'online', list: this.onlineList() }); }
     if (!this.dirty.size) return;
-    const list = [...this.dirty].map(k => this.presence.get(k)).filter(Boolean);
+    const list = [];
+    for (const k of this.dirty) { const p = this.presence.get(k); if (p) list.push(this.wire(p)); }
     this.dirty.clear();
     if (list.length) this.broadcast({ t: 'positions', list });
+  }
+  wire(p) {
+    if (p.sentPv !== (p.pv || 0)) { p.sentPv = p.pv || 0; return p; }
+    const r2 = v => Math.round(v * 100) / 100, o = { key: p.key, x: r2(p.x), y: r2(p.y), z: r2(p.z), f: p.f, yaw: r2(p.yaw) };
+    if (p.walk) o.walk = true; if (p.run) o.run = true; if (p.act) o.act = p.act; if (p.seated) o.seated = p.seated; if (p.mode && p.mode !== 'office') o.mode = p.mode;
+    return o;
   }
 
   sweep() {
@@ -190,11 +205,16 @@ export class Hub {
       this.broadcast({ t: 'seats', list: this.store.listSeats(), full: true });
     } else if (ev.type === 'employees') {
       this.broadcast({ t: 'employees' }, ws => ws.sess.kind === 'admin');
-      // cập nhật tên hiển thị trong presence
-      for (const p of this.presence.values()) if (p.code) { const e = this.store.employee(p.code); if (e) p.display = displayOf(e.code, e.name); }
+      // cập nhật tên hiển thị / phòng ban trong presence (vào / ra chỉ cần xem một người; CEO sửa danh sách thì xem hết)
+      const list = ev.code ? [this.presence.get(`employee:${ev.code}`)].filter(Boolean) : [...this.presence.values()];
+      for (const p of list) if (p.code) {
+        const e = this.store.employee(p.code); if (!e) continue;
+        const display = displayOf(e.code, e.name), department = e.department || '';
+        if (display !== p.display || department !== p.department) { Object.assign(p, { display, department }); p.pv = (p.pv || 0) + 1; if (p.x !== null) this.dirty.add(p.key); }
+      }
     } else if (ev.type === 'look') {
       const p = this.presence.get(`employee:${ev.code}`);
-      if (p) { p.look = ev.look; if (p.x !== null) this.dirty.add(p.key); }
+      if (p) { p.look = ev.look; p.pv = (p.pv || 0) + 1; if (p.x !== null) this.dirty.add(p.key); }
     } else if (ev.type === 'kick') {
       this.pending.delete(ev.code);
       for (const ws of this.sockets.get(`employee:${ev.code}`) || []) this.kickSocket(ws, ev.reason);
@@ -205,7 +225,7 @@ export class Hub {
 
   send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
   broadcast(msg, filter) {
-    const s = JSON.stringify(msg);
-    for (const set of this.sockets.values()) for (const ws of set) if (ws.readyState === 1 && (!filter || filter(ws))) ws.send(s);
+    const s = Buffer.from(JSON.stringify(msg));   // (mã hoá một lần cho mọi người nhận, gửi dạng khung văn bản)
+    for (const set of this.sockets.values()) for (const ws of set) if (ws.readyState === 1 && (!filter || filter(ws))) ws.send(s, { binary: false });
   }
 }
