@@ -1,4 +1,4 @@
-// Màn hình đăng nhập: tab Nhân viên (mã "1151-An") và tab CEO (tên đăng nhập + mật khẩu).
+// Màn hình đăng nhập: tab Nhân viên (mã "1151-An") và tab Admin (tài khoản CEO: tên đăng nhập + mật khẩu).
 // Kiểm tra định dạng ngay khi gõ; quyết định cuối cùng ở server.
 import { parseLogin } from '../shared/identity.js';
 import { api } from '../net/api.js';
@@ -19,7 +19,7 @@ export function showLogin(root, { onSuccess, notice, prefill = '' } = {}) {
     </fieldset>` : ''}
     <div class="tabs" role="tablist" aria-label="Loại tài khoản">
       <button role="tab" id="tabEmp" aria-selected="true" aria-controls="paneEmp">Nhân viên</button>
-      <button role="tab" id="tabCeo" aria-selected="false" aria-controls="paneCeo" tabindex="-1">CEO</button>
+      <button role="tab" id="tabCeo" aria-selected="false" aria-controls="paneCeo" tabindex="-1">Admin</button>
     </div>
     <form id="paneEmp" role="tabpanel" aria-labelledby="tabEmp" novalidate>
       <label for="empInput">Mã nhân viên</label>
