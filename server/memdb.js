@@ -9,6 +9,7 @@
 //    hoặc khởi động lại server sau khi sửa.
 import fs from 'node:fs';
 import path from 'node:path';
+import { MemBlobs, FileBlobs, MongoBlobs } from './blobs.js';
 
 /** Các bảng: khoá chính, cột JSON (lưu lên Mongo dạng object cho dễ đọc), chỉ mục phụ, số bản giữ trong bộ nhớ. */
 export const TABLES = {
@@ -20,7 +21,11 @@ export const TABLES = {
   world_state: { key: 'key' },
   audit: { auto: true, json: ['detail'], keepInMemory: 3000 },
   attendance: { key: r => `${r.code}|${r.day}`, index: ['day', 'code'] },
-  chat_messages: { auto: true, index: ['channel'] }
+  chat_messages: { auto: true, index: ['channel'] },
+  announcements: { auto: true },                                          // bảng thông báo công ty (server/board.js)
+  meetings: { auto: true, json: ['invitees', 'hidden'] },                           // lịch đặt phòng họp (server/meetings.js)
+  meeting_files: { auto: true, index: ['meeting_id'] },                   // tài liệu cuộc họp (nội dung file: db.blobs)
+  meeting_boards: { key: 'meeting_id', json: ['strokes'] }                // bảng vẽ của từng cuộc họp
 };
 
 class Table {
@@ -168,11 +173,13 @@ export async function openData(config, log = console) {
   const db = new MemDB();
   db.kind = config.mongodbUri ? 'mongo' : config.dbPath === ':memory:' ? 'memory' : 'file';
   db.flush = async () => {}; db.close = async () => {}; db.status = () => ({ kind: db.kind }); db.loadedAt = Date.now();
+  db.blobs = new MemBlobs();   // (nội dung file tải lên: không giữ trong bộ nhớ khi có Mongo / ổ đĩa)
   if (db.kind === 'memory') return db;
   if (db.kind === 'file') {
     const file = config.dbPath.replace(/\.db$/i, '') + '.json';
     if (fs.existsSync(file)) { const j = JSON.parse(fs.readFileSync(file, 'utf8')); for (const [t, rows] of Object.entries(j.tables || {})) if (TABLES[t]) db.load(t, rows); }
     else if (fs.existsSync(config.dbPath) && /\.db$/i.test(config.dbPath)) { const old = await readLegacySqlite(config.dbPath); for (const [t, rows] of Object.entries(old)) db.load(t, rows); log.log(`[dữ liệu] Đã chuyển database SQLite cũ (${config.dbPath}) sang ${file}.`); }
+    db.blobs = new FileBlobs(path.join(path.dirname(file), `${path.basename(file, '.json')}-files`));   // (vd. data/sysone-files)
     const sink = db.sink = new FileSink(db, file);
     if (!fs.existsSync(file)) sink.write();
     db.flush = () => sink.flush(); db.status = () => ({ kind: 'file', ...sink.status });
@@ -199,6 +206,7 @@ export async function openData(config, log = console) {
   }
   // chỉ mục giúp xem / lọc trong Atlas (không bắt buộc)
   await Promise.all([mdb.collection('attendance').createIndex({ day: 1, code: 1 }), mdb.collection('chat_messages').createIndex({ channel: 1, ts: -1 }), mdb.collection('audit').createIndex({ ts: -1 })]).catch(() => {});
+  db.blobs = new MongoBlobs(mdb.collection('blobs'));
   const sink = db.sink = new MongoSink(mdb, log);
   db.flush = t => sink.flush(t); db.close = async () => { await sink.flush(); await client.close(); };
   db.status = () => ({ kind: 'mongo', ...sink.status });

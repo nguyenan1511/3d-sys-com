@@ -228,21 +228,26 @@ export class Cast {
     if (snap || !a.placed) { a.x = goal.x; a.z = goal.z; a.yaw = a.face = goal.yaw ?? a.face; a.y = goal.y ?? 0; a.sit = goal.sit || 0; a.placed = true; }
   }
   update(dt) {
+    const stride = 0.42 * (this.app.model.cs || 1);   // (bước chân như ngoài văn phòng — src/session/player.js STRIDE)
     for (const a of this.list) {
       const g = a.goal, dx = g.x - a.x, dz = g.z - a.z, d = Math.hypot(dx, dz);
-      const moving = d > 0.03 && a.sit < 0.05;
-      if (d > 0.03 && a.sit > 0.05) a.sit = Math.max(0, a.sit - dt * 3);             // (đang ngồi: đứng dậy trước rồi mới đi)
+      // nhân vật của mình đang tự đi (phòng tự lái: vị trí, hướng, bước chân đã tính sẵn) — chỉ còn động tác / nhãn
+      const moving = a.driven ? a.walkAmt > 0.05 : d > 0.03 && a.sit < 0.05;
+      if (a.driven) a.sit = Math.max(0, a.sit - dt * 3);
+      else if (d > 0.03 && a.sit > 0.05) a.sit = Math.max(0, a.sit - dt * 3);             // (đang ngồi: đứng dậy trước rồi mới đi)
       else if (moving) {
-        const step = Math.min(d, 1.3 * dt); a.x += dx / d * step; a.z += dz / d * step;
-        a.face += wrap(yawFacing(dx, dz) - a.face) * damp(10, dt);
-        a.walkAmt = Math.min(1, a.walkAmt + dt * 5);
+        // xa thì đi nhanh hơn (theo kịp người đang đi / chạy như ngoài văn phòng), gần thì đi bộ; chân bước theo quãng đi
+        const step = Math.min(d, Math.max(1.3, Math.min(d * 4, 5.5)) * dt); a.x += dx / d * step; a.z += dz / d * step;
+        a.face += wrap(yawFacing(dx, dz) - a.face) * damp(12, dt);
+        a.walkPhase += step / stride * Math.PI;
+        a.walkAmt = Math.min(2, Math.max(a.walkAmt - dt * 5, step / dt / 3.8));
       } else {
         a.x = g.x; a.z = g.z; a.walkAmt = Math.max(0, a.walkAmt - dt * 5);
         if (g.yaw !== undefined) a.face += wrap(g.yaw - a.face) * damp(8, dt);
         a.sit += ((g.sit ? 1 : 0) - a.sit) * damp(5, dt);
       }
-      a.y = g.y || 0;
-      const act = moving ? null : g.act || null;
+      if (!a.driven) a.y = g.y || 0;
+      const act = a.forceAct || (moving ? null : g.act || null);   // (forceAct: đang nhảy)
       if (act !== a.act) { a.act = act; a.actT = 0; }
       a.actT += dt; a.animT += dt; a.anim = 'idle';
       // quẩy: cuối mỗi 4 động tác (32 nhịp) xoay một vòng

@@ -180,6 +180,15 @@ Không gian (nhà, văn phòng, đường phố) giữ nguyên; cách điều kh
   góc trên phải; các bảng nổi bên phải; gợi ý phím và thanh động tác ở giữa dưới; thông báo kiểu giấy + viền mực.
 - `?maxfps=N` giới hạn số khung hình mỗi giây (máy yếu).
 
+## Bảng vẽ phòng họp (Excalidraw, như agent-office)
+
+Bảng vẽ trong phòng họp là [Excalidraw](https://github.com/excalidraw/excalidraw) (giấy phép MIT), cộng tác trực tiếp theo cách
+của agent-office: mỗi thay đổi gửi các hình mới hơn (WebSocket `meet:wb`), máy chủ giữ bản mới nhất của từng hình và ghép theo số
+phiên bản (`src/shared/whiteboard.js` — quy tắc lấy từ agent-office), con trỏ của từng người (`meet:ptr`), ảnh dán lên bảng lưu
+riêng (`/api/meetings/:id/wbfile`). Thư viện chỉ tải khi vào phòng họp (`src/ui/excaliBoard.js`). Bảng trắng trên tường phòng họp
+3D và khung 3D thu nhỏ vẽ lại từ bản vẽ này. Công cụ của Excalidraw hiện tiếng Anh (bản dịch tiếng Việt của Excalidraw mới ~49%,
+thư viện chỉ bật ngôn ngữ dịch từ 85%).
+
 ## Tạo nhân vật (kiểu agent-office)
 
 - Màn hình tạo nhân vật: sân khấu xoay tròn bên trái (kéo để xoay, tự lắc qua lại cho thấy mọi phía, nút "Xem mặt"),

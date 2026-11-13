@@ -26,6 +26,7 @@ export class Karaoke {
     rt.on('hello', m => { if (m.ktv) this.apply(m.ktv); });
     rt.on('ktv', m => this.apply(m.state));
     rt.on('ktvErr', m => session.toast(m.msg, true));
+    rt.on('ktvPos', m => { const x = this.state?.members?.find(v => v.key === m.key); if (x) x.pos = m.pos; });   // (người khác đi lại trong phòng hát)
     rt.on('rtc', m => this.onSignal(m.from, m.data));
     rt.on('ktvChat', m => {   // kênh chat riêng của phòng (server chỉ gửi cho người trong phòng)
       if (m.history) this.chat = m.history.slice(); else if (m.msg) { this.chat.push(m.msg); if (this.chat.length > 80) this.chat.shift(); }

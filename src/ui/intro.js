@@ -108,6 +108,8 @@ export class Intro {
     const qt = this.app.quickTravel, s = this.s; if (!qt || !s.player) return null;
     if (go === 'desk') return s.mySeat ? { desk: true } : null;
     if (go === 'karaoke') { const b = s.ktv?.spot; return b ? { name: 'phòng karaoke', f: b.f, x: b.x, z: b.z, r: 1.6 } : null; }
+    if (go === 'board') { const b = s.board; b?.ensure(); return b?.stand ? { name: 'bảng thông báo', f: 0, x: b.stand.x, z: b.stand.z, r: 1.0 } : null; }
+    if (go === 'meeting') { const d = s.meet?.door; return d ? { name: 'cửa phòng họp', f: d.f, x: d.x, z: d.z, r: 1.0 } : null; }
     if (go === 'billiards') { const t = s.bil?.table; return t ? { name: 'bàn bi-a', f: t.f, x: t.x, z: t.z, r: 2.2 } : null; }
     const want = String(go).toLowerCase();
     return (qt.flat || []).find(p => p.name.toLowerCase() === want) || (qt.flat || []).find(p => p.name.toLowerCase().includes(want)) || null;

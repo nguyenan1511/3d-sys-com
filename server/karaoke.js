@@ -10,7 +10,7 @@ const MAX = 10, MIN_TO_PLAY = 2, QUEUE = 20, CHAT = 80, CHAT_LEN = 300;
 export class Karaoke {
   constructor(hub) { this.hub = hub; this.members = new Map(); this.song = null; this.queue = []; this.chat = []; this.lastSay = new Map(); this.disco = false; }
   state() {
-    return { members: [...this.members].map(([key, v]) => ({ key, display: v.display, mic: v.mic })), song: this.song, queue: this.queue, disco: this.disco, min: MIN_TO_PLAY, max: MAX, serverNow: Date.now() };
+    return { members: [...this.members].map(([key, v]) => ({ key, display: v.display, mic: v.mic, pos: v.pos || null })), song: this.song, queue: this.queue, disco: this.disco, min: MIN_TO_PLAY, max: MAX, serverNow: Date.now() };
   }
   push() { this.hub.broadcast({ t: 'ktv', state: this.state() }); }
   err(ws, msg) { this.hub.send(ws, { t: 'ktvErr', msg }); }
@@ -27,6 +27,14 @@ export class Karaoke {
         for (const s of this.hub.sockets.get(ws.key) || []) this.hub.send(s, { t: 'ktvChat', history: this.chat });   // (tin cũ của phòng)
         return this.push();
       case 'ktv:leave': return this.leave(ws.key);
+      case 'ktv:pos': {   // đi lại trong phòng hát: vị trí tự chọn (null = về ghế) — chỉ chuyển cho người trong phòng, không gửi lại cả trạng thái
+        const v = this.members.get(ws.key); if (!v) return;
+        const now = Date.now(); if (m.pos && now - (ws.lastKtvPos || 0) < 50) return; ws.lastKtvPos = now;   // (chống gửi dồn)
+        const ok = n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < 6;
+        v.pos = m.pos && ok(m.pos.x) && ok(m.pos.z) && ok(m.pos.yaw ?? 0) ? { x: +m.pos.x.toFixed(3), z: +m.pos.z.toFixed(3), yaw: +(m.pos.yaw ?? 0).toFixed(3) } : null;
+        for (const k of this.members.keys()) if (k !== ws.key) for (const s of this.hub.sockets.get(k) || []) this.hub.send(s, { t: 'ktvPos', key: ws.key, pos: v.pos });
+        return;
+      }
       case 'ktv:mic': { const v = this.members.get(ws.key); if (!v) return; v.mic = !!m.on; return this.push(); }
       case 'ktv:play': return this.play(ws, m.url, m.title);
       case 'ktv:priority': return this.reorder(ws, m.index, m.videoId, 'top');

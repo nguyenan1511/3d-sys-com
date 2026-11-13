@@ -13,7 +13,7 @@ export class HttpError extends Error {
 }
 
 /** Dòng nhân viên mới với đủ cột (các cột trước đây có mặc định trong SQLite). */
-const newEmployee = r => ({ department: '', status: 'active', can_move: 0, can_music: 0, can_lights: 0, last_seen: null, look: null, ...r });
+const newEmployee = r => ({ department: '', status: 'active', can_move: 0, can_music: 0, can_lights: 0, can_post: 0, last_seen: null, look: null, ...r });
 const ownerOfficeOrReal = (deskId, mode) => (mode === 'real') === String(deskId).startsWith('R');
 
 const csvCell = v => { const s = String(v ?? ''); return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
@@ -60,7 +60,9 @@ export class Store {
   }
   loadLayout() {
     const layout = JSON.parse(fs.readFileSync(this.config.layoutPath, 'utf8'));
-    setOfficeFromLayout(layout); // ranh giới toà nhà cho quy định (không hút thuốc trong văn phòng)
+    setOfficeFromLayout(layout);
+    // phòng họp đặt được (server/meetings.js ROOMS): MR1 = phòng họp có tường ở tầng trệt (rooms[id=meeting] trong layout)
+    this.meetRooms = (layout.rooms || []).filter(r => r.type === 'meeting' && r.id === 'meeting').map(r => ({ id: 'MR1', floor: r.floor, x0: r.x0, x1: r.x1, z0: r.z0, z1: r.z1 })); // ranh giới toà nhà cho quy định (không hút thuốc trong văn phòng)
     this.model = buildModel(layout);
     // Real SYS: mô hình riêng (mã bàn R…); cùng bảng seats, mỗi người tối đa một chỗ ở mỗi chế độ
     const rp = this.config.realLayoutPath;

@@ -580,6 +580,8 @@ export async function startApp(me, hooks = {}) {
     // bấm vào rèm: kéo lên/hạ xuống
     const bh = ray.intersectObjects(app.session.blinds.meshes(), false)[0];
     if (bh && bh.point.y <= (cutFloor === null ? Infinity : cutPlane.constant)) { app.session.toggleBlind(bh.object.userData.blind); return; }
+    // bấm vào bảng thông báo ở sảnh: mở bảng tin
+    const nbh = app.session.board?.hit(ray); if (nbh && nbh.point.y <= (cutFloor === null ? Infinity : cutPlane.constant)) { app.session.board.open(); return; }
     // bấm vào cửa thang máy: chọn tầng
     if (app.session.lift) { const lh = ray.intersectObjects(app.session.lift.meshes(), false)[0]; if (lh && lh.point.y <= (cutFloor === null ? Infinity : cutPlane.constant)) { app.session.openLift(true); return; } }
     // bấm vào bàn: xem chủ chỗ / chọn chỗ / thử ngồi (server quyết định)

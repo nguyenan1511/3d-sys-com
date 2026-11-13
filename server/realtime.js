@@ -13,12 +13,15 @@ import { Billiards } from './billiards.js';
 import { Restroom } from './wc.js';
 import { lightsState, canLights } from './lights.js';
 import { modeOfDesk } from '../src/core/mode.js';
+import { Meetings } from './meetings.js';
+import { MeetHub } from './meetHub.js';
 const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'quay', 'jump', 'tv', ...PROP_ACTS]); // tv: ngồi sofa xem TV; còn lại: dùng đồ vật
 const okNum = (v, [a, b]) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b;
 
 export class Hub {
   constructor(store, config) {
     this.store = store; this.config = config; this.ktv = new Karaoke(this); this.bil = new Billiards(this); this.wc = new Restroom(this);
+    this.meetings = new Meetings(store, k => this.nameOf(k)); this.meet = new MeetHub(this, this.meetings);   // phòng họp: lịch + phòng (server/meetings.js, meetHub.js)
     this.sockets = new Map();   // key -> Set<ws>
     this.presence = new Map();  // key -> { key, kind, code, display, x,y,z,f,yaw,walk, seated }
     this.pending = new Map();   // code -> hạn "đang vào" sau khi đăng nhập, trước khi mở WS
@@ -30,7 +33,13 @@ export class Hub {
     this.hist = []; this.sampleOnline(); this.histTimer = setInterval(() => this.sampleOnline(), 60000); this.histTimer.unref?.();
     store.on(ev => this.onStore(ev));
   }
-  close() { clearInterval(this.timer); clearInterval(this.heartbeat); clearInterval(this.histTimer); this.wss?.close(); }
+  close() { clearInterval(this.timer); clearInterval(this.heartbeat); clearInterval(this.histTimer); this.wss?.close(); return this.meet.close(); }
+  /** Tên hiển thị theo khoá phiên (đang online: theo presence; không thì theo hồ sơ). */
+  nameOf(key) {
+    const p = this.presence.get(key); if (p) return p.display;
+    if (key.startsWith('admin:')) return `CEO (${key.slice(6)})`;
+    const e = this.store.employee(key.replace(/^employee:/, '')); return e ? displayOf(e.code, e.name) : key.replace(/^employee:/, '');
+  }
   onlineEmployees() { let n = 0; for (const k of this.sockets.keys()) if (k.startsWith('employee:')) n++; return n; }
   sampleOnline() { const t = Date.now(); this.hist.push({ t, n: this.onlineEmployees() }); while (this.hist.length && this.hist[0].t < t - 6 * 3600e3) this.hist.shift(); }
 
@@ -39,7 +48,7 @@ export class Hub {
   markPending(code) { this.pending.set(code, Date.now() + this.config.onlineGraceMs); }
 
   attach(server) {
-    this.wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
+    this.wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });   // (1 MB: một nét vẽ tay dài trên bảng vẽ Excalidraw của phòng họp có thể vài trăm KB)
     server.on('upgrade', (req, socket, head) => {
       if (!req.url.startsWith('/ws')) return;
       // chống mở WS từ trang khác (cookie tự gửi kèm); giao diện ở tên miền khác thì phải nằm trong ALLOWED_ORIGINS
@@ -71,7 +80,7 @@ export class Hub {
     ws.on('pong', () => { ws.alive = true; });
     ws.on('message', buf => this.onMessage(ws, buf));
     ws.on('close', () => this.onClose(ws));
-    this.send(ws, { t: 'hello', you: id, online: this.onlineList(), seats: this.store.listSeats(), presence: [...this.presence.values()].filter(p => p.x !== null), blinds: this.blinds(), music: musicState(this.store), ktv: this.ktv.state(), bil: this.bil.state(), wc: this.wc.state(), lights: lightsState(this.store), canLights: canLights(this.store, this.actorOf(ws)), canMusic: canMusic(this.store, this.actorOf(ws)) });
+    this.send(ws, { t: 'hello', you: id, online: this.onlineList(), seats: this.store.listSeats(), presence: [...this.presence.values()].filter(p => p.x !== null), blinds: this.blinds(), music: musicState(this.store), ktv: this.ktv.state(), bil: this.bil.state(), wc: this.wc.state(), meetBusy: this.meet.busy(), lights: lightsState(this.store), canLights: canLights(this.store, this.actorOf(ws)), canMusic: canMusic(this.store, this.actorOf(ws)) });
     if (first) { this.onlineDirty = true; if (id.code) this.store.emit({ type: 'employees', code: id.code }); }
   }
 
@@ -82,7 +91,7 @@ export class Hub {
     if (set.size === 0) {
       this.sockets.delete(ws.key);
       this.presence.delete(ws.key);
-      this.ktv.leave(ws.key); this.bil.leave(ws.key); this.wc.leave(ws.key);   // (rời mạng: ra khỏi phòng karaoke / bàn bi-a)
+      this.ktv.leave(ws.key); this.bil.leave(ws.key); this.wc.leave(ws.key); this.meet.leaveAll(ws.key);   // (rời mạng: ra khỏi phòng karaoke / bàn bi-a)
       const code = ws.key.startsWith('employee:') ? ws.key.slice(9) : null;
       if (code) this.store.db.employees.update(code, { last_seen: Date.now() });
       this.broadcast({ t: 'gone', key: ws.key });
@@ -97,6 +106,7 @@ export class Hub {
     if (m && m.t === 'chat') return this.onChat(ws, m);
     if (m && typeof m.t === 'string' && m.t.startsWith('bil:')) return this.bil.onMessage(ws, m);
     if (m && typeof m.t === 'string' && m.t.startsWith('wc:')) return this.wc.onMessage(ws, m);
+    if (m && typeof m.t === 'string' && m.t.startsWith('meet:')) return this.meet.onMessage(ws, m);
     if (m && (m.t === 'rtc' || (typeof m.t === 'string' && m.t.startsWith('ktv:')))) return this.ktv.onMessage(ws, m);
     if (!m || m.t !== 'pos') return;
     const p = this.presence.get(ws.key);
@@ -106,6 +116,8 @@ export class Hub {
     if (act === 'smoke' && (p.seated || !smokeAllowed(Number(m.x), Number(m.z)))) act = '';
     if (p.seated) { if (p.act !== act && act !== 'jump') { p.act = act; this.dirty.add(ws.key); } return; } // đang ngồi: vị trí do server quyết định, chỉ đổi động tác
     if (!okNum(m.x, LIMIT.x) || !okNum(m.y, LIMIT.y) || !okNum(m.z, LIMIT.z) || !Number.isInteger(m.f) || !Number.isFinite(m.yaw)) return;
+    // phòng họp đang họp: người không có trong danh sách không được vào (bỏ qua vị trí, báo một lần)
+    if (this.meet?.blocked(ws.key, m.x, m.z, m.f)) { const now = Date.now(); if (now - (ws.lastBlocked || 0) > 4000) { ws.lastBlocked = now; this.send(ws, { t: 'meet:blocked' }); } return; }
     Object.assign(p, { x: m.x, y: m.y, z: m.z, f: m.f, yaw: m.yaw, walk: !!m.walk, run: !!m.run, act, mode: m.mode === 'real' ? 'real' : 'office' });
     this.dirty.add(ws.key);
   }

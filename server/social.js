@@ -6,6 +6,7 @@
 //   quyền mới phát/điều khiển; trạng thái lưu ở world_state('music'), quyền ở employees.can_music.
 import { DEPARTMENTS, findDepartment, departmentOfDesk } from '../src/shared/departments.js';
 import { worldGet, worldSet } from './db.js';
+import { getMeeting, isParticipant } from './meetings.js';
 
 const MAX_LEN = 500, HISTORY = 80;
 
@@ -25,6 +26,7 @@ export function canUseChannel(store, actor, key, channel) {
   if (channel === 'all') return true;
   if (channel.startsWith('dept:')) { const id = channel.slice(5); return DEPARTMENTS.some(d => d.id === id) && (actor.kind === 'admin' || deptIdOf(store, actor) === id); }
   if (channel.startsWith('dm:')) return channel.slice(3).split('|').includes(key);
+  if (channel.startsWith('meet:')) return isParticipant(getMeeting(store, channel.slice(5)), key);   // (kênh riêng của cuộc họp: host + người được mời)
   return false;
 }
 export function history(store, channel, before = null) {

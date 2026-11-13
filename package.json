@@ -24,9 +24,12 @@
     "intro:shots": "node scripts/intro-shots.mjs"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
     "@pixiv/three-vrm": "^3.5.5",
     "express": "^5.3.0",
     "mongodb": "^6.22.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "three": "^0.187.0",
     "ws": "^8.22.1"
   },

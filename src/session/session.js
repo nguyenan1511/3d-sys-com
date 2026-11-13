@@ -26,6 +26,8 @@ import { Billiards } from './billiards.js';
 import { LightSwitch } from './lightSwitch.js';
 import { Restroom } from './restroom.js';
 import { notice } from '../ui/notices.js';
+import { NoticeBoard } from './noticeBoard.js';
+import { Meetings } from './meetings.js';
 import { savedLook, rememberLook } from '../auth/remember.js';
 import { MODES, getMode, switchMode, REAL_ENABLED } from '../core/mode.js';
 const MODE = getMode(), COMPACT = '(max-width: 760px), (max-height: 500px) and (max-width: 1100px)';
@@ -82,6 +84,10 @@ export class Session {
     this.lights = this.att ? new LightSwitch(this, this.att.spot) : null;   // công tắc đèn công ty (cạnh máy chấm công)
     this.wc = app.big && this.player && app.bldRoot ? new Restroom(this) : null;   // nhà vệ sinh: buồng có khoá, gương
     this.listeners = new Set();
+    // bảng thông báo công ty (sảnh) + phòng họp đặt lịch (tầng trệt): toà nhà lớn
+    this.board = app.big && this.player && this.att ? new NoticeBoard(this) : null;
+    this.meet = app.big && this.player ? new Meetings(this) : null;
+    this.social.addFeatureButtons?.();
   }
   onSeats(fn) { this.listeners.add(fn); }
 
@@ -520,7 +526,8 @@ export class Session {
       this.nearLights = lt;
       const tc = free && !ls && !lt && this.att?.code && this.att.near(a.x, a.z, a.f);
       const mc = free && !ls && this.app.musicCorner?.near(a.x, a.z, a.f);
-      const gd = free && !ls && !sofa && this.guide?.near(a.x, a.z, a.f);
+      const nb0 = free && !ls && !sofa && this.board?.near(a.x, a.z, a.f);   // (đứng ngay trước bảng thông báo: ưu tiên bảng hơn chị Mai đứng gần đó)
+      const gd = free && !ls && !sofa && !nb0 && this.guide?.near(a.x, a.z, a.f);
       // đồ vật dùng được (pha cà phê, máy in, sách, cá, mèo, đèn, game…): tạo khi toà nhà đã dựng xong
       if (!this.props && this.app.bldRoot && this.app.nav) this.props = new Props(this.app, this);
       this.props?.update(dt);
@@ -532,9 +539,14 @@ export class Session {
       this.nearKtv = kt;
       const bl = free && !ls && !sofa && !tc && !mc && !gd && !kt && this.bil && !this.bil.mine && this.bil.near(a.x, a.z, a.f) && this.bil.prompt() ? true : false;
       this.nearBil = bl;
-      const pr = free && !ls && !sofa && !tc && !mc && !gd && !kt && !bl && !this.props?.busy && !this.bil?.mine && !this.ktv?.inRoom ? this.props?.near(a.x, a.z, a.f, a.yaw) : null;
+      this.meet?.update();
+      const mt = free && !ls && !sofa && !tc && !mc && !gd && !kt && !bl && this.meet && !this.meet.inRoom && this.meet.near(a.x, a.z, a.f);
+      this.nearMeet = mt;
+      const nb = !tc && !mc && !kt && !bl && !mt && nb0;
+      this.nearBoard = nb;
+      const pr = free && !ls && !sofa && !tc && !mc && !gd && !kt && !bl && !mt && !nb && !this.props?.busy && !this.bil?.mine && !this.ktv?.inRoom ? this.props?.near(a.x, a.z, a.f, a.yaw) : null;
       this.nearProp = pr;
-      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : this.wc?.locked ? '' : lt ? this.lights.prompt() : ws ? this.wc.prompt(ws) : wk ? (this.wc.looking ? '<b>E</b> thôi soi gương' : '<b>E</b> soi gương 🪞') : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : kt ? this.ktv.prompt() : bl ? this.bil.prompt() : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
+      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : this.wc?.locked ? '' : lt ? this.lights.prompt() : ws ? this.wc.prompt(ws) : wk ? (this.wc.looking ? '<b>E</b> thôi soi gương' : '<b>E</b> soi gương 🪞') : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : kt ? this.ktv.prompt() : bl ? this.bil.prompt() : mt ? this.meet.prompt() : nb ? this.board.prompt() : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
       if (prompt !== this._prompt) { this._prompt = prompt; this.app.setPrompt?.(prompt); }
     }
     if (this.labels.visible) {

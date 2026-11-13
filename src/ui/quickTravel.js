@@ -30,7 +30,7 @@ export class QuickTravel {
         const tv = this.s.tv; if (tv) items.push({ name: 'Sofa xem TV', icon: 'cube', f, x: tv.seats[0].front.x, z: tv.seats[0].front.z + 0.4, r: 1.0 });
       }
       for (const r of L.rooms || []) if (r.floor === f && !(L.deptZones || []).some(z => z.floor === f && z.x0 >= r.x0 - 0.5 && z.x1 <= r.x1 + 0.5 && z.z0 >= r.z0 - 0.5 && z.z1 <= r.z1 + 0.5))
-        items.push({ name: r.name, icon: 'map', f, x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2, r: 3 });
+        items.push(r.type === 'meeting' && this.s.meet?.door ? { name: r.name, icon: 'door', f, x: this.s.meet.door.x, z: this.s.meet.door.z, r: 1.0 } : { name: r.name, icon: 'map', f, x: (r.x0 + r.x1) / 2, z: (r.z0 + r.z1) / 2, r: 3 });   // (phòng họp: tới cửa — phòng có thể đang họp)
       for (const z of L.deptZones || []) if (z.floor === f) items.push({ name: z.name.replace(/^Phòng /, ''), color: z.color, f, x: (z.x0 + z.x1) / 2, z: z.z1 + 0.4, r: 2.5 });
       const lift = this.s.lift?.stops?.[f]; if (lift) items.push({ name: 'Thang máy', icon: 'arrowUp', f, x: lift.x, z: lift.z, r: 1.0 });
       if (f === 2 && (!__REAL_SYS__ || L.world !== 'sysone-real')) { const t = (L.nav.areas || []).find(a => a.floor === 2 && /sân thượng/i.test(a.name || '')); items.push({ name: 'Sân thượng', icon: 'map', f, x: t ? (t.x0 + t.x1) / 2 : 1.0, z: t ? (t.z0 + t.z1) / 2 : 3.5, r: 3 }); }

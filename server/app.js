@@ -14,6 +14,9 @@ import { backupRoutes } from './routes/backup.js';
 import { scheduleBackups, backupDir } from './backup.js';
 import { musicRoutes } from './routes/music.js';
 import { lightsRoutes } from './routes/lights.js';
+import { boardRoutes } from './routes/board.js';
+import { seedBoard } from './board.js';
+import { meetingRoutes } from './routes/meetings.js';
 import {
   hashPassword, verifyPassword, dummyVerify, createSession, sessionFromCookie, setSessionCookie, clearSessionCookie,
   failureCount, recordFailure, clearFailures, originAllowed, issueWsTicket
@@ -32,12 +35,15 @@ export async function createApp(config = defaultConfig) {
   const store = new Store(db, config);
   const hub = new Hub(store, config);
   await seedAdmin(db, config);
+  if (!process.env.VITEST) seedBoard(store);   // (bảng thông báo trống lần đầu: đăng sẵn vài tin mẫu của HC-NS)
 
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', config.trustProxy ?? 'loopback');
   app.use(securityHeaders({ production: config.production, secure: config.cookieSecure }));
-  app.use(express.json({ limit: '1mb' }));
+  // JSON: 1 MB; riêng tải tài liệu cuộc họp (base64, file ≤ 5 MB) được 7 MB
+  const json = express.json({ limit: '1mb' }), bigJson = express.json({ limit: '7mb' });
+  app.use((req, res, next) => ((req.method === 'POST' && /^\/api(\/v1)?\/meetings\/\d+\/(files|wbfile)$/.test(req.path)) || (req.method === 'PUT' && /^\/api(\/v1)?\/board\/\d+\/image$/.test(req.path)) ? bigJson : json)(req, res, next));
 
   // phiên
   app.use((req, _res, next) => {
@@ -199,6 +205,8 @@ export async function createApp(config = defaultConfig) {
   chatRoutes(api, ctx);
   musicRoutes(api, ctx);
   lightsRoutes(api, ctx);
+  boardRoutes(api, ctx);
+  meetingRoutes(api, ctx);
   backupRoutes(api, ctx);
   app.use(['/api/v1', '/api'], api);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Không có API này.', code: 'not_found', path: req.originalUrl.split('?')[0], requestId: req.id }));
@@ -222,7 +230,7 @@ export async function createApp(config = defaultConfig) {
   const watcher = (await import('fs')).watch(config.layoutPath, () => { clearTimeout(t); t = setTimeout(() => { try { store.loadLayout(); hub.onStore({ type: 'seats' }); } catch (e) { console.error('layout.json lỗi:', e.message); } }, 300); });
 
   const stopBackups = scheduleBackups(db, backupDir(config));
-  return { app, db, store, hub, finish, close() { stopBackups(); watcher.close(); hub.close(); return db.close(); } };
+  return { app, db, store, hub, finish, async close() { stopBackups(); watcher.close(); await hub.close(); return db.close(); } };
 }
 
 async function seedAdmin(db, config) {

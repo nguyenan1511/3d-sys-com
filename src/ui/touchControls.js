@@ -54,13 +54,14 @@ export class TouchControls {
       knob.style.transform = `translate(${x}px, ${y}px)`;
       const nx = x / R, ny = y / R, pl = this.player; if (!pl) return;
       const keys = { f: ny < -0.35, b: ny > 0.35, l: nx < -0.35, r: nx > 0.35 };
+      const room = this.app.rooms?.active && this.app.rooms.room; if (room?.joy) { room.joy(keys, Math.hypot(nx, ny) > 0.92); return; }   // (phòng hát: cần điều khiển đi trong phòng, nhân vật ngoài văn phòng đứng yên)
       const moving = keys.f || keys.b || keys.l || keys.r;
       if (moving && !pl._joyMoving) { pl.follow(); pl.stopPath?.(); }
       pl._joyMoving = moving;
       Object.assign(pl.keys, keys); pl.run = Math.hypot(nx, ny) > 0.92;
       pl.stick = { x: nx, y: -ny };   // (analog: nghiêng ít đi chậm, như hangmu.online)
     };
-    const end = () => { id = null; knob.style.transform = ''; base.classList.remove('on'); const pl = this.player; if (pl) { Object.assign(pl.keys, { f: false, b: false, l: false, r: false }); pl.run = false; pl._joyMoving = false; pl.stick = null; } };
+    const end = () => { id = null; knob.style.transform = ''; base.classList.remove('on'); this.app.rooms?.room?.joy?.({}, false); const pl = this.player; if (pl) { Object.assign(pl.keys, { f: false, b: false, l: false, r: false }); pl.run = false; pl._joyMoving = false; pl.stick = null; } };
     base.addEventListener('pointerdown', e => {
       e.preventDefault(); base.setPointerCapture(e.pointerId); id = e.pointerId; base.classList.add('on');
       const r = base.getBoundingClientRect(); cx = r.left + r.width / 2; cy = r.top + r.height / 2; set(e.clientX - cx, e.clientY - cy);

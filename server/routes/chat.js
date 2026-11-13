@@ -15,7 +15,7 @@ export function chatRoutes(api, { store, guards: { needAuth } }) {
   });
   /** Lịch sử một kênh (80 tin gần nhất; ?before=<id> để tải tiếp). */
   api.get('/chat/:channel', needAuth, (req, res) => {
-    const { channel, before } = check({ ...req.params, ...req.query }, { channel: v.str({ max: 200, pattern: /^(all|dept:[a-z]+|dm:[\w:|-]+)$/ }), before: v.int({ min: 1, optional: true }) }, 'yêu cầu');
+    const { channel, before } = check({ ...req.params, ...req.query }, { channel: v.str({ max: 200, pattern: /^(all|dept:[a-z]+|dm:[\w:|.-]+|meet:\d{1,9})$/ }), before: v.int({ min: 1, optional: true }) }, 'yêu cầu');
     if (!canUseChannel(store, req.actor, actorKey(req.actor), channel)) throw new HttpError(403, 'Bạn không có quyền xem kênh này.', { code: 'forbidden' });
     res.json({ messages: history(store, channel, before || null) });
   });

@@ -51,9 +51,18 @@ export class Social {
     input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Escape') { this.toggle(false); } });
     window.addEventListener('keydown', e => {
       const t = document.activeElement; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
-      if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey && !document.querySelector('.modal-back')) { e.preventDefault(); this.toggle(true); }
+      if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.metaKey && !document.querySelector('.modal-back') && !document.body.classList.contains('overlay-open')) { e.preventDefault(); this.toggle(true); }
     });
   }
+  /** Nút Bảng tin + Phòng họp cạnh nút Chat (có chấm đỏ khi có tin mới / cuộc họp đang mở). */
+  addFeatureButtons() {
+    if (this.bar.querySelector('#btnBoard')) return;
+    const add = (id, ic, label, title, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'soc-btn'; b.id = id; b.title = title; b.innerHTML = `${icon(ic, 17)}<span>${label}</span><i class="soc-dot" hidden></i>`; b.onclick = fn; this.bar.insertBefore(b, this.bar.firstChild); return b; };
+    if (this.s.meet) add('btnMeet', 'calendar', 'Họp', 'Phòng họp: lịch, đặt phòng, cuộc họp của tôi, folder tài liệu', () => this.s.meet.panel.open());
+    if (this.s.board) add('btnBoard', 'megaphone', 'Bảng tin', 'Bảng thông báo công ty', () => this.s.board.open());
+  }
+  setBoardDot(on) { const d = this.bar.querySelector('#btnBoard .soc-dot'); if (d) d.hidden = !on; }
+  setMeetDot(on) { const d = this.bar.querySelector('#btnMeet .soc-dot'); if (d) d.hidden = !on; }
   toggle(open = this.panel.hidden) {
     this.panel.hidden = !open;
     this.bar.querySelector('#btnChat').classList.toggle('on', open);
@@ -112,6 +121,7 @@ export class Social {
   }
   onChat(m) {
     if (!m) return;
+    if (m.channel.startsWith('meet:')) return;   // (kênh riêng của cuộc họp: src/session/meetings.js)
     if (!this.msgs.has(m.channel)) { if (m.channel !== this.cur) this.msgs.set(m.channel, []); }
     const list = this.msgs.get(m.channel); if (list && !list.some(x => x.id === m.id)) list.push(m);
     if (m.channel.startsWith('dm:') && !this.dms.includes(m.channel)) this.dms.unshift(m.channel);

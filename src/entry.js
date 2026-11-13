@@ -11,6 +11,8 @@ import '@fontsource/be-vietnam-pro/latin-600.css';
 import '@fontsource/be-vietnam-pro/latin-700.css';
 import { api } from './net/api.js';
 import { loading } from './ui/loading.js';
+import { autoEnhanceSelects } from './ui/select.js';
+autoEnhanceSelects();   // (mọi <select> trong app: ô chọn tự vẽ theo giao diện SYSONE)
 import { showLogin } from './auth/login.js';
 import { savedLogin, forgetLogin } from './auth/remember.js';
 

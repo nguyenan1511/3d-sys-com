@@ -5,7 +5,7 @@
     "Mỗi mục: id (không trùng), group (start | work | fun | more), ảnh 3D tự lấy public/intro/<id>.webp — chụp từ cảnh thật bằng: npm run build && node scripts/intro-shots.mjs --only=<id> (thêm góc máy cho id mới trong SHOTS của script); icon (emoji, chỉ dùng khi chưa có ảnh), color (màu nền khi chưa có ảnh), title, text (1-2 câu ngắn), pc / mobile (cách dùng trên máy tính / điện thoại), go (tuỳ chọn: nút 'Đi tới' — 'desk', 'karaoke', 'billiards' hoặc tên một nơi trong 'Đi nhanh tới').",
     "Không cần kể hết: mỗi mục là một thứ người dùng làm được ngay."
   ],
-  "version": 1,
+  "version": 2,
   "title": "Có gì ở văn phòng SYSONE?",
   "subtitle": "Văn phòng 3D để làm việc, gặp đồng nghiệp và giải trí. Lướt qua 1 phút là nắm hết!",
   "groups": [
@@ -20,6 +20,8 @@
     { "id": "chat", "group": "start", "icon": "💬", "color": "#dcfce7", "title": "Chat", "text": "Nhắn cả công ty, theo phòng ban hoặc nhắn riêng một người.", "pc": "Phím T", "mobile": "Nút chat góc trên" },
     { "id": "camera", "group": "start", "icon": "🎥", "color": "#ede9fe", "title": "Xoay & zoom", "text": "Kéo để xoay camera, cuộn hoặc chụm 2 ngón để phóng to. V đổi sang góc nhìn thứ nhất.", "pc": "Kéo chuột · cuộn · V", "mobile": "Kéo · chụm 2 ngón" },
 
+    { "id": "board", "group": "work", "new_in": 2, "icon": "📢", "color": "#fff1de", "title": "Bảng thông báo", "text": "Tin chính và sự kiện sắp tới của công ty trên bảng ở sảnh. Phòng HC-NS đăng tin, có tin mới là bạn được báo.", "pc": "E ở bảng · nút Bảng tin", "mobile": "Nút loa góc trên", "go": "board" },
+    { "id": "meeting", "group": "work", "new_in": 2, "icon": "📅", "color": "#e3f7f1", "title": "Đặt phòng họp", "text": "Chọn khung giờ, mời đồng nghiệp. Tới giờ mọi người được nhắn; trong phòng có bảng vẽ chung, chat riêng và tài liệu lưu trong Folder của tôi.", "pc": "Nút Họp · E ở cửa phòng", "mobile": "Nút lịch góc trên", "go": "meeting" },
     { "id": "desk", "group": "work", "icon": "🪑", "color": "#dbeafe", "title": "Bàn làm việc của bạn", "text": "Chị Mai xếp chỗ theo phòng ban. Lần sau vào là ngồi ngay vào bàn.", "pc": "Phím B: về bàn", "mobile": "Nút Về bàn", "go": "desk" },
     { "id": "clock", "group": "work", "icon": "⏰", "color": "#fee2e2", "title": "Chấm công", "text": "Máy chấm công cạnh cửa chính: vào ca, ra về và xem bảng công cả tháng.", "pc": "E ở máy chấm công", "mobile": "Tương tác ở máy", "go": "Máy chấm công" },
     { "id": "guide", "group": "work", "icon": "🙋‍♀️", "color": "#ffedd5", "title": "Chị Mai hướng dẫn", "text": "Người mới được chị Mai đón ở sảnh và dẫn tới bàn. Cần gì cứ tới hỏi chị.", "pc": "E cạnh chị Mai", "mobile": "Tương tác cạnh chị Mai" },

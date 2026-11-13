@@ -11,6 +11,11 @@ import { OrbitCam, Cast, bindGestures, roomBox, neonSign, canvasTex, std, yawFac
 const W = 3.0, D = 3.5, H = 2.6;                 // nửa rộng, nửa sâu, cao
 const RAINBOW = ['#ff2b2b', '#ff8a00', '#ffe600', '#22e05a', '#00b4ff', '#3d3bff', '#c83cff'];   // (đèn chóp bảy màu)
 const SW = 2.3, SH = SW * 9 / 16, SY = 1.42;     // màn hình
+// đi lại trong phòng (W A S D / mũi tên, hoặc chạm sàn): vùng cấm = đồ đạc (x0, x1, z0, z1), nới thêm bán kính người R
+const R = 0.2, WALK = 1.3;
+const BLOCK = [[-1.3, 1.3, 0.94, 1.56], [-2.16, -1.54, -1.0, 0.7], [1.54, 2.16, -1.0, 0.7], [-0.6, 0.6, -0.45, 0.15], [-1.2, 1.2, -D, -D + 0.47], [-1.75, -1.35, -D, -D + 0.5], [1.35, 1.75, -D, -D + 0.5], [0.88, 1.12, -D + 0.88, -D + 1.12]];
+const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
+const free = (x, z) => Math.abs(x) < W - 0.25 && z > -D + 0.25 && z < D - 0.25 && !BLOCK.some(([x0, x1, z0, z1]) => x > x0 - R && x < x1 + R && z > z0 - R && z < z1 + R);
 const PXM = 1000;                                 // điểm ảnh CSS / mét (khung video)
 const narrow = () => matchMedia('(max-width: 760px), (max-height: 500px) and (max-width: 1100px)').matches;
 
@@ -38,6 +43,7 @@ function carpet() {
 
 export class KaraokeRoom {
   constructor(app, ktv, host, canvas) {
+    this.canvasEl = canvas;
     this.kind = 'karaoke'; this.app = app; this.ktv = ktv;
     const scene = this.scene = new THREE.Scene(); scene.background = new THREE.Color('#120e1a');
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.05, 40);
@@ -192,7 +198,9 @@ export class KaraokeRoom {
         <button type="button" class="ktv-mic">${icon('volume', 18)}<span>Bật mic hát</span></button>
         <button type="button" class="k3-dance" aria-pressed="false">💃<span>Quẩy</span></button>
         <button type="button" class="ktv-next" aria-label="Bài tiếp">${icon('play', 18)}<span>Bài tiếp</span></button>
-      </div>`;
+        <button type="button" class="k3-seat" hidden title="Về chỗ ngồi">${icon('user', 18)}<span>Về ghế</span></button>
+      </div>
+      <p class="k3-walk" aria-hidden="true"><b>W A S D</b> đi lại trong phòng · <b>bấm sàn</b> để đi tới</p>`;
     document.getElementById('appRoot').appendChild(ui);
     const q = this.q = c => ui.querySelector(c), k = this.ktv;
     q('.rm-back').onclick = () => k.leave();
@@ -222,7 +230,102 @@ export class KaraokeRoom {
       if (e.key === 'Enter') { e.preventDefault(); this.setSide(true); this.setTab('chat'); q('.k3-say input').focus(); }
     };
     this.tab = 'songs'; this.unread = 0;
-    bindGestures(q('.rm-input'), { drag: (dx, dy) => this.cam.orbit(-dx * 0.005, -dy * 0.004), pinch: f => this.cam.zoom(f), wheel: f => this.cam.zoom(f) });
+    bindGestures(q('.rm-input'), { drag: (dx, dy) => this.cam.orbit(-dx * 0.005, -dy * 0.004), pinch: f => this.cam.zoom(f), wheel: f => this.cam.zoom(f), tap: e => this.tapFloor(e) });
+    // đi lại: W A S D / mũi tên (theo hướng camera), chạm / bấm sàn để đi tới; "Về ghế" để ngồi lại chỗ cũ
+    this.keys = new Set(); this.free = null; this.target = null; this.sentAt = 0;
+    const MOVE = { w: 'f', arrowup: 'f', s: 'b', arrowdown: 'b', a: 'l', arrowleft: 'l', d: 'r', arrowright: 'r' };
+    this.onMove = e => {
+      if (!this.app.rooms?.is('karaoke') || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'Shift') { this.run = e.type === 'keydown'; return; }
+      if (e.key === ' ' && e.type === 'keydown' && document.activeElement?.tagName !== 'BUTTON') { e.preventDefault(); if (!e.repeat) this.jump(); return; }
+      const k = MOVE[e.key?.toLowerCase()]; if (!k) return;
+      e.preventDefault();
+      if (e.type === 'keydown') { this.keys.add(k); this.target = null; } else this.keys.delete(k);
+    };
+    this.onBlur = () => { this.keys.clear(); this.run = false; };
+    q('.k3-seat').onclick = () => this.backToSeat();
+    this.ray = new THREE.Raycaster(); this.floorPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  }
+  /** Chạm / bấm lên sàn: đi tới chỗ đó (nếu đứng được). */
+  tapFloor(e) {
+    const r = this.canvasEl?.getBoundingClientRect?.() || this.ui.getBoundingClientRect();
+    this.ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), this.camera);
+    const p = new THREE.Vector3(); if (!this.ray.ray.intersectPlane(this.floorPlane, p)) return;
+    if (!free(p.x, p.z)) return;
+    this.target = { x: p.x, z: p.z }; this.startFree();
+  }
+  /** Bắt đầu đi tự do từ chỗ nhân vật đang đứng / ngồi (đang quẩy thì thôi quẩy). Camera chuyển sang bám theo mình. */
+  startFree() {
+    this.ui.classList.add('walked');   // (đã biết đi lại: ẩn dòng gợi ý)
+    if (this.free) return;
+    const a = this.cast.get(this.app.session.key); if (!a) return;
+    let x = a.x, z = a.z;
+    if (!free(x, z)) { // (đang ngồi trên sofa: bước ra chỗ trống gần nhất)
+      let best = null; for (let r = 0.2; r < 2.5 && !best; r += 0.15) for (let i = 0; i < 16; i++) { const t = i / 16 * Math.PI * 2, nx = x + Math.cos(t) * r, nz = z + Math.sin(t) * r; if (free(nx, nz)) { best = [nx, nz]; break; } }
+      if (!best) return; [x, z] = best;
+    }
+    a.x = x; a.z = z; a.driven = true; this.vx = this.vz = this.vy = 0; this.air = false; this.moveRef = null;
+    this.free = { x, z, yaw: a.face };
+    if (this.ktv.dancing) this.ktv.setDance(false);
+    // camera như ngoài văn phòng: bám theo nhân vật, kéo để xoay quanh (mọi hướng), cuộn để gần / xa
+    this.cam.setLim({ th: [-1e4, 1e4], ph: [0.75, 1.45], r: [1.3, 3.4] });
+    this.cam.set({ t: new THREE.Vector3(x, 0.85, z), r: this.portrait ? 3.3 : Math.min(this.cam.G.r, 2.6), ph: this.portrait ? 1.0 : Math.min(this.cam.G.ph, 1.25) });   // (màn hình dọc: lùi xa, nhìn cao hơn — nhân vật không che cả màn hình)
+    this.renderSeatBtn();
+  }
+  backToSeat() {
+    const a = this.cast.get(this.app.session.key); if (a) { a.driven = false; a.forceAct = null; }
+    this.free = null; this.target = null; this.keys.clear(); this.joyKeys = null; this.run = false; this.ktv.s.rt.send({ t: 'ktv:pos', pos: null });
+    this.cam.setLim({ th: [-0.85, 0.85], ph: [0.9, 1.52], r: [1.4, 4.3] }); this.applyFocus();   // (camera về góc nhìn cả phòng)
+    this.renderSeatBtn();
+  }
+  renderSeatBtn() { const b = this.q('.k3-seat'); if (b) b.hidden = !this.free; }
+  jump() {
+    if (this.air) return; this.startFree(); if (!this.free) return;
+    const P = this.app.session.player; this.vy = P?.JUMP_V ?? 3.4; this.air = true;
+  }
+  /**
+   * Mỗi khung hình — đi y như ngoài văn phòng (src/session/player.js): tốc độ đi / chạy (Shift) theo chiều cao nhân vật,
+   * tăng tốc mượt (không trượt), hướng đi theo camera lúc vừa bấm phím (giữ A/D không đi vòng tròn), quay mặt nhanh theo
+   * hướng đi, chân bước theo quãng đi, Space nhảy; chặn tường + đồ đạc (trượt dọc vật cản). Gửi vị trí ~8 lần/giây.
+   */
+  /** Cần điều khiển ảo trên điện thoại (src/ui/touchControls.js) — như W A S D, kéo gần hết vòng thì chạy. */
+  joy(keys, run) { this.joyKeys = keys; this.joyRun = run; if (keys.f || keys.b || keys.l || keys.r) this.target = null; }
+  walk(dt) {
+    const jk = this.joyKeys || {}, k = new Set([...this.keys, ...['f', 'b', 'l', 'r'].filter(x => jk[x])]), P = this.app.session.player, me = this.cast.get(this.app.session.key);
+    const f = (k.has('f') ? 1 : 0) - (k.has('b') ? 1 : 0), r = (k.has('r') ? 1 : 0) - (k.has('l') ? 1 : 0), input = !!(f || r);
+    if (input) this.startFree();
+    if (!this.free || !me) return;
+    const WALK = P?.WALK ?? 3.8, RUN = P?.RUN ?? 5.6, STRIDE = P?.STRIDE ?? 0.3;
+    if (!input) this.moveRef = null; else if (this.moveRef == null) this.moveRef = this.cam.S.th;
+    const th = this.moveRef ?? this.cam.S.th, fx = -Math.sin(th), fz = -Math.cos(th), rx = Math.cos(th), rz = -Math.sin(th);
+    let mx = fx * f + rx * r, mz = fz * f + rz * r, run = this.run || (this.joyRun && input);
+    if (!input && this.target) {   // (bấm sàn: đi tới đó, xa thì chạy)
+      mx = this.target.x - me.x; mz = this.target.z - me.z; const d = Math.hypot(mx, mz);
+      if (d < 0.08) { this.target = null; mx = mz = 0; } else run = d > 2.5;
+    }
+    const moving = Math.hypot(mx, mz) > 0.01;
+    if (moving) { const l = Math.hypot(mx, mz); mx /= l; mz /= l; }
+    const top = run ? RUN : WALK, acc = Math.min(1, (this.air ? 5 : 14) * dt);
+    this.vx += ((moving ? mx * top : 0) - this.vx) * acc; this.vz += ((moving ? mz * top : 0) - this.vz) * acc;
+    if (!moving && Math.hypot(this.vx, this.vz) < 0.02) this.vx = this.vz = 0;
+    // (bấm sàn: không đi quá điểm đến)
+    let dx = this.vx * dt, dz = this.vz * dt;
+    if (this.target && !input) { const d = Math.hypot(this.target.x - me.x, this.target.z - me.z), s = Math.hypot(dx, dz); if (s > d) { dx *= d / s; dz *= d / s; } }
+    const bx = me.x, bz = me.z;
+    if (dx && free(me.x + dx, me.z)) me.x += dx; else if (dx) { this.vx = 0; if (!input) this.target = null; }
+    if (dz && free(me.x, me.z + dz)) me.z += dz; else if (dz) { this.vz = 0; if (!input) this.target = null; }
+    const moved = Math.hypot(me.x - bx, me.z - bz), speed = moved / Math.max(dt, 1e-4);
+    me.walkPhase += moved / STRIDE * Math.PI;
+    if (moving && speed > 0.05) me.face += wrapA(Math.atan2(-mx, -mz) - me.face) * Math.min(1, dt * 12);
+    me.walkAmt = Math.min(2, speed / WALK) * (this.air ? 0.3 : 1);
+    // nhảy (cùng độ cao / nhịp như ngoài văn phòng)
+    if (this.air) { this.vy -= (P?.GJ ?? 19) * dt; me.y += this.vy * dt; if (me.y <= 0) { me.y = 0; this.vy = 0; this.air = false; me.landT = 0; } }
+    me.airborne = this.air; me.forceAct = this.air ? 'jump' : null; me.landT = (me.landT ?? 1) + dt;
+    this.free.x = me.x; this.free.z = me.z; this.free.yaw = me.face;
+    this.cam.G.t.set(me.x, 0.85 + me.y * 0.5, me.z);   // (camera bám theo)
+    const now = performance.now();
+    if ((moved > 0 || this.unsent) && now - this.sentAt > 110) { this.sentAt = now; this.unsent = false; this.ktv.s.rt.send({ t: 'ktv:pos', pos: { x: me.x, z: me.z, yaw: me.face } }); }
+    else if (moved > 0) this.unsent = true;
   }
   setTab(t) {
     this.tab = t;
@@ -278,8 +381,8 @@ export class KaraokeRoom {
     else if (this.portrait) this.cam.set({ t: new THREE.Vector3(0, 0.75, -1.2), th: 0, ph: 1.2, r: 4.6 });   // (màn hình dọc: cao, nhìn chéo xuống qua hàng ghế sau)
     else this.cam.set({ t: new THREE.Vector3(0, 0.95, -0.9), th: 0, ph: 1.28, r: 4.0 });
   }
-  enter() { window.addEventListener('keydown', this.onKey); this.unread = 0; this.setTab(this.tab || 'songs'); this.renderChat(); this.setSide(!narrow()); this.focus = false; this.q('.rm-cam').classList.remove('on'); this.applyFocus(); this.cam.snap(); const v = this.q('.k3-vol input'); v.value = String(this.ktv.yt?.vol ?? 70); this.render(); }
-  leave() { window.removeEventListener('keydown', this.onKey); this.video = false; this.layer.style.display = 'none'; }
+  enter() { window.addEventListener('keydown', this.onKey); window.addEventListener('keydown', this.onMove); window.addEventListener('keyup', this.onMove); window.addEventListener('blur', this.onBlur); this.unread = 0; this.setTab(this.tab || 'songs'); this.renderChat(); this.setSide(!narrow()); this.focus = false; this.q('.rm-cam').classList.remove('on'); this.applyFocus(); this.cam.snap(); const v = this.q('.k3-vol input'); v.value = String(this.ktv.yt?.vol ?? 70); this.render(); }
+  leave() { window.removeEventListener('keydown', this.onKey); window.removeEventListener('keydown', this.onMove); window.removeEventListener('keyup', this.onMove); window.removeEventListener('blur', this.onBlur); this.keys.clear(); this.target = null; if (this.free) this.backToSeat(); this.video = false; this.layer.style.display = 'none'; }
   resize(w, h) {
     this.css.setSize(w, h); this.cast.setSize(w, h);
     const portrait = w / h < 0.9; this.camera.fov = portrait ? 64 : 50; this.camera.updateProjectionMatrix();
@@ -307,6 +410,7 @@ export class KaraokeRoom {
       ${i ? `<button type="button" data-qa="top" data-i="${i}" title="Ưu tiên: đưa lên hát tiếp theo" aria-label="Ưu tiên bài ${esc(x.title)}">⭐ Ưu tiên</button>` : '<em>Tiếp theo</em>'}${x.byKey === me ? `<button type="button" class="k3-x" data-qa="rm" data-i="${i}" aria-label="Xoá bài ${esc(x.title)}">${icon('close', 12)}</button>` : ''}</li>`).join('');
     q('.k3-pane[data-pane="queue"] .k3-empty').hidden = !!st.queue.length;
     q('[data-n="queue"]').textContent = st.queue.length || ''; q('[data-n="people"]').textContent = `${st.members.length}/${st.max || 10}`;
+    if (k.dancing && this.free) this.backToSeat();   // (quẩy: ra sàn nhảy như cũ)
     const db = q('.k3-dance'); db.classList.toggle('on', k.dancing); db.setAttribute('aria-pressed', String(k.dancing)); db.querySelector('span').textContent = k.dancing ? 'Đang quẩy' : 'Quẩy';
     if (this.sug) this.renderSug();
     const dc = q('.k3-disco'), on = !!st.disco; dc.classList.toggle('on', on); dc.setAttribute('aria-checked', String(on));
@@ -328,8 +432,12 @@ export class KaraokeRoom {
   /** Chỗ của từng người: ai bật mic đứng hát trước màn hình, còn lại ngồi sofa (thứ tự vào phòng — mọi máy giống nhau). */
   placeCast() {
     const st = this.ktv.state; if (!st) return;
-    const dancing = m => this.cast.source(m.key)?.act === 'quay';
-    const dancers = st.members.filter(dancing), singers = st.members.filter(m => m.mic && !dancing(m)), sitters = st.members.filter(m => !m.mic && !dancing(m));
+    const dancing = m => this.cast.source(m.key)?.act === 'quay', me = this.app.session.key;
+    // người đang tự đi lại (W A S D / chạm sàn): đứng đúng chỗ họ chọn (đang bật mic thì vẫn cầm mic hát)
+    const posOf = m => m.key === me ? this.free : m.pos;
+    for (const m of st.members) { const p = posOf(m); if (p && !dancing(m)) this.cast.place(m.key, { x: p.x, z: p.z, yaw: p.yaw, act: m.mic ? 'sing' : null }); }
+    const placed = m => !!posOf(m) && !dancing(m);
+    const dancers = st.members.filter(dancing), singers = st.members.filter(m => m.mic && !dancing(m) && !placed(m)), sitters = st.members.filter(m => !m.mic && !dancing(m) && !placed(m));
     // ghế hai bên trước (thấy mặt nghiêng từ camera), rồi tới ghế sau
     // (màn hình dọc: ghế sau trước — hai bên nằm ngoài khung hình)
     const side = [[-1.71, -0.5, -Math.PI / 2], [1.71, -0.5, Math.PI / 2], [-1.71, 0.22, -Math.PI / 2], [1.71, 0.22, Math.PI / 2]], back = [[-0.32, 1.11, 0], [0.32, 1.11, 0], [-0.92, 1.11, 0], [0.92, 1.11, 0]];
@@ -362,9 +470,10 @@ export class KaraokeRoom {
       if (dk > 0.01) s.color.set(RAINBOW[(Math.floor(t * 2.2) + i * 2) % 7]); else s.color.set(s.userData.c0);
     });
     this.screenLight.intensity = this.video ? 5 + Math.sin(t * 3) * 0.6 : 3;
+    this.walk(dt);
     this.placeCast();
     this.cam.update(dt);
-    const cp = this.camera.position; for (const a of this.cast.list) a.visible = Math.hypot(a.x - cp.x, a.z - cp.z) > 0.8;   // (đứng sát camera: ẩn, không che màn hình)
+    const cp = this.camera.position; for (const a of this.cast.list) a.visible = a.driven || Math.hypot(a.x - cp.x, a.z - cp.z) > 0.8;   // (đứng sát camera: ẩn, không che màn hình)
     this.cast.update(dt);
   }
   afterRender() { if (this.video) this.css.render(this.cssScene, this.camera); this.cast.render(this.camera); }

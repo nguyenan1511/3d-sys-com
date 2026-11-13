@@ -3,7 +3,7 @@
 // được vẽ (máy nhẹ hơn); mạng, người khác, ván bi-a… vẫn chạy bình thường. Rời phòng: mờ đi rồi về đúng chỗ cũ.
 //
 // Một phòng (room) có: kind, scene, camera, ui (lớp phủ DOM: thao tác + giao diện của phòng), update(dt), resize(w, h),
-// tuỳ chọn: enter(), leave(), afterRender(), layer (lớp CSS3D đặt dưới canvas, ví dụ màn hình video).
+// tuỳ chọn: enter(), leave(), afterRender(), draw3d(renderer) (tự vẽ cảnh), layer (lớp CSS3D đặt dưới canvas, ví dụ màn hình video).
 // Phòng dựng một lần rồi giữ lại (vào lại tức thì).
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
@@ -61,7 +61,8 @@ export class RoomStage {
     const w = this.canvas.clientWidth || 1, h = this.canvas.clientHeight || 1;
     if (w !== this.w || h !== this.h) { this.w = w; this.h = h; r.camera.aspect = w / h; r.camera.updateProjectionMatrix(); r.resize?.(w, h); }
     r.update(dt);
-    this.renderer.render(r.scene, r.camera);
+    // phòng tự vẽ (draw3d — tên riêng: phòng karaoke có render() là vẽ lại giao diện, KHÔNG phải vẽ cảnh): khung 3D thu nhỏ của phòng họp
+    if (r.draw3d) r.draw3d(this.renderer); else this.renderer.render(r.scene, r.camera);
     r.afterRender?.();
   }
 }
