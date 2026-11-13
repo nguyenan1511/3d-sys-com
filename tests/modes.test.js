@@ -5,7 +5,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import { DatabaseSync } from 'node:sqlite';
 import { openDb } from '../server/db.js';
 import { Store, HttpError } from '../server/store.js';
 import { buildModel } from '../src/model/layoutModel.js';
@@ -72,23 +71,15 @@ describe('Real SYS tắt (mặc định khi chạy server)', () => {
   });
 });
 
-describe('nâng cấp DB cũ', () => {
-  it('bỏ ràng buộc UNIQUE trên cả bảng seats, giữ nguyên dữ liệu', () => {
-    const file = path.join(os.tmpdir(), `sysone-modes-${process.pid}-${Date.now()}.db`);
-    const old = new DatabaseSync(file);
-    old.exec(`CREATE TABLE employees (code TEXT PRIMARY KEY, name TEXT NOT NULL, name_key TEXT NOT NULL, department TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'active', can_move INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, last_seen INTEGER);
-      CREATE TABLE seats (desk_id TEXT PRIMARY KEY, owner_code TEXT UNIQUE REFERENCES employees(code) ON DELETE SET NULL, locked INTEGER NOT NULL DEFAULT 0, equipment TEXT, in_layout INTEGER NOT NULL DEFAULT 1, updated_at INTEGER);
-      INSERT INTO employees (code, name, name_key, created_at) VALUES ('2000', 'Bình', 'binh', 1);
-      INSERT INTO seats (desk_id, owner_code, locked, equipment) VALUES ('T1-02', '2000', 0, '{"a":1}'), ('T1-03', NULL, 1, NULL);`);
-    old.close();
-    const db = openDb(file);
-    expect(db.prepare('PRAGMA index_list(seats)').all().some(i => i.origin === 'u')).toBe(false);
-    expect(db.prepare('SELECT * FROM seats ORDER BY desk_id').all().map(r => ({ ...r }))).toMatchObject([{ desk_id: 'T1-02', owner_code: '2000', equipment: '{"a":1}' }, { desk_id: 'T1-03', owner_code: null, locked: 1 }]);
-    // vẫn chặn hai chỗ trong cùng một chế độ
-    db.prepare("INSERT INTO seats (desk_id) VALUES ('T1-09'), ('R1-01')").run();
-    expect(() => db.prepare("UPDATE seats SET owner_code = '2000' WHERE desk_id = 'T1-09'").run()).toThrow();
-    db.prepare("UPDATE seats SET owner_code = '2000' WHERE desk_id = 'R1-01'").run();
-    db.close(); fs.rmSync(file, { force: true });
+describe('chỗ ngồi theo chế độ', () => {
+  it('mỗi người tối đa một chỗ trong cùng một chế độ, được thêm một chỗ ở chế độ kia', () => {
+    const db = openDb();
+    db.employees.insert({ code: '2000', name: 'Bình', name_key: 'binh', created_at: 1 });
+    for (const id of ['T1-02', 'T1-09', 'R1-01']) db.seats.insert({ desk_id: id, owner_code: null, locked: 0, equipment: null, in_layout: 1 });
+    db.seats.update('T1-02', { owner_code: '2000' });
+    expect(() => db.seats.update('T1-09', { owner_code: '2000' })).toThrow();
+    db.seats.update('R1-01', { owner_code: '2000' });
+    expect(db.seats.get('R1-01').owner_code).toBe('2000');
   });
 });
 

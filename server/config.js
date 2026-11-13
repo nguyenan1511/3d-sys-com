@@ -31,7 +31,8 @@ export const config = {
   employeeSessionHours: +(env.EMPLOYEE_SESSION_HOURS || 24 * 7),
   adminSessionHours: +(env.ADMIN_SESSION_HOURS || 12),
   onlineGraceMs: +(env.ONLINE_GRACE_MS || 30000),
-  // (tuỳ chọn) lưu database lên MongoDB để không mất dữ liệu khi server không có ổ đĩa (Render miễn phí) — server/mongoSync.js
+  // MongoDB (Atlas): nơi lưu dữ liệu chính — mỗi bảng một collection (server/memdb.js). Không đặt: lưu file JSON cạnh DB_PATH.
+  // MONGODB_SNAPSHOT_ID: tên bản lưu nén kiểu cũ (collection snapshots) — chỉ dùng để chuyển dữ liệu sang lần đầu.
   mongodbUri: env.MONGODB_URI || '', mongoDbName: env.MONGODB_DB || 'sysone', mongoSnapshotId: env.MONGODB_SNAPSHOT_ID || 'sysone',
   youtubeApiKey: env.YOUTUBE_API_KEY || '',   // (tuỳ chọn) gợi ý bài karaoke qua YouTube Data API v3 — server/ktvSuggest.js
   // giao diện đặt ở tên miền khác (ví dụ Vercel): các nguồn được phép gọi API ghi và mở WebSocket, cách nhau bằng dấu phẩy

@@ -1,10 +1,11 @@
 // Sao lưu database tự động: mỗi đêm (sau 2 giờ sáng giờ Việt Nam) chép toàn bộ SQLite ra một file riêng bằng
-// VACUUM INTO (bản chép nhất quán, chạy được khi server đang hoạt động), giữ BACKUP_KEEP bản gần nhất (mặc định 14).
+// một file JSON (mọi bảng, chép tại một thời điểm — nhất quán), giữ BACKUP_KEEP bản gần nhất (mặc định 14). Bản .db cũ
+// (SQLite, trước khi chuyển sang MongoDB) vẫn hiện trong danh sách và tải về được.
 // Thư mục: BACKUP_DIR hoặc <thư mục chứa database>/backups. CEO xem danh sách, sao lưu ngay, tải về trong Bảng quản trị.
 import fs from 'node:fs';
 import path from 'node:path';
 
-const NAME = /^sysone-\d{4}-\d{2}-\d{2}-\d{4}(-\d+)?\.db$/;
+const NAME = /^sysone-\d{4}-\d{2}-\d{2}-\d{4}(-\d+)?\.(json|db)$/;
 const VN = 7 * 3600e3;
 
 export function backupDir(config) {
@@ -26,10 +27,10 @@ export function backupNow(db, dir, keep = +(process.env.BACKUP_KEEP || 14)) {
   if (!dir) throw new Error('Database đang chạy trong bộ nhớ, không sao lưu được.');
   fs.mkdirSync(dir, { recursive: true });
   const stamp = new Date(Date.now() + VN).toISOString().replace(/T(\d\d):(\d\d).*/, '-$1$2');
-  let name = `sysone-${stamp}.db`;
-  for (let i = 2; fs.existsSync(path.join(dir, name)); i++) name = `sysone-${stamp}-${i}.db`;
+  let name = `sysone-${stamp}.json`;
+  for (let i = 2; fs.existsSync(path.join(dir, name)); i++) name = `sysone-${stamp}-${i}.json`;
   const file = path.join(dir, name);
-  db.exec(`VACUUM INTO '${file.replace(/'/g, "''")}'`);
+  fs.writeFileSync(file, JSON.stringify({ version: 1, savedAt: Date.now(), tables: db.dump() }));
   try { fs.chmodSync(file, 0o600); } catch { /* (Windows) */ }
   for (const old of listBackups(dir).slice(Math.max(1, keep))) fs.rmSync(path.join(dir, old.name), { force: true });
   const st = fs.statSync(file); return { name, size: st.size, ts: st.mtimeMs };

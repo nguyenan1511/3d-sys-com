@@ -3,8 +3,7 @@ import express from 'express';
 import { compressedStatic } from './static.js';
 import path from 'path';
 import { config as defaultConfig, ROOT } from './config.js';
-import { openDb, audit } from './db.js';
-import { initSync } from './mongoSync.js';
+import { openData, audit } from './db.js';
 import { Store, HttpError } from './store.js';
 import { Hub } from './realtime.js';
 import { requestLog, securityHeaders, rateLimit } from './http.js';
@@ -27,9 +26,9 @@ export const API_VERSION = '1.1.0';
 const DATA_FILE = /(^|\/)(layout|employees|equipment|appearance)\.json$/;
 
 export async function createApp(config = defaultConfig) {
-  const sync = await initSync(config);   // (có MONGODB_URI: tải dữ liệu đã lưu trên MongoDB về trước khi mở database)
-  const db = openDb(config.dbPath);
-  sync.start(db);
+  const db = await openData(config);   // (MONGODB_URI: nạp các collection từ MongoDB; lần đầu tự chuyển dữ liệu SQLite cũ sang)
+  // tình trạng lưu dữ liệu (thẻ Cấu hình ở bảng quản trị, /health)
+  const dataStatus = () => { const st = db.status(); return { enabled: db.kind === 'mongo', kind: db.kind, restoredAt: db.loadedAt || null, lastSaveAt: st.lastWriteAt || null, pending: st.pending || 0, error: st.error || null }; };
   const store = new Store(db, config);
   const hub = new Hub(store, config);
   await seedAdmin(db, config);
@@ -77,14 +76,14 @@ export async function createApp(config = defaultConfig) {
     const r = await suggest({ cat: String(req.query.cat || ''), q: String(req.query.q || ''), key: config.youtubeApiKey });
     res.json({ categories: CATEGORIES.map(({ id, label }) => ({ id, label })), ...r });
   });
-  api.get('/health', (_req, res) => res.json({ ok: true, version: API_VERSION, time: Date.now(), uptimeSec: Math.round(process.uptime()), ...(sync.status.enabled ? { mongo: { restoredAt: sync.status.restoredAt, lastSaveAt: sync.status.lastPushAt, ok: !sync.status.lastError } } : {}) }));
+  api.get('/health', (_req, res) => res.json({ ok: true, version: API_VERSION, time: Date.now(), uptimeSec: Math.round(process.uptime()), ...(db.kind === 'mongo' ? { mongo: (({ restoredAt, lastSaveAt, pending, error }) => ({ restoredAt, lastSaveAt, pending, ok: !error }))(dataStatus()) } : {}) }));
 
   // ---------- phiên làm việc ----------
   api.get('/me', (req, res) => {
     if (!req.actor) return res.json({ authenticated: false });
     const base = { authenticated: true, kind: req.actor.kind, config: { duplicatePolicy: config.duplicatePolicy, adminCanSitAnywhere: config.adminCanSitAnywhere } };
     if (req.actor.kind === 'admin') {
-      const a = db.prepare('SELECT username, is_initial FROM admins WHERE username = ?').get(req.actor.username);
+      const a = db.admins.get(req.actor.username);
       return res.json({ ...base, admin: { username: a.username, mustChangePassword: !!a.is_initial } });
     }
     res.json({ ...base, employee: store.employeeView(store.employee(req.actor.code), hub.isOnline) });
@@ -112,7 +111,7 @@ export async function createApp(config = defaultConfig) {
     if (failureCount(db, 'admin-user', username) >= config.loginMaxFailures || failureCount(db, 'admin-ip', ip(req)) >= config.loginMaxFailures) {
       return res.status(429).json({ error: LOCKED_MSG });
     }
-    const a = db.prepare('SELECT * FROM admins WHERE username = ?').get(username);
+    const a = db.admins.get(username);
     const ok = a ? await verifyPassword(password, a.pass_hash) : (await dummyVerify(password), false);
     if (!ok) {
       recordFailure(db, 'admin-user', username); recordFailure(db, 'admin-ip', ip(req));
@@ -129,7 +128,7 @@ export async function createApp(config = defaultConfig) {
 
   api.post('/logout', (req, res) => {
     if (req.sess) {
-      db.prepare('DELETE FROM sessions WHERE id_hash = ?').run(req.sess.id);
+      db.sessions.del(req.sess.id);
       audit(db, req.actor?.key || 'unknown', 'logout');
     }
     clearSessionCookie(res);
@@ -138,13 +137,13 @@ export async function createApp(config = defaultConfig) {
 
   api.post('/admin/password', needAdmin, async (req, res) => {
     const { current, next } = req.body || {};
-    const a = db.prepare('SELECT * FROM admins WHERE username = ?').get(req.actor.username);
+    const a = db.admins.get(req.actor.username);
     if (!(await verifyPassword(String(current ?? ''), a.pass_hash))) return res.status(400).json({ error: 'Mật khẩu hiện tại không đúng.' });
     const pw = String(next ?? '');
     if (pw.length < 8) return res.status(400).json({ error: 'Mật khẩu mới cần ít nhất 8 ký tự.' });
     if (pw === String(current)) return res.status(400).json({ error: 'Mật khẩu mới phải khác mật khẩu cũ.' });
-    db.prepare('UPDATE admins SET pass_hash = ?, is_initial = 0, updated_at = ? WHERE username = ?').run(await hashPassword(pw), Date.now(), a.username);
-    db.prepare("DELETE FROM sessions WHERE kind = 'admin' AND subject = ? AND id_hash <> ?").run(a.username, req.sess.id);
+    db.admins.update(a.username, { pass_hash: await hashPassword(pw), is_initial: 0, updated_at: Date.now() });
+    db.sessions.delWhere(r => r.kind === 'admin' && r.subject === a.username && r.id_hash !== req.sess.id);
     audit(db, req.actor.key, 'admin.password.change', a.username);
     res.json({ ok: true });
   });
@@ -190,7 +189,7 @@ export async function createApp(config = defaultConfig) {
   api.post('/admin/import', needAdmin, (req, res) => res.json({ ok: true, ...store.importCsv(req.actor, req.body?.csv) }));
   // tổng quan cho bảng quản trị: số người online theo phút (6 giờ), tình trạng server và lưu MongoDB
   api.get('/admin/stats', needAdmin, (_req, res) => res.json({ online: hub.hist, now: hub.onlineEmployees(), version: API_VERSION, uptimeSec: Math.round(process.uptime()),
-    mongo: { enabled: sync.status.enabled, restoredAt: sync.status.restoredAt, lastSaveAt: sync.status.lastPushAt, error: sync.status.lastError } }));
+    mongo: dataStatus() }));
   api.get('/admin/audit', needAdmin, (req, res) => res.json({ audit: store.auditLog(+req.query.limit || 200) }));
 
   /** Vé mở WebSocket thẳng tới server (khi giao diện đặt ở tên miền khác, ví dụ Vercel). */
@@ -223,17 +222,17 @@ export async function createApp(config = defaultConfig) {
   const watcher = (await import('fs')).watch(config.layoutPath, () => { clearTimeout(t); t = setTimeout(() => { try { store.loadLayout(); hub.onStore({ type: 'seats' }); } catch (e) { console.error('layout.json lỗi:', e.message); } }, 300); });
 
   const stopBackups = scheduleBackups(db, backupDir(config));
-  return { app, db, store, hub, finish, sync, close() { stopBackups(); watcher.close(); hub.close(); sync.stop(); db.close(); } };
+  return { app, db, store, hub, finish, close() { stopBackups(); watcher.close(); hub.close(); return db.close(); } };
 }
 
 async function seedAdmin(db, config) {
-  const n = db.prepare('SELECT COUNT(*) AS n FROM admins').get().n;
+  const n = db.admins.count();
   if (n) return;
   if (!config.adminInitialPassword) {
     console.warn('[cảnh báo] Chưa có tài khoản CEO. Đặt ADMIN_INITIAL_PASSWORD trong .env rồi khởi động lại để tạo tài khoản "admin".');
     return;
   }
-  db.prepare('INSERT INTO admins (username, pass_hash, is_initial, updated_at) VALUES (?, ?, 1, ?)').run('admin', await hashPassword(config.adminInitialPassword), Date.now());
+  db.admins.insert({ username: 'admin', pass_hash: await hashPassword(config.adminInitialPassword), is_initial: 1, updated_at: Date.now() });
   audit(db, 'system', 'admin.seed', 'admin');
   console.log('Đã tạo tài khoản CEO "admin" từ ADMIN_INITIAL_PASSWORD. Hãy đổi mật khẩu sau lần đăng nhập đầu.');
 }

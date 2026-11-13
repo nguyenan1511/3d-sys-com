@@ -26,7 +26,7 @@ describe('lưu nhân vật theo tài khoản', () => {
   it('nhân vật đã lưu bị gỡ khỏi bộ nhân vật: đánh dấu mời chọn lại; người khác giữ nguyên', () => {
     store.setLook(me, '1151', { model: 'mo-nam' });
     store.setLook({ kind: 'employee', code: '1152', key: 'employee:1152' }, '1152', { model: 'mo-nu' });
-    store.db.prepare('UPDATE employees SET look = ? WHERE code = ?').run(JSON.stringify({ model: 'vrm-cu', topColor: '#112233' }), '1151');
+    store.db.employees.update('1151', { look: JSON.stringify({ model: 'vrm-cu', topColor: '#112233' }) });
     store.migrateLooks();
     expect(store.lookOf('1151')).toMatchObject({ model: 'mo-nam', _repick: true }); // (vẫn hiển thị được trong lúc chờ chọn lại)
     expect(store.lookOf('1152').model).toBe('mo-nu'); expect(store.lookOf('1152')._repick).toBeUndefined();

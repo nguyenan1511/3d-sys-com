@@ -84,7 +84,7 @@ export class Hub {
       this.presence.delete(ws.key);
       this.ktv.leave(ws.key); this.bil.leave(ws.key); this.wc.leave(ws.key);   // (rời mạng: ra khỏi phòng karaoke / bàn bi-a)
       const code = ws.key.startsWith('employee:') ? ws.key.slice(9) : null;
-      if (code) this.store.db.prepare('UPDATE employees SET last_seen = ? WHERE code = ?').run(Date.now(), code);
+      if (code) this.store.db.employees.update(code, { last_seen: Date.now() });
       this.broadcast({ t: 'gone', key: ws.key });
       this.onlineDirty = true;
       if (code) this.store.emit({ type: 'employees', code });
@@ -135,7 +135,7 @@ export class Hub {
   /** Rèm cửa sổ: trạng thái chung của văn phòng, lưu trong DB, ai cũng kéo được. */
   blinds() {
     const out = {};
-    for (const r of this.store.db.prepare("SELECT key, value FROM world_state WHERE key LIKE 'blind:%'").all()) out[r.key.slice(6)] = r.value === '1';
+    for (const r of this.store.db.world_state.where(r => r.key.startsWith('blind:'))) out[r.key.slice(6)] = r.value === '1';
     return out;
   }
   onBlind(ws, m) {
@@ -144,8 +144,7 @@ export class Hub {
     if (now - (ws.lastBlind || 0) < 250) return; // chống bấm liên tục
     ws.lastBlind = now;
     const open = !!m.open;
-    this.store.db.prepare('INSERT INTO world_state (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by')
-      .run(`blind:${m.id}`, open ? '1' : '0', now, ws.key);
+    this.store.db.world_state.upsert({ key: `blind:${m.id}`, value: open ? '1' : '0', updated_at: now, updated_by: ws.key });
     const p = this.presence.get(ws.key);
     this.broadcast({ t: 'blind', id: m.id, open, by: p ? p.display : '' });
   }
@@ -184,7 +183,7 @@ export class Hub {
       if (!ws.alive) { ws.terminate(); continue; }
       ws.alive = false; ws.ping();
       // phiên bị thu hồi (đăng xuất ở nơi khác, hết hạn) thì đóng kết nối
-      if (!this.store.db.prepare('SELECT 1 FROM sessions WHERE id_hash = ?').get(ws.sess.id)) this.kickSocket(ws, 'Phiên đăng nhập đã hết hiệu lực.');
+      if (!this.store.db.sessions.has(ws.sess.id)) this.kickSocket(ws, 'Phiên đăng nhập đã hết hiệu lực.');
     }
   }
 

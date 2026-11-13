@@ -17,6 +17,6 @@ services:
       - key: ALLOWED_ORIGINS
         sync: false          # ví dụ https://sysone-office.vercel.app (tên miền giao diện trên Vercel)
       - key: MONGODB_URI
-        sync: false          # (gói miễn phí không có ổ đĩa) chuỗi kết nối MongoDB Atlas: lưu dữ liệu để không mất khi khởi động lại
+        sync: false          # chuỗi kết nối MongoDB Atlas — nơi lưu dữ liệu (mỗi bảng một collection); gói miễn phí bắt buộc có
       - key: TRUST_PROXY
         value: "true"

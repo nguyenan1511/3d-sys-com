@@ -6,7 +6,7 @@ import { config, ROOT } from './config.js';
 import { createApp } from './app.js';
 import { compressedStatic } from './static.js';
 
-const { app, finish, hub, close, sync } = await createApp(config);
+const { app, finish, hub, close, db } = await createApp(config);
 const server = http.createServer(app);
 
 if (config.production) {
@@ -26,11 +26,11 @@ hub.attach(server);
 server.listen(config.port, config.host, () => {
   console.log(`SYSONE digital twin: http://localhost:${config.port}  (chính sách trùng mã: ${config.duplicatePolicy}, CEO ngồi mọi chỗ: ${config.adminCanSitAnywhere})`);
 });
-// tắt server (Render cho ngủ / deploy gửi SIGTERM): lưu dữ liệu lên MongoDB lần cuối (tối đa 20 giây) rồi mới thoát
+// tắt server (Render cho ngủ / deploy gửi SIGTERM): ghi nốt các thay đổi còn trong hàng đợi lên MongoDB (tối đa 20 giây) rồi mới thoát
 let stopping = false;
 const stop = async () => {
   if (stopping) return; stopping = true; server.close();
-  await Promise.race([sync.flush(), new Promise(r => setTimeout(r, 20000))]).catch(() => {});
-  close(); process.exit(0);
+  await Promise.race([db.flush(), new Promise(r => setTimeout(r, 20000))]).catch(() => {});
+  await Promise.race([close(), new Promise(r => setTimeout(r, 3000))]).catch(() => {}); process.exit(0);
 };
 process.on('SIGINT', stop); process.on('SIGTERM', stop);

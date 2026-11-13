@@ -32,7 +32,7 @@ export function createSession(db, kind, subject) {
   const token = crypto.randomBytes(32).toString('base64url');
   const hours = kind === 'admin' ? config.adminSessionHours : config.employeeSessionHours;
   const now = Date.now();
-  db.prepare('INSERT INTO sessions (id_hash, kind, subject, created_at, expires_at) VALUES (?, ?, ?, ?, ?)').run(tokenHash(token), kind, subject, now, now + hours * 3600e3);
+  db.sessions.insert({ id_hash: tokenHash(token), kind, subject, created_at: now, expires_at: now + hours * 3600e3 });
   return { token, maxAge: hours * 3600e3 };
 }
 
@@ -48,9 +48,9 @@ export function parseCookies(header) {
 export function sessionFromCookie(db, cookieHeader) {
   const token = parseCookies(cookieHeader)[COOKIE];
   if (!token) return null;
-  const s = db.prepare('SELECT id_hash, kind, subject, expires_at FROM sessions WHERE id_hash = ?').get(tokenHash(token));
+  const s = db.sessions.get(tokenHash(token));
   if (!s) return null;
-  if (s.expires_at < Date.now()) { db.prepare('DELETE FROM sessions WHERE id_hash = ?').run(s.id_hash); return null; }
+  if (s.expires_at < Date.now()) { db.sessions.del(s.id_hash); return null; }
   return { id: s.id_hash, kind: s.kind, subject: s.subject };
 }
 
@@ -62,13 +62,13 @@ export function clearSessionCookie(res) { res.clearCookie(COOKIE, { httpOnly: tr
 // ---------- giới hạn số lần sai trong cửa sổ 15 phút ----------
 const windowMs = () => config.loginWindowMin * 60e3;
 export function failureCount(db, scope, key) {
-  return db.prepare('SELECT COUNT(*) AS n FROM login_failures WHERE scope = ? AND key = ? AND ts > ?').get(scope, key, Date.now() - windowMs()).n;
+  const since = Date.now() - windowMs(); return db.login_failures.by('key', key).filter(r => r.scope === scope && r.ts > since).length;
 }
 export function recordFailure(db, scope, key) {
-  db.prepare('INSERT INTO login_failures (scope, key, ts) VALUES (?, ?, ?)').run(scope, key, Date.now());
-  db.prepare('DELETE FROM login_failures WHERE ts < ?').run(Date.now() - 24 * 3600e3);
+  db.login_failures.insert({ scope, key, ts: Date.now() });
+  const old = Date.now() - 24 * 3600e3; db.login_failures.delWhere(r => r.ts < old);
 }
-export function clearFailures(db, scope, key) { db.prepare('DELETE FROM login_failures WHERE scope = ? AND key = ?').run(scope, key); }
+export function clearFailures(db, scope, key) { for (const r of db.login_failures.by('key', key)) if (r.scope === scope) db.login_failures.del(r.id); }
 
 /** Yêu cầu đến từ nguồn hợp lệ: không có Origin, cùng tên miền, hoặc nằm trong ALLOWED_ORIGINS (giao diện đặt ở Vercel). */
 export function originAllowed(req, allowed = []) {

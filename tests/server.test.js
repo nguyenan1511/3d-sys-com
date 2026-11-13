@@ -151,7 +151,7 @@ describe('ngoại hình nhân vật', () => {
   it('ngoại hình lưu theo bộ nhân vật cũ (VRM, pixel cũ, kiểu áo) được đưa về lựa chọn hiện có', () => {
     const db = openDb(':memory:'), s0 = new Store(db, { ...baseCfg });
     const code = s0.loginEmployee('1152-Lan').code;
-    db.prepare('UPDATE employees SET look = ? WHERE code = ?').run(JSON.stringify({ pixel: 'px-blue', model: 'vroid-boy', topStyle: 'jacket', topColor: '#ff7f50', hairColor: '#1d1a17' }), code);
+    db.employees.update(code, { look: JSON.stringify({ pixel: 'px-blue', model: 'vroid-boy', topStyle: 'jacket', topColor: '#ff7f50', hairColor: '#1d1a17' }) });
     const s = new Store(db, { ...baseCfg });
     const look = s.lookOf(code), models = s.appearance.items.find(i => i.key === 'model').options.map(o => o.value);
     expect(models).toContain(look.model);

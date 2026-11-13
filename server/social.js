@@ -1,26 +1,15 @@
 // Chat nội bộ và loa nhạc của công ty.
-// Chat: kênh "Toàn công ty", kênh của từng phòng ban (src/shared/departments.js), nhắn riêng 1-1. Lưu trong SQLite
-//   (bảng chat_messages), gửi tức thời qua WebSocket. Kênh phòng ban: chỉ thành viên phòng đó (theo hồ sơ nhân viên hoặc
+// Chat: kênh "Toàn công ty", kênh của từng phòng ban (src/shared/departments.js), nhắn riêng 1-1. Lưu trong MongoDB
+//   (collection chat_messages), gửi tức thời qua WebSocket. Kênh phòng ban: chỉ thành viên phòng đó (theo hồ sơ nhân viên hoặc
 //   phòng của bàn mình nhận) và CEO đọc/gửi được. Nhắn riêng: chỉ hai người trong cuộc thấy.
 // Loa: dán link YouTube ở góc âm nhạc → cả công ty nghe, video chiếu lên TV phòng giải trí. Chỉ CEO và người được CEO cấp
 //   quyền mới phát/điều khiển; trạng thái lưu ở world_state('music'), quyền ở employees.can_music.
 import { DEPARTMENTS, findDepartment, departmentOfDesk } from '../src/shared/departments.js';
+import { worldGet, worldSet } from './db.js';
 
 const MAX_LEN = 500, HISTORY = 80;
 
-export function migrateSocial(db) {
-  db.exec(`CREATE TABLE IF NOT EXISTS chat_messages (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    channel TEXT NOT NULL,
-    sender TEXT NOT NULL,
-    sender_name TEXT NOT NULL,
-    body TEXT NOT NULL,
-    ts INTEGER NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS chat_channel_ts ON chat_messages(channel, id);`);
-  const cols = db.prepare('PRAGMA table_info(employees)').all().map(c => c.name);
-  if (!cols.includes('can_music')) db.exec('ALTER TABLE employees ADD COLUMN can_music INTEGER NOT NULL DEFAULT 0');
-}
+// Bảng chat_messages: { id, channel, sender, sender_name, body, ts } (server/memdb.js).
 
 /** Phòng ban của một người (id phòng) hoặc null. */
 export function deptIdOf(store, actor) {
@@ -39,23 +28,23 @@ export function canUseChannel(store, actor, key, channel) {
   return false;
 }
 export function history(store, channel, before = null) {
-  const rows = before ? store.db.prepare('SELECT * FROM chat_messages WHERE channel = ? AND id < ? ORDER BY id DESC LIMIT ?').all(channel, before, HISTORY)
-    : store.db.prepare('SELECT * FROM chat_messages WHERE channel = ? ORDER BY id DESC LIMIT ?').all(channel, HISTORY);
+  const rows = store.db.chat_messages.by('channel', channel).filter(r => !before || r.id < before).sort((a, b) => b.id - a.id).slice(0, HISTORY);
   return rows.reverse().map(view);
 }
 const view = r => ({ id: r.id, channel: r.channel, from: r.sender, name: r.sender_name, body: r.body, ts: r.ts });
 /** Các kênh nhắn riêng mà người này đã có tin. */
 export function myDms(store, key) {
-  return store.db.prepare("SELECT channel, MAX(id) AS last FROM chat_messages WHERE channel LIKE 'dm:%' AND (channel LIKE ? OR channel LIKE ?) GROUP BY channel ORDER BY last DESC LIMIT 30")
-    .all(`dm:${key}|%`, `dm:%|${key}`).map(r => r.channel);
+  const out = [];
+  for (const [ch, ids] of store.db.chat_messages.idx.channel) if (ch.startsWith('dm:') && ch.slice(3).split('|').includes(key)) out.push([ch, Math.max(...ids)]);
+  return out.sort((a, b) => b[1] - a[1]).slice(0, 30).map(r => r[0]);
 }
 export function postMessage(store, actor, key, name, channel, body) {
   const text = String(body || '').replace(/\s+/g, ' ').trim().slice(0, MAX_LEN);
   if (!text) return null;
   if (!canUseChannel(store, actor, key, channel)) return null;
   const ts = Date.now();
-  const r = store.db.prepare('INSERT INTO chat_messages (channel, sender, sender_name, body, ts) VALUES (?, ?, ?, ?, ?)').run(channel, key, name, text, ts);
-  return { id: Number(r.lastInsertRowid), channel, from: key, name, body: text, ts };
+  const id = store.db.chat_messages.insert({ channel, sender: key, sender_name: name, body: text, ts });
+  return { id, channel, from: key, name, body: text, ts };
 }
 
 // ---------- loa: phát nhạc từ YouTube cho cả công ty ----------
@@ -63,19 +52,18 @@ export function postMessage(store, actor, key, name, channel, body) {
 // Vị trí hiện tại = paused ? position : (giờ server − startedAt) / 1000 — mọi máy tự tính và khớp theo giờ server.
 export function canMusic(store, actor) {
   if (actor.kind === 'admin') return true;
-  return !!store.db.prepare('SELECT can_music FROM employees WHERE code = ?').get(actor.code)?.can_music;
+  return !!store.db.employees.get(actor.code)?.can_music;
 }
 const OFF = { on: false, videoId: '', title: '', by: '', startedAt: 0, paused: false, position: 0, updatedAt: 0 };
 export function musicState(store) {
-  const r = store.db.prepare("SELECT value FROM world_state WHERE key = 'music'").get();
-  let st; try { st = r ? JSON.parse(r.value) : null; } catch { st = null; }
+  const v = worldGet(store.db, 'music');
+  let st; try { st = v ? JSON.parse(v) : null; } catch { st = null; }
   if (!st || typeof st.videoId !== 'string') st = { ...OFF };            // (trạng thái kiểu cũ — kênh nhạc tự tạo — coi như đang tắt)
   return { ...st, serverNow: Date.now() };
 }
 function saveMusic(store, key, st) {
   const { serverNow: _drop, ...keep } = st; void _drop;
-  store.db.prepare('INSERT INTO world_state (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by')
-    .run('music', JSON.stringify({ ...keep, updatedAt: Date.now() }), Date.now(), key);
+  worldSet(store.db, 'music', JSON.stringify({ ...keep, updatedAt: Date.now() }), key);
   return musicState(store);
 }
 /** Mã video (11 ký tự) từ link YouTube: youtube.com/watch?v=, youtu.be/, /shorts/, /embed/, /live/, music.youtube.com; null nếu không hợp lệ. */
@@ -107,13 +95,12 @@ export function playMusic(store, key, by, videoId, title) {
   const st = saveMusic(store, key, { on: true, videoId, title, by, startedAt: now, paused: false, position: 0 });
   // 10 bài gần nhất (gợi ý phát lại ở góc âm nhạc)
   const recent = recentMusic(store).filter(x => x.videoId !== videoId); recent.unshift({ videoId, title, by, at: now });
-  store.db.prepare('INSERT INTO world_state (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by')
-    .run('music_recent', JSON.stringify(recent.slice(0, 10)), now, key);
+  worldSet(store.db, 'music_recent', JSON.stringify(recent.slice(0, 10)), key);
   return st;
 }
 export function recentMusic(store) {
-  const r = store.db.prepare("SELECT value FROM world_state WHERE key = 'music_recent'").get();
-  try { return r ? JSON.parse(r.value) : []; } catch { return []; }
+  const v = worldGet(store.db, 'music_recent');
+  try { return v ? JSON.parse(v) : []; } catch { return []; }
 }
 /** Điều khiển: pause | resume | seek (position giây) | stop. */
 export function controlMusic(store, key, by, action, position) {
@@ -127,9 +114,8 @@ export function controlMusic(store, key, by, action, position) {
   return null;
 }
 export function setMusicPermission(store, code, allow) {
-  const r = store.db.prepare('UPDATE employees SET can_music = ? WHERE code = ?').run(allow ? 1 : 0, code);
-  return r.changes === 1;
+  return store.db.employees.update(code, { can_music: allow ? 1 : 0 }) === 1;
 }
 export function musicPermissions(store) {
-  return store.db.prepare('SELECT code FROM employees WHERE can_music = 1').all().map(r => r.code);
+  return store.db.employees.where(r => r.can_music).map(r => r.code);
 }
