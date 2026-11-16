@@ -2933,3 +2933,16 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
   .mt-vstrip .mt-tile { height: 100%; width: auto; }
 }
 @media (prefers-reduced-motion: reduce) { .mt-call, .mt-tile { animation: none !important; } }
+
+/* ===================== HIỆU NĂNG: KHÔNG làm mờ nền (backdrop-filter) =====================
+   Phần tử có backdrop-filter nằm trên cảnh 3D buộc trình duyệt làm mờ lại phần cảnh phía sau MỖI khung hình. Đo trên Chrome
+   thật (M2 Pro, 2026-11-16): chỉ 2 phần tử (.nav-line + .cam-hint) đã kéo văn phòng từ 80 xuống 29 khung hình/giây; phòng
+   bi-a / karaoke / phòng họp cũng vẽ 3D liên tục sau các bảng mờ. Không dùng backdrop-filter ở bất kỳ đâu — muốn nền
+   "kính" thì tăng độ đậm của màu nền. */
+*, *::before, *::after { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+/* bù độ đậm cho các bảng tối vốn trong suốt nhiều (chữ vẫn dễ đọc trên cảnh 3D) */
+.music-bar { background: rgba(18, 20, 30, .86) !important; }
+.rm-hint, .b3-pl, .b3-power { background: rgba(15, 15, 22, .84) !important; }
+.k3-now { background: rgba(15, 12, 24, .86) !important; }
+#appRoot .k3-ctrl button, .k3-ctrl button { background-color: rgba(16, 13, 26, .86); }
+#loading.ld-quick { background: rgba(255, 250, 243, .82); }
