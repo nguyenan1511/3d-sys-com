@@ -21,7 +21,7 @@ export default defineConfig({
     // các bài kiểm thử viết cho Office SYS (bàn T…): chọn sẵn chế độ đó (Real SYS: tests/modes.test.js)
     storageState: { cookies: [], origins: [{ origin: `http://localhost:${PORT}`, localStorage: [{ name: 'sysone.mode', value: 'office' }] }] },
     viewport: { width: 1280, height: 800 },
-    launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }
+    launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--auto-select-desktop-capture-source=Entire screen'] }   // (mic / camera / màn hình giả cho bài họp trực tuyến)
   },
   webServer: {
     command: 'node --disable-warning=ExperimentalWarning server/index.js',

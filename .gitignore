@@ -10,3 +10,5 @@ public/model/src/
 *.db
 *.db-wal
 *.db-shm
+
+graphify-out/

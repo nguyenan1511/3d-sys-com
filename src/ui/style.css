@@ -2279,7 +2279,7 @@ body:has(#dash:not([hidden])) .notices { display: none; }
 
 /* ===================== Bảng thông báo · Phòng họp · Bảng vẽ ===================== */
 /* hộp thoại nổi lên trên mọi lớp phủ khác (xác nhận xoá trong bảng tin / phòng họp) */
-#modalRoot .modal-back { z-index: 96; }
+#modalRoot .modal-back { z-index: 96 !important; }   /* (luôn trên bảng Phòng họp / Bảng tin .sx-back 72 — kể cả luật điện thoại hạ .modal-back xuống 60) */
 body #toast.toast { z-index: 97; }
 .notices { z-index: 95; }
 .pr-new { display: inline-block; margin-left: 4px; padding: 0 7px; border-radius: 999px; background: var(--bad); color: #fff; font-size: 11px; font-weight: 900; vertical-align: 1px; }
@@ -2498,7 +2498,7 @@ body #toast.toast { z-index: 97; }
 .mt-cnt { flex: none; min-width: 18px; padding: 1px 6px; border-radius: 999px; background: rgba(43,45,66,.09); color: #4a4c63; font: 900 11px/16px var(--font); font-style: normal; text-align: center; }
 .mt-tabs button.on .mt-cnt { background: var(--ink); color: #fff; }
 .mt-side { container-type: inline-size; }
-@container (max-width: 350px) { .mt-tabs button[data-tab] > svg { display: none; } .mt-tabs button[data-tab] { padding: 7px 6px !important; } }
+@container (max-width: 400px) { .mt-tabs button[data-tab] > svg { display: none; } }   /* (cột hẹp / điện thoại: bỏ icon để tên thẻ + số đếm đủ chỗ) */
 .mt-un { position: absolute; top: 4px; right: 8px; width: 8px; height: 8px; border-radius: 50%; background: #ef476f; }
 .mt-sx { display: none; }
 .mt-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 10px; overflow: auto; }
@@ -2807,3 +2807,129 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
   #appRoot .k3-ctrl .ktv-mic, .k3-ctrl .ktv-mic { height: 46px; padding: 0 13px; font-size: 12.5px; }
   .k3-ctrl .k3-dance span { display: none; }
 }
+
+/* ===================== HỆ NÚT CHUNG (luồng phòng họp, bảng tin, hộp xác nhận) =====================
+   Mọi nút trong cùng một luồng: cùng chiều cao, cùng bo tròn, cùng chữ. Thêm nút mới: dùng đúng các lớp dưới đây,
+   KHÔNG tự đặt chiều cao / padding riêng.
+   • Nút hành động  .sx-primary (cam) · .sx-ghost (viền) · .sx-ghost.danger (đỏ)  → --btn-h, bo tròn hẳn, chữ 13/800
+   • Thẻ chuyển tab .sx-tabs · .mp-sub · .mt-tabs · .mp-durs                     → cùng chiều cao --btn-h
+   • Kiểu PHẲNG: không gờ nổi dưới đáy (box-shadow 0 3px 0) cho bất kỳ nút nào; biểu tượng trong nút = màu chữ, cỡ --btn-ico
+   • Nút biểu tượng .sx-x · .sx-icon · .dp-nav · nút gửi chat · thu gọn          → hình tròn --btn-h */
+:root { --btn-h: 38px; --tab-h: var(--btn-h); --tab-h-touch: var(--btn-h); --btn-font: 800 13px/1 var(--font); --btn-ico: 16px; }   /* (MỘT chiều cao cho mọi nút + thẻ tab) */
+.sx-primary, .sx-ghost, .mt-open, .mt-end, .mt-leave, #modalRoot .modal:not(.charsel) .actions button {   /* (danh sách thường, KHÔNG :is(): :is() lấy độ ưu tiên cao nhất của cả nhóm — #modalRoot — rồi đè luật điện thoại) */
+  box-sizing: border-box !important; height: var(--btn-h) !important; min-height: var(--btn-h) !important; padding: 0 16px !important;
+  display: inline-flex !important; align-items: center; justify-content: center; gap: 6px; border-radius: 999px !important;
+  font: var(--btn-font) !important; white-space: nowrap; margin: 0 !important;
+}
+#modalRoot .modal:not(.charsel) .actions button { min-width: 92px; }
+:is(.sx-tabs button, .mp-sub button, .mt-tabs button[data-tab], .mp-durs button) {
+  box-sizing: border-box !important; height: var(--tab-h) !important; min-height: var(--tab-h) !important; padding: 0 14px !important;
+  display: inline-flex !important; align-items: center; justify-content: center; gap: 6px; border-radius: 999px !important; font: var(--btn-font) !important;
+}
+.mt-tabs button[data-tab] { padding: 0 8px !important; gap: 4px; }
+:is(.sx-x, .sx-icon, .dp-nav, .mt-form button, .mt-sx) {
+  box-sizing: border-box !important; width: var(--btn-h) !important; height: var(--btn-h) !important; min-width: var(--btn-h); padding: 0 !important;
+  place-items: center; border-radius: 50% !important; flex: none;   /* (không ép display: nút chỉ hiện ở điện thoại như .mt-sx vẫn ẩn ở máy tính) */
+}
+:is(.sx-x, .sx-icon, .dp-nav, .mt-form button) { display: inline-grid !important; }
+.mt-pipmax { width: 32px !important; height: 32px !important; }
+.sx-back-link { box-sizing: border-box; height: var(--tab-h); padding: 0 12px 0 6px !important; border-radius: 999px !important; }
+.sx-back-link:hover { background: rgba(43,45,66,.06) !important; color: var(--ink); }
+/* MỘT kiểu thẻ tab cho cả luồng (thanh trên của bảng Phòng họp / Bảng tin, Tài liệu · Bảng vẽ · Chat trong folder,
+   Chat · Tài liệu · Thành viên trong phòng họp, chọn thời lượng): viên thuốc viền mảnh, đang chọn = nền mực chữ trắng.
+   (Trước đây mỗi chỗ một kiểu: viền / nền xám + ô trắng nổi / trong suốt.) */
+.mp-sub, .mp-durs { background: transparent !important; padding: 0 !important; gap: 8px !important; border-radius: 0 !important; }
+:is(.sx-tabs button, .mp-sub button, .mt-tabs button[data-tab], .mp-durs button) { border: 1px solid rgba(43,45,66,.18) !important; background: #fff !important; color: var(--ink) !important; box-shadow: none !important; transition: background .15s, color .15s, border-color .15s; }
+:is(.sx-tabs button, .mp-sub button, .mt-tabs button[data-tab], .mp-durs button):hover:not(:disabled):not(.on) { border-color: var(--ink) !important; }
+:is(.sx-tabs button, .mp-sub button, .mt-tabs button[data-tab], .mp-durs button).on { background: var(--ink) !important; color: #fff !important; border-color: var(--ink) !important; }
+:is(.sx-tabs, .mt-tabs, .mp-sub) button.on .mt-cnt { background: rgba(255,255,255,.22); color: #fff; }
+.mt-tabs { gap: 6px !important; }
+/* ô chọn giờ bắt đầu: cùng kiểu với ô chọn thời lượng (viên thuốc --btn-h, chữ --btn-font) */
+.mp-sl { box-sizing: border-box !important; height: var(--btn-h) !important; min-height: var(--btn-h) !important; padding: 0 12px !important; border-radius: 999px !important; font: var(--btn-font) !important; box-shadow: none !important; }
+/* gợi ý "Bấm vào bảng trắng": máy tính cùng chiều cao + chữ với nút (điện thoại xuống dòng nên để tự cao) */
+@media (min-width: 761px) { .mt-hint { box-sizing: border-box; height: var(--btn-h); padding: 0 18px !important; font: 700 13px/1 var(--font) !important; } }
+/* phẳng: bỏ mọi gờ nổi riêng lẻ (nút cam, nút đỏ xác nhận, thanh họp) — nhấn: lún 1px như nhau */
+.sx-primary, .sx-ghost, .mt-open, .mt-end, .mt-leave, .mt-cb, #modalRoot .modal:not(.charsel) .actions button, #modalRoot .modal:not(.charsel) #mOk, #modalRoot .modal:not(.charsel) #mOk.danger-fill { box-shadow: none !important; }
+.sx-primary:active, .sx-ghost:active, .mt-open:active, .mt-end:active, .mt-leave:active, .mt-cb:active, #modalRoot .modal:not(.charsel) .actions button:active { transform: translateY(1px); box-shadow: none !important; }
+#modalRoot .modal:not(.charsel) #mCancel { border-width: 1px !important; }
+/* biểu tượng trong nút: cùng cỡ, cùng màu chữ của nút (không bị luật xám của vùng chứa — vd. .sx-empty .ico — làm nhạt) */
+:is(.sx-primary, .sx-ghost, .mt-open, .mt-end, .mt-leave, .mt-cb, .sx-tabs button, .mp-sub button, .mt-tabs button[data-tab]) > svg { width: var(--btn-ico) !important; height: var(--btn-ico) !important; flex: none; color: currentColor !important; opacity: 1 !important; }
+.sx-empty .sx-primary .ico, .sx-empty .sx-ghost .ico { color: currentColor; }
+/* bảng vẽ Excalidraw nằm trong lớp riêng: thanh công cụ / lời chào của nó không vẽ đè lên tấm Chat · Tài liệu (điện thoại) */
+.mt-room .mt-wb { position: relative; isolation: isolate; z-index: 0; }
+.mt-room .mt-side { z-index: 3; }
+@media (max-width: 760px), (pointer: coarse) {
+  :is(.sx-tabs button, .mp-sub button, .mt-tabs button[data-tab], .mp-durs button) { height: var(--tab-h-touch) !important; min-height: var(--tab-h-touch) !important; }
+  .mp-durs button { border-radius: 999px !important; }
+  .sx-back-link { height: var(--tab-h-touch); }
+  .mt-room :is(.mt-open, .mt-end, .mt-leave) { width: var(--btn-h) !important; padding: 0 !important; }
+}
+
+/* ===================== Họp trực tuyến: mic · camera · chia sẻ màn hình (src/ui/meetCall.js, meetRoom.js) =====================
+   Nút theo hệ nút chung (--btn-h, bo tròn hẳn, --btn-font); điện thoại: chỉ biểu tượng, nút tròn --btn-h. */
+.mt-call { position: fixed; left: 0; right: 0; margin-inline: auto; width: max-content; max-width: calc(100vw - 24px); box-sizing: border-box; bottom: calc(16px + env(safe-area-inset-bottom)); z-index: 4; display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 999px; background: rgba(43,45,66,.92); backdrop-filter: blur(8px); box-shadow: 0 10px 30px rgba(43,45,66,.3); animation: mt-in .26s cubic-bezier(.2,.9,.3,1) both; }
+.mt-cb { position: relative; box-sizing: border-box !important; height: var(--btn-h) !important; min-height: var(--btn-h) !important; padding: 0 16px !important; margin: 0 !important; display: inline-flex !important; align-items: center; justify-content: center; gap: 6px; border: 0 !important; border-radius: 999px !important; background: rgba(255,255,255,.12) !important; color: #fff !important; font: var(--btn-font) !important; white-space: nowrap; cursor: pointer; transition: background .15s ease, color .15s ease; }
+.mt-cb:hover { background: rgba(255,255,255,.2) !important; }
+.mt-cb:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.mt-cb.off { background: #ef476f !important; }                 /* mic / camera đang tắt: đỏ như Meet */
+.mt-cb.off:hover { filter: brightness(1.06); }
+.mt-cb.on { background: #fff !important; color: var(--ink) !important; }
+.mt-cb[data-m=screen].on { background: #06d6a0 !important; color: var(--ink) !important; }
+.mt-cb .mt-cnt { background: #ffd166; color: var(--ink); }
+.mt-cb.on .mt-cnt { background: var(--ink); color: #fff; }
+.mt-room.mode-call { background: #e9ecf3 !important; pointer-events: auto; }
+.mt-room.mode-call .mt-hint { display: none; }
+.mt-room.mode-scene .mt-hint { bottom: calc(76px + env(safe-area-inset-bottom)); }
+/* màn hình họp: phủ lên chỗ bảng vẽ (bảng vẫn giữ nguyên bên dưới) */
+.mt-vids { position: absolute; inset: 0; z-index: 5; display: none; gap: 10px; padding: 12px 12px 72px; background: #1f2133; }
+.mt-room.mode-call .mt-vids { display: flex; }
+.mt-vmain { flex: 1 1 auto; min-width: 0; min-height: 0; display: grid; gap: 10px; align-content: center; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); overflow: auto; }
+.mt-vmain[data-n="1"] { grid-template-columns: minmax(0, 960px); justify-content: center; }
+.mt-vmain[data-n="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.mt-vstrip { display: none; flex: none; width: 220px; flex-direction: column; gap: 10px; overflow: auto; }
+.mt-vids.has-big .mt-vstrip { display: flex; }
+.mt-vids.has-big .mt-vmain { grid-template-columns: 1fr; align-content: stretch; }
+.mt-tile { position: relative; aspect-ratio: 16 / 9; border-radius: 14px; overflow: hidden; background: #2b2d42; cursor: pointer; outline: 3px solid transparent; outline-offset: -3px; transition: outline-color .15s ease; animation: mt-tab .2s ease both; }
+.mt-vstrip .mt-tile { flex: none; }
+.mt-tile.big { aspect-ratio: auto; height: 100%; min-height: 0; cursor: zoom-out; }
+.mt-tile.talk { outline-color: #06d6a0; }
+.mt-tile:focus-visible { outline-color: var(--accent); }
+.mt-tile video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; background: #000; }
+.mt-tile.screen video, .mt-tile.big video { object-fit: contain; }
+.mt-tile.me.cam video { transform: scaleX(-1); }               /* (camera của mình: như soi gương) */
+.mt-tile.live video { display: block; }
+.mt-tav { position: absolute; inset: 0; display: grid; place-items: center; }
+.mt-tile.live .mt-tav { display: none; }
+.mt-tav .mt-av { width: 64px; height: 64px; font-size: 22px; border-width: 3px; border-color: rgba(255,255,255,.85); }
+.mt-vstrip .mt-tav .mt-av { width: 44px; height: 44px; font-size: 16px; }
+.mt-tile.screen .mt-tav .mt-av { display: none; }
+.mt-tile.screen .mt-tav::after { content: ''; width: 56px; height: 56px; border-radius: 16px; background: rgba(255,255,255,.08) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='2.5' y='4' width='19' height='13' rx='2'/%3E%3Cpath d='M8 21h8M12 17v4M12 13.5V8M9.5 10.3L12 7.8l2.5 2.5'/%3E%3C/svg%3E") center / 30px no-repeat; }
+.mt-tile.wait .mt-tav::before { content: 'Đang kết nối…'; position: absolute; top: 10px; right: 10px; padding: 3px 8px; border-radius: 999px; background: rgba(0,0,0,.4); color: #fff; font: 800 11px var(--font); }
+.mt-tname { position: absolute; left: 8px; bottom: 8px; max-width: calc(100% - 16px); display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; background: rgba(0,0,0,.5); color: #fff; font: 800 12px var(--font); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-tname .ico.mut { color: #ff8fa8; }
+/* có cột Chat bên phải (bảng vẽ / màn hình họp): thanh nút canh giữa phần bên trái, không đè ô nhập chat */
+@media (min-width: 761px) { .mt-room:is(.mode-split, .mode-call) .mt-call { left: 12px; right: calc(24px + clamp(320px, 27vw, 380px)); } }
+.mt-tile.big .mt-tname { top: 10px; bottom: auto; left: 10px; }   /* (ô to: tên ở góc trên — góc dưới thường có khung 3D thu nhỏ) */
+.mt-tile.screen.me .mt-tav { grid-template-rows: auto auto; align-content: center; gap: 12px; }
+.mt-tile.screen.me .mt-tav::before { content: 'Bạn đang chia sẻ màn hình cho mọi người'; order: 2; color: rgba(255,255,255,.85); font: 800 14px var(--font); text-align: center; padding: 0 12px; }
+.mt-tile.screen.me .mt-tav::after { order: 1; justify-self: center; }
+/* danh sách thành viên: mic / camera / màn hình của từng người */
+.mt-pm { margin-left: auto; flex: none; display: inline-flex; gap: 4px; color: #b0b2c3; }
+.mt-pm .ico.on { color: #04855f; }
+@media (max-width: 760px) {
+  .mt-call { bottom: calc(54px + 10px + env(safe-area-inset-bottom)); gap: 6px; padding: 5px; }
+  .mt-cb { width: var(--btn-h) !important; padding: 0 !important; }
+  .mt-cb span { display: none; }
+  .mt-cb .mt-cnt { position: absolute; top: -4px; right: -4px; min-width: 16px; padding: 0 4px; font-size: 10px; line-height: 16px; }
+  .mt-room.sheet .mt-call { opacity: 0; pointer-events: none; }
+  .mt-room.mode-split .mt-call { bottom: calc(54px + 64px + env(safe-area-inset-bottom)); }   /* (trên thanh công cụ của bảng vẽ) */
+  .mt-room.mode-scene .mt-hint { bottom: calc(54px + 66px + env(safe-area-inset-bottom)); white-space: normal; display: block; width: max-content; max-width: calc(100vw - 32px); text-align: center; line-height: 1.4; }
+  .mt-room.mode-scene .mt-hint svg { vertical-align: -3px; margin-right: 4px; }
+  .mt-room.mode-call .mt-pip { display: none; }   /* (điện thoại: khung 3D thu nhỏ che ô camera — xem cảnh 3D: bấm lại "Màn hình họp") */
+  .mt-vids { flex-direction: column; padding: 8px 8px calc(54px + 64px + env(safe-area-inset-bottom)); }
+  .mt-vmain { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+  .mt-vmain[data-n="2"] { grid-template-columns: 1fr; }
+  .mt-vstrip { width: auto; height: 96px; flex-direction: row; }
+  .mt-vstrip .mt-tile { height: 100%; width: auto; }
+}
+@media (prefers-reduced-motion: reduce) { .mt-call, .mt-tile { animation: none !important; } }

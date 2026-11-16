@@ -33,6 +33,13 @@ test('bảng tin + phòng họp 3D: đặt phòng, vào phòng, vẽ chung, xoá
   await a.mouse.click(pt.x, pt.y);
   await expect(a.locator('.mt-room.mode-split .excalidraw canvas.interactive')).toBeVisible({ timeout: 30_000 });   // (bảng vẽ Excalidraw)
   await expect(a.locator('.mt-pip')).toBeVisible();
+  // hệ nút chung: nút hành động cùng một chiều cao, thẻ tab cùng một chiều cao, biểu tượng trong nút không bị bóp
+  const btnH = await a.evaluate(() => {
+    const hs = sel => [...new Set([...document.querySelectorAll(sel)].filter(b => b.offsetParent).map(b => Math.round(b.getBoundingClientRect().height)))];
+    const icons = [...document.querySelectorAll('.mt-top button svg')].map(x => Math.round(x.getBoundingClientRect().width));
+    return { act: hs('.mt-top button, .mt-room .sx-ghost, .mt-room .sx-primary'), tab: hs('.mt-tabs button[data-tab]'), icon: Math.min(...icons) };
+  });
+  expect(btnH.act).toEqual([38]); expect(btnH.tab).toEqual([38]); expect(btnH.icon).toBeGreaterThanOrEqual(13);
   await expect(a.locator('.mt-pane[data-pane=chat] .mt-form')).toBeVisible();   // (cột phải: thanh thẻ ở trên, mỗi thẻ chiếm trọn phần dưới)
   await a.click('[data-tab=people]');
   // tên thẻ + số đếm luôn một hàng (máy tính hẹp và điện thoại)

@@ -43,7 +43,8 @@ describe('nền API', () => {
     expect(r.status).toBe(401);
     expect(r.headers.get('x-content-type-options')).toBe('nosniff');
     expect(r.headers.get('x-frame-options')).toBe('SAMEORIGIN');
-    expect(r.headers.get('permissions-policy')).toContain('camera=()');
+    expect(r.headers.get('permissions-policy')).toContain('camera=(self)');   // (họp trực tuyến: chỉ trang của mình được dùng camera)
+    expect(r.headers.get('permissions-policy')).toContain('geolocation=()');
   });
   it('chống CSRF: ghi không phải JSON → 415, khác nguồn → 403; JSON hỏng → 400 bad_json', async () => {
     const c = await loginEmp('4101-An');

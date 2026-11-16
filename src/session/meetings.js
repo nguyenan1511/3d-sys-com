@@ -3,7 +3,8 @@
 //    Người không có trong danh sách: không vào được (bị đưa ra cửa; server cũng bỏ qua vị trí trong phòng).
 //  • Server nhắn: được mời (meet:invited), 10 phút trước + đúng giờ (meet:remind) — thông báo có nút đi tới phòng;
 //    tới cửa là tự vào phòng. Đổi giờ / huỷ / bị gỡ khỏi danh sách: báo ngay.
-//  • Trong phòng: lớp phủ phòng họp (src/ui/meetRoom.js) — bảng vẽ chung, kênh chat riêng, tài liệu, người trong phòng.
+//  • Trong phòng: lớp phủ phòng họp (src/ui/meetRoom.js) — bảng vẽ chung, kênh chat riêng, tài liệu, người trong phòng,
+//    họp trực tuyến (mic, camera, chia sẻ màn hình — src/ui/meetCall.js).
 //  • Lịch phòng, đặt phòng, "Cuộc họp của tôi", "Folder của tôi": src/ui/meetPanel.js.
 import { api } from '../net/api.js';
 import { notice } from '../ui/notices.js';
@@ -29,6 +30,7 @@ export class Meetings {
     rt.on('meet:members', m => this.room?.members(m.members));
     rt.on('meet:wb', m => { if (m.id === this.inRoom) this.room?.wb?.receive(m.elements); });
     rt.on('meet:ptr', m => { if (m.id === this.inRoom) this.room?.wb?.peer(m); });
+    rt.on('meet:rtc', m => { if (m.id === this.inRoom) this.room?.call?.signal(m.from, m.data); });   // (họp trực tuyến: bắt tay WebRTC)
     rt.on('meet:files', () => this.room?.loadFiles());
     rt.on('meet:left', m => { if (this.inRoom === m.id) this.closeRoom(); });
     rt.on('meet:ended', m => { if (this.inRoom === m.id) { this.s.toast(m.purged ? 'Host đã kết thúc và xoá cuộc họp.' : m.early ? 'Host đã kết thúc cuộc họp. Tài liệu, bảng vẽ, chat vẫn còn trong "Folder của tôi".' : 'Cuộc họp đã hết giờ. Tài liệu, bảng vẽ, chat vẫn còn trong "Folder của tôi".', false, 6000); this.closeRoom(); } this.loadSched(); this.loadMine(); });

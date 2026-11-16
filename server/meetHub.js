@@ -7,6 +7,9 @@
 //    Bản vẽ lưu ở db.blobs 'board:<id>' ({ elements, files }) — không giữ trong bộ nhớ khi phòng trống; xem lại ở "Folder của tôi".
 //  • Nhắc giờ: 10 phút trước và đúng giờ họp, server nhắn cho host + người được mời đang online (meet:remind) và ghi một
 //    dòng vào kênh chat của cuộc họp. Được mời / đổi giờ / huỷ: báo ngay (meet:invited, meet:changed, meet:cancelled).
+//  • Họp trực tuyến: mic / camera / chia sẻ màn hình truyền thẳng giữa các máy trong phòng (WebRTC, nối từng cặp — như
+//    phòng karaoke). Máy chủ chỉ chuyển tin bắt tay (meet:rtc, chỉ giữa hai người cùng phòng) và giữ ai đang bật gì
+//    (meet:media {mic, cam, screen} → có trong danh sách người trong phòng). Không ghi âm, không lưu hình.
 //  • Chặn người ngoài: trong giờ họp, vị trí của người không có trong danh sách mà nằm trong phòng họp sẽ bị bỏ qua
 //    (client cũng tự đẩy nhân vật ra cửa).
 import { getMeeting, isParticipant, isOpen, ROOMS, EARLY } from './meetings.js';
@@ -25,7 +28,7 @@ export class MeetHub {
   sendKey(key, msg) { for (const s of this.hub.sockets.get(key) || []) this.hub.send(s, msg); }
   err(ws, msg) { this.hub.send(ws, { t: 'meetErr', msg }); }
   /** Trạng thái gọn của phòng (ai đang trong phòng) gửi cho người trong phòng. */
-  members(id) { const r = this.rooms.get(id); return r ? [...r.members].map(([key, v]) => ({ key, display: v.display })) : []; }
+  members(id) { const r = this.rooms.get(id); return r ? [...r.members].map(([key, v]) => ({ key, display: v.display, media: v.media })) : []; }
   toRoom(id, msg, except = null) { const r = this.rooms.get(id); if (!r) return; for (const k of r.members.keys()) for (const s of this.hub.sockets.get(k) || []) if (s !== except) this.hub.send(s, msg); }
   pushMembers(id) { this.toRoom(id, { t: 'meet:members', id, members: this.members(id) }); }
   /** Ai đang ở phòng nào (để client hiện số người trong phòng ở cửa). */
@@ -119,7 +122,23 @@ export class MeetHub {
       case 'meet:leave': return this.leave(ws.key, id);
       case 'meet:wb': return this.wb(ws, id, m.elements);
       case 'meet:ptr': return this.ptr(ws, id, m);
+      case 'meet:media': return this.media(ws, id, m);
+      case 'meet:rtc': return this.rtc(ws, id, m);
     }
+  }
+  /** Mình đang bật mic / camera / chia sẻ màn hình (để mọi người hiện đúng ô hình, biểu tượng mic). */
+  media(ws, id, m) {
+    const v = this.rooms.get(id)?.members.get(ws.key); if (!v) return;
+    const next = { mic: !!m.mic, cam: !!m.cam, screen: !!m.screen };
+    if (v.media.mic === next.mic && v.media.cam === next.cam && v.media.screen === next.screen) return;
+    v.media = next; this.pushMembers(id);
+  }
+  /** Chuyển tin bắt tay WebRTC — chỉ giữa hai người đang cùng phòng họp. */
+  rtc(ws, id, m) {
+    const r = this.rooms.get(id);
+    if (!r?.members.has(ws.key) || typeof m.to !== 'string' || !r.members.has(m.to) || m.to === ws.key) return;
+    if (JSON.stringify(m.data ?? null).length > 64000) return;
+    this.sendKey(m.to, { t: 'meet:rtc', id, from: ws.key, data: m.data });
   }
   async join(ws, id) {
     const m = getMeeting(this.store, id);
@@ -131,7 +150,7 @@ export class MeetHub {
     // đang ở cuộc họp khác: rời phòng đó trước
     const other = this.roomOf(ws.key); if (other && other !== id) this.leave(ws.key, other);
     const r = await this.room(id);
-    r.members.set(ws.key, { display: this.hub.presence.get(ws.key)?.display || this.meetings.names(ws.key) });
+    r.members.set(ws.key, { display: this.hub.presence.get(ws.key)?.display || this.meetings.names(ws.key), media: { mic: false, cam: false, screen: false } });   // (vào lại: máy mới chưa bật gì)
     for (const s of this.hub.sockets.get(ws.key) || []) this.hub.send(s, { t: 'meet:state', id, meeting: this.meetings.view(m, ws.key), members: this.members(id), elements: this.scene(r), files: [...r.files.keys()] });
     this.pushMembers(id);
     this.hub.broadcast({ t: 'meet:busy', rooms: this.busy() });

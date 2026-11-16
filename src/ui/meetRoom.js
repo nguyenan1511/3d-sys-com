@@ -5,6 +5,9 @@
 // có thanh thẻ ở trên: Chat (kênh riêng của cuộc họp) · Tài liệu (tải lên / mở / tải về, lưu bảng vẽ) · Thành viên; cảnh 3D thu
 // thành khung nhỏ ở góc trái dưới — kéo để dời chỗ (nhớ vị trí), bấm để phóng to lại.
 // Điện thoại: Chat / Tài liệu / Thành viên là các thẻ trong tấm trượt từ dưới lên.
+// Họp trực tuyến (src/ui/meetCall.js): thanh nút ở dưới — Mic · Camera · Chia sẻ màn hình · "Màn hình họp" (xem camera của
+// mọi người; ai chia sẻ màn hình thì màn hình đó hiện to, camera xếp bên cạnh). Có người bắt đầu chia sẻ màn hình khi mình
+// đang xem cảnh 3D: tự mở "Màn hình họp".
 import { api } from '../net/api.js';
 import { esc, confirmDanger } from '../session/ui.js';
 import { icon } from './icons.js';
@@ -12,6 +15,7 @@ import { MeetingRoom } from '../rooms/meetingRoom.js';
 import { ExcaliBoard } from './excaliBoard.js';
 import { avatar, filesHtml, uploadFiles } from './meetPanel.js';
 import { hm } from '../session/meetings.js';
+import { MeetCall, canCall, canShareScreen } from './meetCall.js';
 
 const PIP_KEY = 'sysone.meetPip';
 const narrow = () => matchMedia('(max-width: 760px)').matches;
@@ -30,7 +34,7 @@ export class MeetRoom {
         <button type="button" class="mt-leave">${icon('logout', 15)} <span>Rời phòng</span></button>
       </header>
       <button type="button" class="mt-hint">${icon('hand', 16)} Bấm vào <b>bảng trắng</b> để mở bảng vẽ &amp; nội dung cuộc họp</button>
-      <div class="mt-main"><section class="mt-wb"></section>
+      <div class="mt-main"><section class="mt-wb"><div class="mt-vids" aria-label="Màn hình họp"><div class="mt-vmain"></div><div class="mt-vstrip"></div></div></section>
         <aside class="mt-side">
           <nav class="mt-tabs" role="tablist">${[['chat', 'chat', 'Chat'], ['files', 'folder', 'Tài liệu'], ['people', 'users', 'Thành viên']].map(([k, ic, n]) => `<button type="button" role="tab" data-tab="${k}">${icon(ic, 15)} <span>${n}</span><em class="mt-cnt" hidden></em><i class="mt-un" hidden></i></button>`).join('')}
             <button type="button" class="mt-sx" aria-label="Thu gọn">${icon('chevDown', 16)}</button></nav>
@@ -40,11 +44,18 @@ export class MeetRoom {
           <div class="mt-pane off" data-pane="people"><div class="mt-plist"></div></div>
         </aside></div>
       <div class="mt-pip" hidden role="button" tabindex="0" aria-label="Phòng 3D thu nhỏ — kéo để dời chỗ, bấm để phóng to"><canvas class="mt-pipc"></canvas>
-        <div class="mt-pipbar"><span>${icon('cube', 13)} <b class="mt-pipn">Phòng 3D</b></span><button type="button" class="mt-pipmax" title="Phóng to phòng 3D" aria-label="Phóng to phòng 3D">${icon('arrowUp', 14)}</button></div></div>`;
+        <div class="mt-pipbar"><span>${icon('cube', 13)} <b class="mt-pipn">Phòng 3D</b></span><button type="button" class="mt-pipmax" title="Phóng to phòng 3D" aria-label="Phóng to phòng 3D">${icon('arrowUp', 14)}</button></div></div>
+      <div class="mt-call" role="toolbar" aria-label="Họp trực tuyến">
+        <button type="button" class="mt-cb" data-m="mic"></button><button type="button" class="mt-cb" data-m="cam"></button>${canShareScreen() ? '<button type="button" class="mt-cb" data-m="screen"></button>' : ''}
+        <button type="button" class="mt-cb mt-vview" aria-pressed="false" title="Xem camera &amp; màn hình chia sẻ của mọi người">${icon('users', 16)}<span>Màn hình họp</span><em class="mt-cnt" hidden></em></button></div>`;
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
     this.wb = new ExcaliBoard(el.querySelector('.mt-wb'), { meetingId: this.id, me: this.s.key, names: k => this.name(k), send: msg => this.s.rt.send({ ...msg, id: this.id }), elements: st.elements, files: st.files,
       isHost: this.m.isHost, name: `bang-ve-${this.m.title.replace(/[^\p{L}\p{N}]+/gu, '-').slice(0, 40)}`, onChange: () => this.boardChanged(), onSaveDocs: () => this.saveBoard(), toast: (t, b) => this.s.toast(t, b) });
+    this.call = canCall() ? new MeetCall({ me: this.s.key, send: msg => this.s.rt.send({ ...msg, id: this.id }), toast: (t, b) => this.s.toast(t, b), onChange: () => this.renderCall(), onTalk: () => this.paintTalk() }) : null;
+    el.querySelectorAll('.mt-cb[data-m]').forEach(b => b.onclick = () => { if (!this.call) { this.s.toast('Trình duyệt này chưa hỗ trợ họp trực tuyến (mic / camera).', true); return; } this.call.toggle(b.dataset.m); });
+    el.querySelector('.mt-vview').onclick = () => this.setMode(this.mode === 'call' ? this.back || 'scene' : 'call');
+    el.querySelector('.mt-vids').addEventListener('click', e => { const t = e.target.closest('.mt-tile'); if (t) { this.pin = this.pin === t.dataset.id ? null : t.dataset.id; this.renderCall(); } });
     this.wb.ready.then(() => this.boardChanged()).catch(() => this.s.toast('Chưa tải được bảng vẽ — kiểm tra mạng rồi vào lại phòng.', true));
     el.querySelector('.mt-leave').onclick = () => this.c.leave();
     el.querySelector('.mt-open').onclick = () => this.setMode(this.mode === 'split' ? 'scene' : 'split');
@@ -68,7 +79,7 @@ export class MeetRoom {
     this.tick(); this.timer = setInterval(() => this.tick(), 15000);
     this.loadChat(); this.loadFiles();
   }
-  destroy() { this.gone = true; this.room?.setPip(null); clearInterval(this.timer); clearTimeout(this.prevT); this.wb?.destroy(); window.removeEventListener('keydown', this._key, true); window.removeEventListener('resize', this._resize); this.c.app.rooms?.exit('meet'); const el = this.el; el.classList.remove('show'); setTimeout(() => el.remove(), 220); }
+  destroy() { this.gone = true; this.call?.destroy(); this.room?.setPip(null); clearInterval(this.timer); clearTimeout(this.prevT); this.wb?.destroy(); window.removeEventListener('keydown', this._key, true); window.removeEventListener('resize', this._resize); this.c.app.rooms?.exit('meet'); const el = this.el; el.classList.remove('show'); setTimeout(() => el.remove(), 220); }
   /** Cảnh 3D phòng họp (vẽ bằng canvas của văn phòng — RoomStage; dựng một lần, lần sau vào lại ngay). */
   async open3d() {
     const stage = this.c.app.rooms; if (!stage) { this.setMode('split'); return; }
@@ -109,22 +120,26 @@ export class MeetRoom {
     const minY = (this.el.querySelector('.mt-top')?.offsetHeight || 60) + M, maxX = Math.max(M, W - w - M), maxY = Math.max(minY, H - h - M - (narrow() ? 54 : 0));
     if (left === undefined) {
       if (this.pipPos) { left = M + this.pipPos.x * (maxX - M); top = minY + this.pipPos.y * (maxY - minY); }
-      else { left = M; top = maxY - (narrow() ? 52 : 70); }   // (mặc định: góc trái dưới, ngay trên nút thu phóng / hoàn tác của bảng vẽ)
+      else { left = M; top = maxY - (narrow() ? 116 : 70); }   // (mặc định: góc trái dưới, trên nút thu phóng / hoàn tác của bảng vẽ và thanh nút họp (điện thoại))
     }
     left = Math.min(maxX, Math.max(M, left)); top = Math.min(maxY, Math.max(minY, top));
     pip.style.left = `${left}px`; pip.style.top = `${top}px`;
     this.pipPos = { x: maxX > M ? (left - M) / (maxX - M) : 0, y: maxY > minY ? (top - minY) / (maxY - minY) : 1 };
   }
   applyPip() {
-    const on = this.mode === 'split' && !!this.room;
+    const on = this.mode !== 'scene' && !!this.room;
     this.pipEl.hidden = !on;
     if (on) this.placePip();
     this.room?.setPip(on ? { el: this.pipEl, cv: this.pipEl.querySelector('canvas') } : null);
   }
-  /** scene: cảnh 3D toàn màn · split: bảng vẽ + cột chat/tài liệu, cảnh 3D thu vào khung nhỏ kéo được. */
+  /** scene: cảnh 3D toàn màn · split: bảng vẽ + cột chat/tài liệu · call: màn hình họp (camera, màn hình chia sẻ) + cột chat;
+   *  hai chế độ sau thu cảnh 3D vào khung nhỏ kéo được. */
   setMode(mode) {
+    if (mode === 'call' && this.mode !== 'call') this.back = this.mode;
     this.mode = mode;
-    this.el.classList.toggle('mode-split', mode === 'split'); this.el.classList.toggle('mode-scene', mode === 'scene');
+    for (const k of ['scene', 'split', 'call']) this.el.classList.toggle(`mode-${k}`, mode === k);
+    const v = this.el.querySelector('.mt-vview'); v.classList.toggle('on', mode === 'call'); v.setAttribute('aria-pressed', String(mode === 'call'));
+    if (mode === 'call') this.renderCall();
     const b = this.el.querySelector('.mt-open'); b.classList.toggle('on', mode === 'split'); b.setAttribute('aria-pressed', String(mode === 'split'));
     if (mode === 'split') { this.unreadAll = 0; b.querySelector('.mt-un').hidden = true; requestAnimationFrame(() => this.wb.open()); }
     this.applyPip();
@@ -167,6 +182,9 @@ export class MeetRoom {
     for (const p of list) if (!before.has(p.key) && p.key !== this.s.key && before.size) this.s.toast(`${p.display} vừa vào phòng họp.`);
     for (const k of before) if (!list.some(p => p.key === k)) this.wb.dropPeer(k);
     this.room?.members(list, this.m.host);
+    this.call?.sync(list);
+    this.watchShares(list);
+    this.renderCall();
     this.el.querySelector('.mt-here').innerHTML = list.slice(0, 6).map(p => avatar(p.key, p.display, p.key === this.m.host ? 'host' : '')).join('') + (list.length > 6 ? `<span class="mt-av more">+${list.length - 6}</span>` : '') + `<small>${list.length} trong phòng</small>`;
     this.el.querySelector('.mt-pipn').textContent = `Phòng 3D · ${list.length} người`;
     this.renderPeople();
@@ -175,11 +193,76 @@ export class MeetRoom {
   count(tab, v) { const e = this.el.querySelector(`[data-tab=${tab}] .mt-cnt`); e.textContent = v; e.hidden = v === ''; }
   renderPeople() {
     const here = new Set(this.inRoom.map(p => p.key)), all = [{ key: this.m.host, name: this.m.hostName }, ...(this.m.invitees || [])];
-    const row = p => `<li>${avatar(p.key, p.name, p.key === this.m.host ? 'host' : '')}<span><b>${esc(p.name)}${p.key === this.s.key ? ' (bạn)' : ''}</b><small>${p.key === this.m.host ? 'Host · ' : ''}${here.has(p.key) ? '<em class="in">Đang trong phòng</em>' : 'Chưa vào'}</small></span></li>`;
+    const row = p => `<li>${avatar(p.key, p.name, p.key === this.m.host ? 'host' : '')}<span><b>${esc(p.name)}${p.key === this.s.key ? ' (bạn)' : ''}</b><small>${p.key === this.m.host ? 'Host · ' : ''}${here.has(p.key) ? '<em class="in">Đang trong phòng</em>' : 'Chưa vào'}</small></span>${here.has(p.key) ? this.mediaIcons(p.key) : ''}</li>`;
     this.count('people', `${all.filter(p => here.has(p.key)).length}/${all.length}`);
     this.el.querySelector('.mt-plist').innerHTML = `<ul class="mt-people">${all.filter(p => here.has(p.key)).map(row).join('')}${all.filter(p => !here.has(p.key)).map(row).join('')}</ul>
       <p class="mt-note">${icon('info', 13)} Chỉ những người trong danh sách mới vào được phòng. ${this.m.isHost ? 'Thêm / bớt người: Phòng họp → Cuộc họp của tôi → Sửa.' : ''}</p>`;
   }
+
+  // ---------- họp trực tuyến ----------
+  media(key) { return key === this.s.key && this.call ? this.call.on : this.inRoom.find(p => p.key === key)?.media || {}; }
+  mediaIcons(key) { const m = this.media(key); return `<span class="mt-pm">${icon(m.mic ? 'mic' : 'micOff', 14, m.mic ? 'on' : '')}${m.cam ? icon('video', 14, 'on') : ''}${m.screen ? icon('screen', 14, 'on') : ''}</span>`; }
+  /** Có người vừa bắt đầu chia sẻ màn hình: báo; đang xem cảnh 3D thì tự mở màn hình họp. */
+  watchShares(list) {
+    const now = new Set(list.filter(p => p.media?.screen && p.key !== this.s.key).map(p => p.key)), was = this.sharing || new Set();
+    this.sharing = now;
+    for (const k of now) if (!was.has(k)) {
+      this.pin = `${k}:screen`;
+      this.s.toast(`${this.name(k)} đang chia sẻ màn hình.`);
+      if (this.mode === 'scene') this.setMode('call');
+    }
+  }
+  /** Ô hình: màn hình chia sẻ (to) + camera / ảnh đại diện của từng người trong phòng. Giữ nguyên thẻ <video> giữa các lần vẽ. */
+  renderCall() {
+    if (this.gone) return;
+    const el = this.el, me = this.s.key, on = this.call?.on || {};
+    // nút
+    const lab = { mic: on.mic ? ['mic', 'Tắt mic'] : ['micOff', 'Bật mic'], cam: on.cam ? ['video', 'Tắt camera'] : ['videoOff', 'Bật camera'], screen: on.screen ? ['screenOff', 'Dừng chia sẻ'] : ['screen', 'Chia sẻ màn hình'] };
+    el.querySelectorAll('.mt-cb[data-m]').forEach(b => {
+      const k = b.dataset.m, [ic, t] = lab[k], key = `${ic}|${t}`;
+      if (b._k !== key) { b._k = key; b.innerHTML = `${icon(ic, 16)}<span>${t}</span>`; }
+      b.classList.toggle('on', !!on[k]); b.classList.toggle('off', (k === 'mic' || k === 'cam') && !on[k]);
+      b.setAttribute('aria-pressed', String(!!on[k])); b.title = t; b.setAttribute('aria-label', t);
+    });
+    const people = this.inRoom.length ? this.inRoom : [{ key: me, display: this.name(me) }];
+    const tiles = [];
+    for (const p of people) if (this.media(p.key).screen) tiles.push({ id: `${p.key}:screen`, key: p.key, slot: 'screen' });
+    for (const p of people) tiles.push({ id: `${p.key}:cam`, key: p.key, slot: 'cam' });
+    const live = tiles.filter(t => t.slot === 'screen' || this.media(t.key).cam).length;
+    const cnt = el.querySelector('.mt-vview .mt-cnt'); cnt.textContent = live || ''; cnt.hidden = !live;
+    if (this.mode !== 'call') return;
+    const box = el.querySelector('.mt-vids'), main = box.querySelector('.mt-vmain'), strip = box.querySelector('.mt-vstrip');
+    if (this.pin && !tiles.some(t => t.id === this.pin)) this.pin = null;
+    const big = this.pin || tiles.find(t => t.slot === 'screen')?.id || null;   // (có màn hình chia sẻ / ô được ghim: hiện to)
+    box.classList.toggle('has-big', !!big);
+    this.tiles ||= new Map();
+    const keep = new Set();
+    for (const t of tiles) {
+      keep.add(t.id);
+      let d = this.tiles.get(t.id);
+      if (!d) {
+        d = document.createElement('div'); d.className = `mt-tile ${t.slot}`; d.dataset.id = t.id; d.tabIndex = 0;
+        d.innerHTML = `<video autoplay playsinline muted></video><div class="mt-tav">${avatar(t.key, this.name(t.key), t.key === this.m.host ? 'host' : '')}</div><span class="mt-tname"></span>`;
+        d.querySelector('video').muted = true;   // (tiếng phát riêng qua <audio> — không phát hai lần)
+        this.tiles.set(t.id, d);
+      }
+      const m = this.media(t.key), track = (t.slot === 'screen' || m.cam) ? this.call?.track(t.key, t.slot) : null;
+      const v = d.querySelector('video'), mine = t.key === me;
+      const show = !!track && !(mine && t.slot === 'screen');   // (màn hình của chính mình: không chiếu lại — tránh "gương trong gương")
+      if (show && v._track !== track) { v._track = track; v.srcObject = new MediaStream([track]); v.play().catch(() => {}); }
+      if (!show && v._track) { v._track = null; v.srcObject = null; }
+      d.classList.toggle('live', show); d.classList.toggle('me', mine); d.classList.toggle('big', t.id === big);
+      d.classList.toggle('wait', !mine && (t.slot === 'screen' || m.cam) && !show);
+      const nm = `${esc(this.name(t.key))}${mine ? ' (bạn)' : ''}`;
+      d.querySelector('.mt-tname').innerHTML = t.slot === 'screen' ? `${icon('screen', 13)} ${mine ? 'Bạn đang chia sẻ màn hình' : `Màn hình của ${nm}`}` : `${icon(m.mic ? 'mic' : 'micOff', 13, m.mic ? '' : 'mut')} ${nm}`;
+      const parent = t.id === big ? main : big ? strip : main;
+      parent.appendChild(d);   // (appendChild giữ thứ tự, không tạo lại thẻ video)
+    }
+    for (const [id, d] of this.tiles) if (!keep.has(id)) { const v = d.querySelector('video'); v.srcObject = null; d.remove(); this.tiles.delete(id); }
+    main.dataset.n = main.children.length;
+    this.paintTalk();
+  }
+  paintTalk() { if (!this.tiles) return; for (const [id, d] of this.tiles) { const [key, slot] = [id.slice(0, id.lastIndexOf(':')), id.slice(id.lastIndexOf(':') + 1)]; d.classList.toggle('talk', slot === 'cam' && !!this.call?.talking(key)); } }
 
   // ---------- chat ----------
   async loadChat() {
