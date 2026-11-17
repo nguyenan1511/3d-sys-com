@@ -75,7 +75,7 @@ export class RemoteAvatars {
       a.x += dx * k; a.z += dz * k; a.y += (t.y - a.y) * k;
       if (d > 3) { a.x = t.x; a.z = t.z; a.y = t.y; }
       a.yaw += angDiff(a.yaw, t.yaw) * k;
-      const sofa = t.act === 'tv';                       // đang ngồi sofa xem TV (khu giải trí)
+      const sofa = t.act === 'tv' || t.act === 'meet';   // đang ngồi sofa xem TV (khu giải trí) / ngồi quanh bàn họp
       const moving = d > 0.03 && !t.seated && !sofa;
       a.walkAmt += ((moving ? (t.run ? 2 : 1) : 0) - a.walkAmt) * Math.min(1, dt * 6);
       a.walkPhase += d * k / (0.42 * this.cs) * Math.PI;

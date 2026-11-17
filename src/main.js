@@ -536,7 +536,7 @@ export async function startApp(me, hooks = {}) {
   if (me.kind !== 'admin') { $('csv').closest('.row').hidden = true; document.querySelector('#panel .small code')?.closest('p')?.setAttribute('hidden', ''); }
   if (me.kind === 'admin') { const { Dashboard } = await import('./admin/dashboard.js'); app.dashboard = new Dashboard(app, session); }
   app.intro = new Intro(app, session);   // giới thiệu nhanh "Có gì ở văn phòng?" (public/data/intro.json)
-  document.addEventListener('click', e => { if (e.target.closest?.('.intro-btn')) app.intro.open(); });
+  document.addEventListener('click', e => { if (e.target.closest?.('.intro-btn')) app.intro.togglePins(); });   // (bật / tắt ghim nổi; danh sách đầy đủ ở thanh trên của ghim)
 
   // ---------- điều khiển ----------
   document.querySelectorAll('[data-view]').forEach(b => b.onclick = () => { app.autoCut = false; rig.go(b.dataset.view); $('cR').checked = false; });
@@ -668,6 +668,7 @@ export async function startApp(me, hooks = {}) {
   const adapt = { low: 0, high: 0, flips: 0, last: 0 };
   function adaptPR(f) {
     if (PR > 0 || SOFT_GL || window.__RENDER_EVERY_MS || (+(params.get('maxfps') || window.__MAXFPS || 0)) || document.hidden) return;
+    if (fpsCap(performance.now()) < 60) { adapt.low = adapt.high = 0; return; }   // (đang cố ý vẽ chậm — rảnh / cửa sổ khác: không đo để hạ độ phân giải)
     const cur = renderer.getPixelRatio();
     adapt.low = f < 40 ? adapt.low + 1 : 0; adapt.high = f > 57 ? adapt.high + 1 : 0;
     if (adapt.low >= 4) {
@@ -729,9 +730,9 @@ export async function startApp(me, hooks = {}) {
     for (const a of session.remote.list) {
       if (!a.visible && a !== session.player?.agent) continue;
       if (a.local && a._mirror) continue;   // (đang soi gương: góc nhìn ngang mắt, không hiện nhãn của mình)
-      if (a.local) list.push({ key: 'me', me: true, name: session.isAdmin ? `CEO (${session.me.admin.username})` : session.me.employee.display, dept: myDept(), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf('me') });
+      if (a.local) list.push({ key: 'me', me: true, name: session.isAdmin ? `CEO (${session.me.admin.username})` : session.me.employee.display, dept: a.act === 'meet' ? '📅 Đang họp' : myDept(), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf('me') });
       else if (a.key === 'guide') list.push({ key: 'guide', guide: true, name: 'Chị Mai', dept: '', x: a.x, y: a.y, z: a.z, f: a.f, sit: a.sit });
-      else list.push({ key: a.key, name: a.display, dept: a.department || deptOfCode(a.key.startsWith('employee:') ? a.key.slice(9) : null), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf(a.key) });
+      else list.push({ key: a.key, name: a.display, dept: a.target?.act === 'meet' ? '📅 Đang họp' : a.department || deptOfCode(a.key.startsWith('employee:') ? a.key.slice(9) : null), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf(a.key) });
     }
     for (const a of sim.agents) if (a.visible) list.push({ key: 'sim:' + a.id, name: a.emp.name, dept: a.emp.department, x: a.x, y: a.y, z: a.z, f: a.onStair ? null : a.f, sit: a.sit });
     const fl = rig.follow ? (rig.follow.onStair ? null : rig.follow.f) : cutFloor;
@@ -766,6 +767,12 @@ export async function startApp(me, hooks = {}) {
   };
   // ?maxfps=N: giới hạn số khung hình mỗi giây (máy yếu, hoặc nhiều trang 3D chạy cùng lúc khi kiểm thử)
   const maxFps = +(params.get('maxfps') || window.__MAXFPS || 0);
+  // ---- giới hạn khung hình (2026-11-17: "ở trang 3–5 phút là lag"): không giới hạn thì màn 120/144 Hz vẽ 120–144 khung/giây,
+  // GPU chạy 100% liên tục → máy nóng, tự hạ xung sau vài phút. Tối đa 60/giây; không chạm chuột / phím 30 giây: 30/giây;
+  // cửa sổ không được chọn (đang làm app khác): 20/giây. Có thao tác là lên lại ngay. (?maxfps=N: cố định N)
+  let lastInput = performance.now();
+  for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) window.addEventListener(ev, () => { lastInput = performance.now(); }, { passive: true, capture: true });
+  const fpsCap = now => maxFps || (!document.hasFocus() ? 20 : now - lastInput > 30000 ? 30 : 60);
   // vòng vẽ: luôn hẹn khung hình kế tiếp TRƯỚC khi chạy — một lỗi bất ngờ trong một khung hình (dữ liệu lạ từ mạng, đồ vật
   // chưa dựng xong…) chỉ làm hỏng khung đó, không làm đứng cả ứng dụng. Lỗi lặp lại liên tục thì báo một lần.
   let frameErrs = 0, frameErrAt = 0;
@@ -780,7 +787,7 @@ export async function startApp(me, hooks = {}) {
   }
   function frameBody(now) {
     if (window.__PAUSE_RENDER) { last = now; return; } // (kiểm thử nhiều trang trên GPU giả lập: trang khác đang tải cảnh thì tạm dừng vẽ)
-    if (maxFps && now - last < 1000 / maxFps - 2) { return; }
+    if (now - last < 1000 / fpsCap(now) - 2) { return; }
     // (khung giật tới 1 s: nhân vật vẫn đi đủ quãng, không bị "quay chậm")
     const rawDt = Math.min((now - last) / 1000, 1.0), rdt = Math.min(rawDt, 0.1); last = now;
     if (!app.paused) sim.step(rdt * app.speed);
@@ -921,6 +928,7 @@ export async function startApp(me, hooks = {}) {
     app, ready: true, session, deskState,
     get avatars() { return avatars; },   // (kiểm thử: rig từng nhân vật)
     get pixelRatio() { return renderer.getPixelRatio(); }, quality: QUALITY,   // (kiểm thử: độ phân giải đang vẽ)
+    fpsCap: now => fpsCap(now),   // (kiểm thử: giới hạn khung hình hiện tại — 60 / 30 rảnh / 20 cửa sổ khác)
     /** (kiểm thử) các vật tia từ điểm màn hình (x, y) chạm vào: tên, nhóm cha, độ cao. */
     rayHits(x, y, n = 6, maxY = Infinity) {
       const r = canvas.getBoundingClientRect(); ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);

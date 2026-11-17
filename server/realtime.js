@@ -15,7 +15,9 @@ import { lightsState, canLights } from './lights.js';
 import { modeOfDesk } from '../src/core/mode.js';
 import { Meetings } from './meetings.js';
 import { MeetHub } from './meetHub.js';
-const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'quay', 'jump', 'tv', ...PROP_ACTS]); // tv: ngồi sofa xem TV; còn lại: dùng đồ vật
+import * as att from './attendance.js';
+import { audit } from './db.js';
+const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'quay', 'jump', 'tv', 'meet', ...PROP_ACTS]); // tv: ngồi sofa xem TV; meet: đang ngồi trong phòng họp; còn lại: dùng đồ vật
 const okNum = (v, [a, b]) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b;
 
 export class Hub {
@@ -41,7 +43,8 @@ export class Hub {
     const e = this.store.employee(key.replace(/^employee:/, '')); return e ? displayOf(e.code, e.name) : key.replace(/^employee:/, '');
   }
   onlineEmployees() { let n = 0; for (const k of this.sockets.keys()) if (k.startsWith('employee:')) n++; return n; }
-  sampleOnline() { const t = Date.now(); this.hist.push({ t, n: this.onlineEmployees() }); while (this.hist.length && this.hist[0].t < t - 6 * 3600e3) this.hist.shift(); }
+  sampleOnline() { for (const k of this.sockets.keys()) if (k.startsWith('employee:')) this.autoAttend(k.slice(9), true);   // (đang online qua nửa đêm: mở bản ghi ngày mới)
+    const t = Date.now(); this.hist.push({ t, n: this.onlineEmployees() }); while (this.hist.length && this.hist[0].t < t - 6 * 3600e3) this.hist.shift(); }
 
   /** Mã đang online: có kết nối WS, hoặc vừa đăng nhập xong và đang tải cảnh. */
   isOnline = code => (this.sockets.get(`employee:${code}`)?.size || 0) > 0 || (this.pending.get(code) || 0) > Date.now();
@@ -81,7 +84,17 @@ export class Hub {
     ws.on('message', buf => this.onMessage(ws, buf));
     ws.on('close', () => this.onClose(ws));
     this.send(ws, { t: 'hello', you: id, online: this.onlineList(), seats: this.store.listSeats(), presence: [...this.presence.values()].filter(p => p.x !== null), blinds: this.blinds(), music: musicState(this.store), ktv: this.ktv.state(), bil: this.bil.state(), wc: this.wc.state(), meetBusy: this.meet.busy(), lights: lightsState(this.store), canLights: canLights(this.store, this.actorOf(ws)), canMusic: canMusic(this.store, this.actorOf(ws)) });
-    if (first) { this.onlineDirty = true; if (id.code) this.store.emit({ type: 'employees', code: id.code }); }
+    if (first) { this.onlineDirty = true; if (id.code) { this.store.emit({ type: 'employees', code: id.code }); this.autoAttend(id.code, true); } }
+  }
+  /** Tự chấm công: online lần đầu trong ngày = vào ca; offline hẳn = ra về; online lại = đang làm tiếp (server/attendance.js). */
+  autoAttend(code, online) {
+    try {
+      const db = this.store.db, e = db.employees.get(code); if (!e) return;
+      let rec;
+      if (online) { const r = att.autoIn(db, code); if (!r.created && !r.reopened) return; rec = r.rec; if (r.created) audit(db, `employee:${code}`, 'attendance.auto', code, { day: rec.day }); }
+      else { rec = att.autoOut(db, code); if (!rec) return; }
+      this.attendance(att.view(rec, { code, name: e.name, department: e.department }));
+    } catch (err) { console.warn('[chấm công tự động]', err.message); }
   }
 
   onClose(ws) {
@@ -93,7 +106,7 @@ export class Hub {
       this.presence.delete(ws.key);
       this.ktv.leave(ws.key); this.bil.leave(ws.key); this.wc.leave(ws.key); this.meet.leaveAll(ws.key);   // (rời mạng: ra khỏi phòng karaoke / bàn bi-a)
       const code = ws.key.startsWith('employee:') ? ws.key.slice(9) : null;
-      if (code) this.store.db.employees.update(code, { last_seen: Date.now() });
+      if (code) { this.store.db.employees.update(code, { last_seen: Date.now() }); this.autoAttend(code, false); }
       this.broadcast({ t: 'gone', key: ws.key });
       this.onlineDirty = true;
       if (code) this.store.emit({ type: 'employees', code });

@@ -45,7 +45,7 @@ test('nhà vệ sinh: buồng có người thì người khác bị quát, khôn
   await pressE(b);
   await expect(b.locator('#toast')).toContainText('😡', { timeout: 10_000 });
   expect(await b.evaluate(() => window.__app.session.wc.inside)).toBe(-1);
-  await a.click('.wc-card button');
+  await a.click('.wc-card [data-out]');
   await expect.poll(() => b.evaluate(() => window.__app.session.wc.state.stalls[0]), { timeout: 20_000 }).toBe(null);
   // soi gương: góc nhìn vào gương, gương phản chiếu bật; Esc là thôi
   await goTo(b, 'sink');
@@ -55,3 +55,49 @@ test('nhà vệ sinh: buồng có người thì người khác bị quát, khôn
   await b.evaluate(() => window.__app.session.player.onKey({ key: 'Escape', type: 'keydown', repeat: false, preventDefault() {} }));
   await expect.poll(() => b.evaluate(() => window.__app.session.wc.looking)).toBe(null);
 });
+
+test('lướt TikTok trong buồng vệ sinh: khung điện thoại, dán link thêm video, vuốt / phím chuyển video, người dán xoá được, ra buồng thì cất điện thoại', async ({ browser }) => {
+  const a = await newPage(browser); await loginEmployeeUI(a, `${uniqueCode()}-Lướt`); await waitScene(a); await finishAvatar(a);
+  // dọn danh sách cũ (các lần chạy trước) để biết chắc thứ tự
+  const ceo = await newPage(browser); await loginAdminAPI(ceo);
+  for (const it of (await call(ceo, 'GET', '/api/tiktok')).body.items) await call(ceo, 'DELETE', `/api/tiktok/${it.id}`, {});
+  await goTo(a, 'stall');
+  await expect.poll(() => prompt(a)).toContain('vào buồng');
+  await pressE(a);
+  await expect.poll(() => a.evaluate(() => window.__app.session.wc.inside)).toBe(0);
+  await a.click('.wc-card [data-tt]');
+  const phone = a.locator('.tt-back.show .tt-phone');
+  await expect(phone).toBeVisible();
+  await expect(a.locator('.tt-empty')).toBeVisible();
+  expect(await a.evaluate(() => window.__app.session.player.agent.act)).toBe('phone');   // (nhân vật cầm điện thoại)
+  // link không phải TikTok: báo lỗi
+  await a.fill('.tt-add input', 'https://example.com/video/1');
+  await a.click('.tt-add button');
+  await expect(a.locator('#toast')).toContainText('TikTok');
+  // dán 2 link → video mới nhất phát trước, trình phát nhúng chính thức
+  for (const id of ['7300000000000000001', '7300000000000000002']) { await a.fill('.tt-add input', `https://www.tiktok.com/@sysone/video/${id}?lang=vi`); await a.click('.tt-add button'); await expect(a.locator('.tt-add input')).toHaveValue(''); }
+  await expect(a.locator('.tt-pos')).toHaveText('1/2');
+  await expect(a.locator('.tt-frame')).toHaveAttribute('src', /tiktok\.com\/player\/v1\/7300000000000000002/);
+  // trùng link: báo đã có
+  await a.fill('.tt-add input', 'https://www.tiktok.com/@sysone/video/7300000000000000001'); await a.click('.tt-add button');
+  await expect(a.locator('#toast')).toContainText('đã có');
+  await a.fill('.tt-add input', '');
+  // phím ↓ / vuốt lên: video kế
+  await a.evaluate(() => document.activeElement?.blur());   // (đang gõ trong ô link thì phím mũi tên dành cho ô nhập)
+  await a.keyboard.press('ArrowDown');
+  await expect(a.locator('.tt-pos')).toHaveText('2/2');
+  await expect(a.locator('.tt-frame')).toHaveAttribute('src', /7300000000000000001/);
+  const box = await a.locator('.tt-swipe').boundingBox();
+  await a.mouse.move(box.x + box.width / 2, box.y + box.height * 0.3); await a.mouse.down(); await a.mouse.move(box.x + box.width / 2, box.y + box.height * 0.75, { steps: 4 }); await a.mouse.up();   // (vuốt xuống: video trước)
+  await expect(a.locator('.tt-pos')).toHaveText('1/2');
+  // người dán xoá được
+  await a.click('.tt-rail [data-del]'); await a.click('#mOk');
+  await expect(a.locator('.tt-pos')).toHaveText('1/1');
+  // cất điện thoại, ra khỏi buồng
+  await a.click('.tt-close');
+  await expect(a.locator('.tt-back')).toHaveCount(0);
+  expect(await a.evaluate(() => window.__app.session.player.agent.act || null)).toBe(null);
+  await a.click('.wc-card [data-out]');
+  await expect.poll(() => a.evaluate(() => window.__app.session.wc.inside)).toBe(-1);
+});
+

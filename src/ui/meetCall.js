@@ -11,7 +11,17 @@ if (import.meta.env?.VITE_TURN_URL) ICE.push({ urls: import.meta.env.VITE_TURN_U
 
 export const SLOTS = ['mic', 'cam', 'screen'];
 const KIND = { mic: 'audio', cam: 'video', screen: 'video' };
-const BITRATE = { cam: 450_000, screen: 1_500_000 };
+// băng thông gửi tối đa (bit/s) — mỗi người xem một luồng riêng (nối từng cặp), nên chia tổng ngân sách theo số người
+const BITRATE = { cam: 450_000, screen: 2_500_000 }, MIN_RATE = { cam: 200_000, screen: 900_000 }, BUDGET = { cam: 1_800_000, screen: 5_000_000 };
+const rateFor = (slot, peers) => Math.max(MIN_RATE[slot], Math.min(BITRATE[slot], BUDGET[slot] / Math.max(1, peers)));
+/** Ưu tiên codec cho kênh hình (VP9 nén chữ / slide tốt hơn hẳn VP8 mặc định); trình duyệt không có thì giữ nguyên. */
+function preferCodec(tr, mime) {
+  try {
+    const caps = RTCRtpReceiver.getCapabilities?.('video'); if (!caps || !tr.setCodecPreferences) return;
+    const want = caps.codecs.filter(c => c.mimeType.toLowerCase() === mime); if (!want.length) return;
+    tr.setCodecPreferences([...want, ...caps.codecs.filter(c => c.mimeType.toLowerCase() !== mime)]);
+  } catch { /* bỏ qua */ }
+}
 export const canShareScreen = () => !!navigator.mediaDevices?.getDisplayMedia;
 export const canCall = () => typeof RTCPeerConnection === 'function' && !!navigator.mediaDevices?.getUserMedia;
 
@@ -32,6 +42,7 @@ export class MeetCall {
     const keys = new Set(members.map(m => m.key).filter(k => k !== this.me));
     for (const k of [...this.peers.keys()]) if (!keys.has(k)) this.drop(k);
     for (const k of keys) if (!this.peers.has(k) && this.me < k) this.connect(k, true);   // (khoá nhỏ hơn gửi lời mời)
+    if (this.peers.size !== this._n) { this._n = this.peers.size; this.retune(); }
   }
   connect(key, initiator) {
     const old = this.peers.get(key);
@@ -60,6 +71,7 @@ export class MeetCall {
     };
     if (initiator) {
       for (const s of SLOTS) pc.addTransceiver(KIND[s], { direction: 'sendrecv' });
+      preferCodec(pc.getTransceivers()[2], 'video/vp9');
       this.attach(p);
       pc.createOffer().then(o => pc.setLocalDescription(o))
         .then(() => this.o.send({ t: 'meet:rtc', to: key, data: { sdp: pc.localDescription } }))
@@ -73,7 +85,16 @@ export class MeetCall {
     const track = this.local[slot]?.getTracks()[0] || null;
     try { await sender.replaceTrack(track); } catch { /* kết nối đã đóng */ }
     if (!track || !BITRATE[slot]) return;
-    try { const prm = sender.getParameters(); if (!prm.encodings?.length) prm.encodings = [{}]; prm.encodings[0].maxBitrate = BITRATE[slot]; await sender.setParameters(prm); } catch { /* trình duyệt không cho chỉnh */ }
+    try {
+      const prm = sender.getParameters(); if (!prm.encodings?.length) prm.encodings = [{}];
+      prm.encodings[0].maxBitrate = rateFor(slot, this.peers.size);
+      if (slot === 'screen') { prm.encodings[0].maxFramerate = 24; prm.degradationPreference = 'maintain-resolution'; }   // (chữ trên màn hình rõ; mạng yếu thì giảm khung hình trước)
+      await sender.setParameters(prm);
+    } catch { /* trình duyệt không cho chỉnh */ }
+  }
+  /** Số người trong phòng đổi: chia lại băng thông gửi cho camera / màn hình đang bật. */
+  retune() {
+    for (const p of this.peers.values()) p.pc.getTransceivers().forEach((t, i) => { const s = SLOTS[i]; if (s && s !== 'mic' && this.on[s]) this.setSender(t.sender, s); });
   }
   async signal(from, data) {
     if (this.gone || !data) return;
@@ -83,6 +104,7 @@ export class MeetCall {
         p = this.connect(from, false);
         await p.pc.setRemoteDescription(data.sdp);
         for (const t of p.pc.getTransceivers()) t.direction = 'sendrecv';
+        const scr = p.pc.getTransceivers()[2]; if (scr) preferCodec(scr, 'video/vp9');
         this.attach(p);
         await p.pc.setLocalDescription(await p.pc.createAnswer());
         this.o.send({ t: 'meet:rtc', to: from, data: { sdp: p.pc.localDescription } });
@@ -136,7 +158,7 @@ export class MeetCall {
     if (slot === 'mic') return md.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     if (slot === 'cam') return md.getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 360 }, frameRate: { ideal: 15, max: 24 }, facingMode: 'user' } });
     if (!md.getDisplayMedia) return Promise.reject(Object.assign(new Error('unsupported'), { name: 'NotSupportedError' }));
-    return md.getDisplayMedia({ video: { frameRate: { ideal: 10, max: 15 } }, audio: false });
+    return md.getDisplayMedia({ video: { width: { max: 1920 }, height: { max: 1080 }, frameRate: { ideal: 15, max: 24 } }, audio: false, surfaceSwitching: 'include', selfBrowserSurface: 'exclude' });
   }
   captureError(slot, e) {
     const what = { mic: 'micro', cam: 'camera', screen: 'chia sẻ màn hình' }[slot];

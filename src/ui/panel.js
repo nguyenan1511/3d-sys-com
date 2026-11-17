@@ -8,6 +8,10 @@ export const STATE_COLOR = {
 };
 
 const $ = id => document.getElementById(id);
+/** Ghi chữ / HTML chỉ khi đổi (trước đây đồng hồ, thống kê bị ghi lại 60 lần/giây kể cả khi ẩn → tạo rác DOM liên tục). */
+const put = (id, v, html = false) => { const el = $(id); if (!el) return; const k = html ? '_h' : '_t'; if (el[k] === v) return; el[k] = v; if (html) el.innerHTML = v; else el.textContent = v; };
+/** Ô đang ẩn (vd. bảng mô phỏng khi đăng nhập): không cần vẽ lại. */
+const shown = id => { const el = $(id); return !!el && !el.closest('[hidden]'); };
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export class Panel {
@@ -65,29 +69,32 @@ export class Panel {
       ul.innerHTML = rows.map(e => `<li role="option" data-id="${esc(e.id)}" class="${e.status === 'ok' ? '' : 'bad'}"><span class="dot"></span><span><span class="nm">${esc(e.name)}</span><br><span class="sub">${esc(e.role)} · ${esc(e.deskId || 'chưa có bàn')}</span></span><span class="st"></span></li>`).join('');
       ul.querySelectorAll('li').forEach(li => li.onclick = () => { const a = sim.byId.get(li.dataset.id); if (a) app.select(a, true); });
     }
-    $('empCount').textContent = `(${rows.length}/${all.length})`;
+    put('empCount', `(${rows.length}/${all.length})`);
+    if (!shown('empList')) return;
     ul.querySelectorAll('li').forEach(li => {
       const a = sim.byId.get(li.dataset.id);
       const st = a ? a.state : 'outside';
-      li.querySelector('.dot').style.background = a ? STATE_COLOR[st] : '#e0553f';
-      li.querySelector('.st').textContent = a ? a.label : 'không vào mô hình';
-      li.setAttribute('aria-selected', String(this.selected === a && !!a));
+      const bg = a ? STATE_COLOR[st] : '#e0553f', lb = a ? a.label : 'không vào mô hình', sel = String(this.selected === a && !!a);
+      if (li._bg !== bg) { li._bg = bg; li.querySelector('.dot').style.background = bg; }
+      if (li._lb !== lb) { li._lb = lb; li.querySelector('.st').textContent = lb; }
+      if (li.getAttribute('aria-selected') !== sel) li.setAttribute('aria-selected', sel);
     });
   }
 
   renderStats() {
+    if (!shown('floorStats') && !shown('stateStats')) return;
     const app = this.app, s = app.sim.summary();
     const cells = [['Ngoài', s.outside], ...app.model.floors.map(f => [f.name.replace('Tầng ', 'T.').replace('T.trệt', 'Trệt'), s.byFloor.get(f.id) || 0]), ['Cầu thang', s.byFloor.get(-1) || 0]];
-    $('floorStats').innerHTML = cells.map(([k, v]) => `<div><b>${v}</b><span>${esc(k)}</span></div>`).join('');
-    $('stateStats').innerHTML = Object.keys(ST_LABEL).filter(k => s.byState[k]).map(k => `<span class="chip"><span class="dot" style="background:${STATE_COLOR[k]}"></span>${ST_LABEL[k]} <b>${s.byState[k]}</b></span>`).join('');
+    put('floorStats', cells.map(([k, v]) => `<div><b>${v}</b><span>${esc(k)}</span></div>`).join(''), true);
+    put('stateStats', Object.keys(ST_LABEL).filter(k => s.byState[k]).map(k => `<span class="chip"><span class="dot" style="background:${STATE_COLOR[k]}"></span>${ST_LABEL[k]} <b>${s.byState[k]}</b></span>`).join(''), true);
   }
 
   renderClock() {
     const app = this.app;
     const t = fmtTime(app.sim.t, true);
-    $('clock').textContent = t.slice(0, 5);
-    $('day').textContent = `Ngày ${app.sim.day + 1}${app.paused ? ' · tạm dừng' : ` · x${app.speed}`}`;
-    $('clockOverlay').textContent = `${t} · x${app.paused ? 0 : app.speed}`;
+    put('clock', t.slice(0, 5));
+    put('day', `Ngày ${app.sim.day + 1}${app.paused ? ' · tạm dừng' : ` · x${app.speed}`}`);
+    put('clockOverlay', `${t} · x${app.paused ? 0 : app.speed}`);
   }
 
   renderCard() {

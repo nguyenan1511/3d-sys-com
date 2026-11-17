@@ -143,7 +143,7 @@ export class Session {
     await this.app.intro?.maybeShow();   // (lần đầu / có tính năng mới: giới thiệu nhanh văn phòng — trước khi chị Mai dẫn đường)
     const mine = this.mySeat;
     if (mine) await this.sit(mine.deskId, { quiet: true, place: true });
-    else if (!this.isAdmin && this.guide && !window.__NO_GUIDE) { this.player.follow(); this.guide.startAtGate(); return; } // người mới: bắt đầu trước cổng công ty; vào sảnh thì chị hướng dẫn đón và dẫn tới bàn (nhân viên không tự chọn chỗ)
+    else if (!this.isAdmin && this.guide && !window.__NO_GUIDE) { this.player.follow(); await this.guide.quickStart(); return; } // người mới: chọn phòng ban → xếp bàn trống → ngồi luôn tại bàn (không còn đi theo chị Mai từ cổng)
     if (this.player && !this.isAdmin) this.player.follow(); // (CEO vào là xem toàn cảnh như trước; bấm WASD để điều khiển nhân vật)
   }
 

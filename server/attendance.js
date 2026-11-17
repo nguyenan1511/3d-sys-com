@@ -30,6 +30,28 @@ export function checkOut(db, code) {
   db.attendance.update(`${code}|${r.day}`, { check_out: Date.now() });
   return today(db, code);
 }
+// ---------- tự chấm công theo trạng thái online (2026-11-17) ----------
+// Online lần đầu trong ngày = giờ vào; offline hẳn (đóng hết tab) = giờ ra; online lại thì xoá giờ ra (đang làm tiếp).
+// Đang online qua nửa đêm: bản ghi hôm trước đóng lúc 0:00, mở bản ghi mới cho hôm nay.
+/** Trả về { rec, created, reopened }. */
+export function autoIn(db, code, now = Date.now()) {
+  const { day, min } = vnDay(now), k = `${code}|${day}`;
+  if (!db.attendance.has(k)) {
+    const midnight = now - min * 60e3 - (now % 60e3);
+    for (const r of db.attendance.by('code', code)) if (r.day < day && !r.check_out) db.attendance.update(`${code}|${r.day}`, { check_out: Math.max(r.check_in, midnight) });
+    db.attendance.insert({ code, day, check_in: now, check_out: null });
+    return { rec: db.attendance.get(k), created: true };
+  }
+  const r = db.attendance.get(k);
+  if (r.check_out) { db.attendance.update(k, { check_out: null }); return { rec: db.attendance.get(k), reopened: true }; }
+  return { rec: r };
+}
+/** Offline hẳn: giờ ra = bây giờ. */
+export function autoOut(db, code, now = Date.now()) {
+  const r = today(db, code); if (!r) return null;
+  db.attendance.update(`${code}|${r.day}`, { check_out: now });
+  return today(db, code);
+}
 export function listDay(db, day = vnDay().day) {
   return db.attendance.by('day', day).sort((a, b) => a.check_in - b.check_in)
     .map(r => [r, db.employees.get(r.code)]).filter(([, e]) => e).map(([r, e]) => view(r, { code: r.code, name: e.name, department: e.department }));

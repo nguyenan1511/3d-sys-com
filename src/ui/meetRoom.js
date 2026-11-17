@@ -90,6 +90,7 @@ export class MeetRoom {
     room.setPainter((g, w, h) => { const c = this.preview; if (!c) return; const k = Math.min(w / c.width, h / c.height); g.drawImage(c, (w - c.width * k) / 2, (h - c.height * k) / 2, c.width * k, c.height * k); });
     room.empty = !this.preview;
     room.members(this.inRoom, this.m.host);
+    room.lowFps = this.mode === 'call';
     this.applyPip();
   }
   /** Khung 3D thu nhỏ: kéo để dời (giữ trong màn hình, nhớ vị trí), bấm (không kéo) để phóng to. */
@@ -140,6 +141,7 @@ export class MeetRoom {
     for (const k of ['scene', 'split', 'call']) this.el.classList.toggle(`mode-${k}`, mode === k);
     const v = this.el.querySelector('.mt-vview'); v.classList.toggle('on', mode === 'call'); v.setAttribute('aria-pressed', String(mode === 'call'));
     if (mode === 'call') this.renderCall();
+    if (this.room) this.room.lowFps = mode === 'call';
     const b = this.el.querySelector('.mt-open'); b.classList.toggle('on', mode === 'split'); b.setAttribute('aria-pressed', String(mode === 'split'));
     if (mode === 'split') { this.unreadAll = 0; b.querySelector('.mt-un').hidden = true; requestAnimationFrame(() => this.wb.open()); }
     this.applyPip();

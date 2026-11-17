@@ -17,6 +17,7 @@ import { lightsRoutes } from './routes/lights.js';
 import { boardRoutes } from './routes/board.js';
 import { seedBoard } from './board.js';
 import { meetingRoutes } from './routes/meetings.js';
+import { tiktokRoutes } from './routes/tiktok.js';
 import {
   hashPassword, verifyPassword, dummyVerify, createSession, sessionFromCookie, setSessionCookie, clearSessionCookie,
   failureCount, recordFailure, clearFailures, originAllowed, issueWsTicket
@@ -207,6 +208,7 @@ export async function createApp(config = defaultConfig) {
   lightsRoutes(api, ctx);
   boardRoutes(api, ctx);
   meetingRoutes(api, ctx);
+  tiktokRoutes(api, ctx);
   backupRoutes(api, ctx);
   app.use(['/api/v1', '/api'], api);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Không có API này.', code: 'not_found', path: req.originalUrl.split('?')[0], requestId: req.id }));

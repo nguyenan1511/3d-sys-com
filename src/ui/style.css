@@ -2946,3 +2946,63 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
 .k3-now { background: rgba(15, 12, 24, .86) !important; }
 #appRoot .k3-ctrl button, .k3-ctrl button { background-color: rgba(16, 13, 26, .86); }
 #loading.ld-quick { background: rgba(255, 250, 243, .82); }
+
+/* ===================== Ghim nổi "Có gì ở đây?" trong cảnh 3D (src/ui/intro.js showPins) ===================== */
+.ipin-layer { position: fixed; inset: 0; z-index: 3; pointer-events: none; font-family: var(--font); animation: mt-in .25s ease both; }
+.ipin-layer.out, .ipin-bar.out { opacity: 0; transition: opacity .2s ease; }
+.ipin-bar.off { visibility: hidden; }
+.ipin-layer.off .ipin { visibility: hidden; }
+.ipin-bar { position: fixed; z-index: 7; top: calc(70px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 14px; border-radius: 999px; background: rgba(255,250,243,.97); border: 1px solid rgba(43,45,66,.14); box-shadow: 0 8px 24px rgba(43,45,66,.18); color: var(--ink); font: 700 13px var(--font); pointer-events: auto; white-space: nowrap; max-width: calc(100vw - 24px); }
+.ipin-bar > span { overflow: hidden; text-overflow: ellipsis; }
+.ipin { position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px 4px 4px !important; margin: 0 !important; border: 2px solid #fff !important; border-radius: 999px !important; background: var(--ink) !important; color: #fff !important; font: 800 12.5px var(--font) !important; white-space: nowrap; cursor: pointer; pointer-events: auto; box-shadow: 0 6px 18px rgba(43,45,66,.35); will-change: transform; }
+.ipin i { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--bg); font-style: normal; font-size: 16px; line-height: 1; animation: ipin-bob 2.2s ease-in-out var(--d) infinite; }
+.ipin::after { content: ''; position: absolute; left: 50%; bottom: -8px; width: 2px; height: 8px; margin-left: -1px; background: #fff; }
+.ipin:hover, .ipin:focus-visible { background: var(--accent) !important; outline: none; }
+.ipin.new span::after { content: 'MỚI'; margin-left: 6px; padding: 1px 5px; border-radius: 999px; background: #ffd166; color: var(--ink); font-size: 10px; }
+.ipin[hidden] { display: none; }
+@keyframes ipin-bob { 50% { transform: translateY(-3px); } }
+@media (max-width: 760px) { .ipin-bar { top: calc(64px + env(safe-area-inset-top)); font-size: 12px; } .ipin-bar > span { display: none; } .ipin span { display: none; } .ipin { padding: 3px !important; } }
+@media (prefers-reduced-motion: reduce) { .ipin i { animation: none; } }
+
+/* ===================== Lướt TikTok trong buồng vệ sinh (src/ui/tiktokPhone.js) ===================== */
+.wc-acts { display: flex; gap: 8px; margin-top: 6px; }
+.tt-back { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(20,22,34,0); transition: background .22s ease; font-family: var(--font); }
+.tt-back.show { background: rgba(20,22,34,.62); }
+.tt-phone { position: relative; height: min(820px, calc(100dvh - 32px)); aspect-ratio: 9 / 19.5; max-width: calc(100vw - 96px); display: flex; flex-direction: column; gap: 8px; padding: 12px 10px 10px; border-radius: 44px; background: #111; border: 3px solid #2b2d42; box-shadow: 0 30px 80px rgba(0,0,0,.5), inset 0 0 0 2px #333; opacity: 0; transform: translateY(24px) scale(.96); transition: opacity .22s ease, transform .26s cubic-bezier(.2,.9,.3,1.1); }
+.tt-back.show .tt-phone { opacity: 1; transform: none; }
+.tt-phone::before { content: ''; position: absolute; top: 18px; left: 50%; width: 90px; height: 24px; margin-left: -45px; border-radius: 999px; background: #000; z-index: 3; }
+.tt-screen { position: relative; flex: 1 1 auto; min-height: 0; border-radius: 34px; overflow: hidden; background: #000; }
+.tt-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #000; }
+.tt-frame[hidden] { display: none; }
+.tt-swipe { position: absolute; left: 0; right: 0; top: 0; bottom: 70px; z-index: 2; cursor: grab; touch-action: none; }
+.tt-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 24px; text-align: center; color: #fff; font: 600 13px/1.45 var(--font); }
+.tt-empty b { font: 900 16px var(--font); }
+.tt-empty[hidden] { display: none; }
+.tt-info { position: absolute; left: 0; right: 0; top: 0; z-index: 2; padding: 50px 16px 22px; background: linear-gradient(rgba(0,0,0,.55), transparent); color: #fff; pointer-events: none; display: flex; flex-direction: column; gap: 2px; }
+.tt-info b { font: 800 13px/1.3 var(--font); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.tt-info small { font: 600 11.5px var(--font); color: rgba(255,255,255,.8); }
+.tt-screen.slide-up { animation: tt-up .28s cubic-bezier(.2,.9,.3,1); } .tt-screen.slide-down { animation: tt-down .28s cubic-bezier(.2,.9,.3,1); }
+.tt-screen.bump-up { animation: tt-bump-up .3s ease; } .tt-screen.bump-down { animation: tt-bump-down .3s ease; }
+@keyframes tt-up { from { transform: translateY(14%); opacity: .4; } } @keyframes tt-down { from { transform: translateY(-14%); opacity: .4; } }
+@keyframes tt-bump-up { 40% { transform: translateY(-14px); } } @keyframes tt-bump-down { 40% { transform: translateY(14px); } }
+.tt-rail { position: absolute; right: -64px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.tt-btn { box-sizing: border-box; width: var(--btn-h) !important; height: var(--btn-h) !important; padding: 0 !important; margin: 0 !important; display: grid !important; place-items: center; border-radius: 50% !important; border: 0 !important; background: #fff !important; color: var(--ink) !important; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+.tt-btn:disabled { opacity: .4; cursor: default; }
+.tt-btn[hidden] { display: none !important; }
+.tt-btn[data-del] { color: #c22f52 !important; }
+.tt-pos { color: #fff; font: 800 12px var(--font); text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.tt-add { flex: none; display: flex; gap: 6px; padding: 0 4px; }
+.tt-add input { flex: 1; min-width: 0; height: var(--btn-h); box-sizing: border-box; padding: 0 14px; border-radius: 999px; border: 1px solid #333; background: #1d1e27; color: #fff; font: 600 13px var(--font); }
+.tt-add input::placeholder { color: rgba(255,255,255,.5); }
+.tt-close { position: absolute; top: -6px; right: -64px; background: #fff !important; }
+.tt-back.out { pointer-events: none; }
+@media (max-width: 560px) {
+  .tt-back { padding: 0; }
+  .tt-phone { height: 100dvh; max-width: 100vw; width: 100vw; aspect-ratio: auto; border-radius: 0; border: 0; padding: calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom)); }
+  .tt-phone::before { display: none; }
+  .tt-screen { border-radius: 18px; }
+  .tt-rail { right: 14px; top: auto; bottom: calc(150px + env(safe-area-inset-bottom)); transform: none; z-index: 4; }
+  .tt-close { top: calc(14px + env(safe-area-inset-top)); right: 14px; z-index: 4; }
+  .tt-info { padding-right: 60px; }
+}
+@media (prefers-reduced-motion: reduce) { .tt-phone, .tt-screen { animation: none !important; transition: none !important; } }

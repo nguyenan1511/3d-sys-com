@@ -1,6 +1,7 @@
-// Người hướng dẫn của SYSONE: đứng ở sảnh. Khi có người mới vào (chưa có chỗ ngồi), chị ấy tới tận chỗ người đó đang đứng,
-// chào, giới thiệu công ty, hỏi phòng ban (nếu hồ sơ chưa có), chọn bàn trống của phòng đó, dẫn đường tới bàn (khác tầng thì
-// cùng đi thang máy), mời ngồi rồi giao danh sách việc tuần đầu theo phòng. Đứng gần chị ấy bấm E để xem lại.
+// Người hướng dẫn của SYSONE: đứng ở sảnh. Người mới vào (chưa có chỗ ngồi): KHÔNG còn dẫn đường (người dùng không thích
+// đi theo — 2026-11-17). quickStart(): hỏi phòng ban (nếu hồ sơ chưa có) ngay trên màn hình, xếp bàn trống của phòng đó rồi
+// đặt người mới ngồi luôn tại bàn, lưu danh sách việc tuần đầu. Chị ấy vẫn đứng ở sảnh: lại gần bấm E (hoặc "Gặp chị Mai")
+// để xem việc tuần đầu; "Về bàn" thì tới bàn ngay (không đi bộ theo).
 // Nhân vật hướng dẫn chỉ có trên máy mỗi người (không đồng bộ qua server).
 import { DEPARTMENTS, FLOOR_NAMES, findDepartment, departmentOfDesk, onboardingTasks } from '../shared/departments.js';
 import { seatApproach } from '../model/layoutModel.js';
@@ -126,7 +127,30 @@ export class Guide {
     const seats = this.s.seats, ok = id => { const d = this.model.deskById.get(id), st = seats.get(id); return d && d.kind !== 'reception' && !st?.owner && !st?.locked; };
     return dept.desks.find(ok) || null;
   }
-  async welcome() {
+  /** Người mới (chưa có chỗ): chọn phòng ban → nhận bàn trống → ngồi ngay tại bàn. Trả về mã bàn hoặc null. */
+  async quickStart() {
+    if (this.busy || !this.me) return null;
+    this.busy = true;
+    try {
+      const emp = this.s.me.employee;
+      let dept = findDepartment(emp.department);
+      if (!dept) dept = await this.chooseDept();
+      const deskId = this.freeDeskOf(dept);
+      if (!deskId) { this.s.toast(`${dept.name} hiện chưa còn bàn trống — Hành chính - Nhân sự sẽ xếp thêm chỗ cho bạn. Trong lúc chờ cứ tham quan văn phòng nhé.`, false, 7000); return null; }
+      const r = await api('POST', `/api/seats/${encodeURIComponent(deskId)}/claim`, { equipment: defaultEquipment(this.s.schema) });
+      if (!r.ok) { this.s.toast(`Bàn ${deskId} vừa có người nhận (${r.error || ''}) — bấm "Gặp chị Mai" để xếp chỗ khác.`, true, 7000); return null; }
+      this.s.seats.set(r.seat.deskId, r.seat); this.s.me.employee.canMove = false;
+      if (this.s.selecting) this.s.endPick(); else { this.app.rebuildDesks(); this.s.renderSeatBox(); }
+      this.saveTasks(onboardingTasks(dept), dept);
+      await this.s.sit(deskId, { quiet: true, place: true });
+      this.s.toast(`Chào mừng tới SYSONE! Bàn của bạn: ${deskId} — ${dept.name}, ${FLOOR_NAMES[dept.floor]}. Việc tuần đầu: gặp chị Mai ở sảnh (nút "Gặp chị Mai").`, false, 9000);
+      return deskId;
+    } finally { this.close(); this.busy = false; }
+  }
+  /** Nút "Gặp chị Mai": chưa có chỗ thì xếp chỗ ngay; có rồi thì xem việc tuần đầu. */
+  welcome() { return this.s.mySeat ? this.talk() : this.quickStart(); }
+  /** (kịch bản cũ có dẫn đường — không còn dùng; giữ để tham khảo) */
+  async welcomeLead() {
     if (this.busy || !this.me) return;
     this.busy = true;
     try {
@@ -214,14 +238,14 @@ export class Guide {
   async talk() {
     if (this.busy) return;
     const d = this.loadTasks();
-    if (!d && !this.s.mySeat) { this.welcome(); return; }
+    if (!d && !this.s.mySeat) { this.quickStart(); return; }
     this.busy = true;
     try {
       this.face(this.me); this.push(false);
-      const p = this.say(d ? `Việc tuần đầu của bạn (${esc(d.dept)}):` : 'Chào bạn! Cần mình giúp gì không?', ['Cảm ơn chị!', 'Dẫn em về bàn'], this.tasksHtml());
+      const p = this.say(d ? `Việc tuần đầu của bạn (${esc(d.dept)}):` : 'Chào bạn! Cần mình giúp gì không?', ['Cảm ơn chị!', 'Về bàn'], this.tasksHtml());
       this.bindTasks();
       const c = await p;
-      if (c === 1 && this.s.mySeat) { const desk = this.model.deskById.get(this.s.mySeat.deskId); await this.leadTo(desk); await this.s.sit(desk.id, { quiet: true }); }
+      if (c === 1 && this.s.mySeat) await this.s.sit(this.s.mySeat.deskId, { quiet: true, place: true });   // (tới bàn ngay, không dẫn đi bộ)
     } finally { this.close(); this.busy = false; this.lead = false; if (this.pos.f !== 0 || Math.hypot(this.pos.x - this.home.x, this.pos.z - this.home.z) > 0.3) this.goHome(); }
   }
   async goHome() {

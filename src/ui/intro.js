@@ -2,8 +2,9 @@
 // phá thêm). Mỗi mục: ô hình (emoji trên nền màu), tên, 1–2 câu, cách dùng theo thiết bị (máy tính: phím; điện thoại: nút)
 // và nút "Đi tới" (dịch chuyển tới nơi đó). Nội dung nằm trong public/data/intro.json — thêm tính năng: tăng "version" và
 // thêm mục có "new_in"; lần vào sau modal tự mở lại, mục mới hiện đầu tiên với nhãn MỚI.
-// Tự mở: lần đầu vào văn phòng (sau khi chọn nhân vật, trước khi chị Mai dẫn đường) và khi có phiên bản nội dung mới.
-// Mở lại bất cứ lúc nào: nút "Có gì ở đây?" (thanh dưới / Của tôi).
+// GHIM NỔI (mặc định, 2026-11-17 — người dùng lười đọc hộp chữ): lần đầu vào / có nội dung mới, mỗi nơi có "go" hiện một
+// ghim nổi trong cảnh 3D (biểu tượng + tên ngắn, nhấp nhô) ở tầng đang đứng; bấm ghim là tới nơi đó. Thanh nhỏ phía trên:
+// "Danh sách đầy đủ" (hộp cũ, cho các mục không có chỗ như phím tắt) · "Ẩn ghim". Nút "Có gì ở đây?" bật / tắt ghim.
 import { esc } from '../session/ui.js';
 import { icon, ICONS } from './icons.js';
 
@@ -26,7 +27,48 @@ export class Intro {
     const d = await this.load(); if (!d) return;
     const seen = seenVersion();
     if (seen >= d.version) return;
-    await this.open({ since: seen });
+    this.since = seen; markSeen(d.version);
+    this.showPins();   // (không chặn: ghim nổi trong cảnh, không phải hộp chữ)
+  }
+
+  // ---------- ghim nổi trong cảnh 3D ----------
+  async togglePins() { if (this.pins) this.hidePins(); else await this.showPins(); }
+  async showPins() {
+    const d = await this.load(); if (!d || this.pins || !this.s.player) { if (!d) this.s.toast?.('Chưa tải được phần giới thiệu, thử lại sau.', true); return; }
+    const since = this.since ?? seenVersion();
+    const list = [];
+    for (const it of d.items.filter(x => x.go)) {   // (các mục cùng một chỗ gộp vào một ghim: "Nhà vệ sinh · Lướt TikTok")
+      const t = this.target(it.go); if (!t || t.desk || !Number.isFinite(t.x)) continue;
+      const same = list.find(x => x.t.f === t.f && Math.hypot(x.t.x - t.x, x.t.z - t.z) < 1.2);
+      if (same) { same.title += ` · ${it.title}`; same.fresh ||= (it.new_in || 0) > since && since > 0; } else list.push({ it, t, title: it.title, fresh: (it.new_in || 0) > since && since > 0 });
+    }
+    if (!list.length) { this.open(); return; }
+    const layer = document.createElement('div'); layer.className = 'ipin-layer'; layer.setAttribute('aria-label', 'Các nơi trong văn phòng');
+    const bar = document.createElement('div'); bar.className = 'ipin-bar'; bar.setAttribute('role', 'status');   // (thanh riêng, nằm trên các bảng; ghim nằm dưới bảng điều khiển / bản đồ nhỏ)
+    bar.innerHTML = `${icon('target', 15)}<span>Bấm <b>ghim</b> để tới nơi đó</span><button type="button" class="sx-ghost" data-all>Danh sách đầy đủ</button><button type="button" class="sx-primary" data-hide>Ẩn ghim</button>`;
+    layer.innerHTML = list.map(({ it, title, fresh }, i) => `<button type="button" class="ipin${fresh ? ' new' : ''}" data-i="${i}" title="${esc(title)}" style="--bg:${esc(it.color || '#fff')};--d:${(i % 7) * 0.35}s"><i aria-hidden="true">${esc(it.icon || '📍')}</i><span>${esc(title)}</span></button>`).join('');
+    document.getElementById('appRoot').append(layer, bar);
+    bar.querySelector('[data-hide]').onclick = () => this.hidePins();
+    bar.querySelector('[data-all]').onclick = () => { this.hidePins(); this.open(); };
+    layer.querySelectorAll('.ipin').forEach(b => b.onclick = () => { const x = list[+b.dataset.i]; this.go(x.it); });
+    this.pins = { layer, bar, list, els: [...layer.querySelectorAll('.ipin')] };
+    const v = this.app.camera.position.clone(); const loop = () => { if (!this.pins) return; this.placePins(v); this.pinRaf = requestAnimationFrame(loop); };
+    loop();
+  }
+  hidePins() { if (!this.pins) return; cancelAnimationFrame(this.pinRaf); const { layer, bar } = this.pins; this.pins = null; for (const e of [layer, bar]) { e.classList.add('out'); setTimeout(() => e.remove(), 200); } }
+  /** Mỗi khung hình: chiếu vị trí từng nơi lên màn hình; chỉ hiện nơi ở tầng mình đang đứng, trước mặt camera. */
+  placePins(v) {
+    const { list, els, layer } = this.pins, app = this.app, cam = app.camera, cv = app.renderer.domElement, r = cv.getBoundingClientRect();
+    const f = this.s.player?.agent?.f ?? 0, hidden = !!app.rooms?.active || app.mode2d || document.body.classList.contains('overlay-open');
+    layer.classList.toggle('off', hidden); this.pins.bar.classList.toggle('off', hidden); if (hidden) return;
+    list.forEach(({ t }, i) => {
+      const el = els[i];
+      if (t.f !== f) { el.hidden = true; return; }
+      v.set(t.x, app.model.floorY(t.f) + 2.1, t.z).project(cam);
+      const on = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05;
+      el.hidden = !on; if (!on) return;
+      el.style.transform = `translate(${r.left + (v.x + 1) / 2 * r.width}px, ${r.top + (1 - v.y) / 2 * r.height}px) translate(-50%, -100%)`;
+    });
   }
   /** since: phiên bản đã xem trước đó (mục có new_in > since được gắn nhãn MỚI). */
   async open({ since = seenVersion() } = {}) {
@@ -110,6 +152,7 @@ export class Intro {
     if (go === 'karaoke') { const b = s.ktv?.spot; return b ? { name: 'phòng karaoke', f: b.f, x: b.x, z: b.z, r: 1.6 } : null; }
     if (go === 'board') { const b = s.board; b?.ensure(); return b?.stand ? { name: 'bảng thông báo', f: 0, x: b.stand.x, z: b.stand.z, r: 1.0 } : null; }
     if (go === 'meeting') { const d = s.meet?.door; return d ? { name: 'cửa phòng họp', f: d.f, x: d.x, z: d.z, r: 1.0 } : null; }
+    if (go === 'wc') { const st = s.wc?.stalls?.[0]; return st ? { name: 'nhà vệ sinh', f: 0, x: st.out.x, z: st.out.z, r: 0.6 } : null; }
     if (go === 'billiards') { const t = s.bil?.table; return t ? { name: 'bàn bi-a', f: t.f, x: t.x, z: t.z, r: 2.2 } : null; }
     const want = String(go).toLowerCase();
     return (qt.flat || []).find(p => p.name.toLowerCase() === want) || (qt.flat || []).find(p => p.name.toLowerCase().includes(want)) || null;

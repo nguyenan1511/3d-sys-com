@@ -133,18 +133,19 @@ export class Player {
     ];
     this.seqT = 0;
   }
-  /** Ngồi sofa xem TV: đi tới trước sofa, quay lưng về sofa, ngồi xuống. */
-  sitSofa(seat) {
-    const a = this.agent, y = this.app.model.floorY(0);
+  /** Ngồi sofa xem TV (act 'tv') / ghế phòng họp (act 'meet', người khác thấy "Đang họp"): đi tới trước ghế, quay, ngồi xuống. */
+  sitSofa(seat, act = 'tv') {
+    const a = this.agent, f = seat.f || 0, y = this.app.model.floorY(f);
     this.stopPath(); this.sofa = seat; this.vx = this.vz = 0;
-    a.act = 'tv'; a.actT = 0;
+    a.act = act; a.actT = 0;
     const dist = Math.hypot(seat.front.x - a.x, seat.front.z - a.z);
     this.seq = [
       { kind: 'walk', from: { x: a.x, z: a.z }, to: seat.front, dur: Math.max(0.05, dist / this.WALK) },
       { kind: 'turn', yaw: seat.yaw, dur: 0.3 },
-      { kind: 'sit', from: seat.front, to: { x: seat.x, z: seat.z }, y, f: 0, dur: 0.7, anim: 'tv' }
+      { kind: 'sit', from: seat.front, to: { x: seat.x, z: seat.z }, y, f, dur: 0.7, anim: 'tv' }
     ];
     this.seqT = 0; this.send(true);
+    if (act !== 'tv') return;
     // camera chéo sau vai (thấy cả người lẫn TV): chọn bên thoáng hơn
     const rig = this.app.rig;
     if (rig.follow === a && rig.viewScore) {

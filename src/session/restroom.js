@@ -4,10 +4,12 @@
 //    Trong buồng: bấm E hoặc nút "Ra khỏi buồng" để ra.
 //  - bồn rửa tay: gương phản chiếu thật (three.js Reflector — chỉ vẽ khi mình đứng gần, đỡ tốn máy). Bấm E "Soi gương":
 //    nhân vật quay vào gương, camera đứng sau vai nhìn vào gương; bước đi / E / Esc là thôi soi.
+//  - trong buồng: "Lướt TikTok" — khung điện thoại lướt video (src/ui/tiktokPhone.js).
 import * as THREE from 'three';
 import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { PRO_FX } from '../vendor/my-office/src/office/world/pro/pieces.js';
 import { moToBuilding } from '../myoffice/building.js';
+import { TikTokPhone } from '../ui/tiktokPhone.js';
 
 // toạ độ trong khung của my-office (world/pro/floor.js: "restrooms")
 // (gương kéo dài xuống so với khung gốc: nhân vật chibi thấp vẫn thấy mặt mình)
@@ -29,7 +31,7 @@ export class Restroom {
     rt.on('wcAngry', m => this.onAngry(m));
     rt.on('wcKnock', m => session.toast(`🚪 ${m.by} đang gõ cửa buồng của bạn…`));
     this.onKey = e => {   // (trong buồng: bàn phím di chuyển đã khoá — E / Esc để ra)
-      if (this.inside < 0 || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
+      if (this.inside < 0 || this.phone?.open || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
       if (e.key === 'e' || e.key === 'E' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.leave(); }
     };
     window.addEventListener('keydown', this.onKey, true);
@@ -60,14 +62,16 @@ export class Restroom {
   exitStall() {
     const i = this.inside; if (i < 0) return;
     this.inside = -1; const pl = this.s.player, a = pl?.agent, st = this.stalls[i];
+    this.phone?.close();
     if (a) { Object.assign(a, { x: st.out.x, z: st.out.z, y: this.y0, f: 0, yaw: Math.atan2(-(st.out.x - st.in.x), -(st.out.z - st.in.z)) }); pl.send?.(true); pl.follow?.(); }
     this.showCard(false);
   }
   showCard(on) {
     if (!this.card) {
       const c = this.card = document.createElement('div'); c.className = 'wc-card'; c.setAttribute('role', 'status');
-      c.innerHTML = '<b>🚽 Bạn đang ở trong buồng vệ sinh</b><span>Cửa đã khoá — người khác không vào được.</span><button type="button">Ra khỏi buồng (E)</button>';
-      c.querySelector('button').onclick = () => this.leave();
+      c.innerHTML = '<b>🚽 Bạn đang ở trong buồng vệ sinh</b><span>Cửa đã khoá — người khác không vào được.</span><div class="wc-acts"><button type="button" class="sx-primary" data-tt>📱 Lướt TikTok</button><button type="button" class="sx-ghost" data-out>Ra khỏi buồng (E)</button></div>';
+      c.querySelector('[data-out]').onclick = () => this.leave();
+      c.querySelector('[data-tt]').onclick = () => (this.phone ||= new TikTokPhone(this.s)).show();
       document.getElementById('appRoot').appendChild(c);
     }
     this.card.hidden = !on; if (on) requestAnimationFrame(() => this.card.classList.add('show')); else this.card.classList.remove('show');

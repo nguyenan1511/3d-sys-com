@@ -24,7 +24,12 @@ test('họp trực tuyến: camera, chia sẻ màn hình, mic giữa hai ngườ
     await expect(a.locator('.mt-here .mt-av')).toHaveCount(2, { timeout: 20_000 });
     await expect(b.locator('.mt-here .mt-av')).toHaveCount(2, { timeout: 20_000 });
 
-    // thanh nút họp: cùng chiều cao với hệ nút chung
+    // đang họp: nhân vật ngồi ở ghế quanh bàn họp trong văn phòng; người kia thấy đang ngồi, nhãn "Đang họp"
+    await expect.poll(() => a.evaluate(() => window.__app.session.player.agent.act), { timeout: 15_000 }).toBe('meet');
+    const chair = await a.evaluate(() => { const p = window.__app.session.player.agent, t = [...window.__app.app.model.meetingRooms.values()].find(x => x.floor === 0); return Math.min(...t.seats.map(c => Math.hypot(c.x - p.x, c.z - p.z))); });
+    expect(chair).toBeLessThan(0.5);
+    await expect.poll(() => b.evaluate(k => { const r = window.__app.session.remote.byKey.get(k); return r?.target?.act === 'meet' && r.sit > 0.5; }, `employee:${ca}`), { timeout: 15_000 }).toBe(true);
+    // (thanh nút họp: cùng chiều cao với hệ nút chung)
     const hs = await a.evaluate(() => [...new Set([...document.querySelectorAll('.mt-call .mt-cb, .mt-top .mt-leave')].map(x => Math.round(x.getBoundingClientRect().height)))]);
     expect(hs).toEqual([38]);
     await expect(a.locator('.mt-cb[data-m=mic]')).toHaveText(/Bật mic/);
@@ -71,6 +76,7 @@ test('họp trực tuyến: camera, chia sẻ màn hình, mic giữa hai ngườ
     await expect(b.locator(`.mt-tile[data-id="employee:${ca}:cam"]`)).toHaveCount(0, { timeout: 15_000 });
     expect(await b.evaluate(k => window.__app.session.meet.room.call.peers.has(k), `employee:${ca}`)).toBe(false);
     await expect(a.locator('.mt-room')).toHaveCount(0);
+    await expect.poll(() => a.evaluate(() => window.__app.session.player.agent.act || null)).toBe(null);   // (rời phòng: đứng dậy khỏi ghế họp)
     expect(await a.evaluate(() => window.__tracks.every(t => t.readyState === 'ended'))).toBe(true);
   } finally {
     expect((await call(a, 'DELETE', `/api/meetings/${id}/data`, {})).status).toBe(200);   // (xoá hẳn cuộc họp: trả khung giờ cho bài kiểm thử phòng họp chạy sau)

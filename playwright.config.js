@@ -32,7 +32,7 @@ export default defineConfig({
       PORT: String(PORT), ENV_FILE: '/nonexistent', DB_PATH: process.env.E2E_DB,
       SESSION_SECRET: crypto.randomBytes(32).toString('hex'),
       ADMIN_INITIAL_PASSWORD: process.env.E2E_ADMIN_PW,
-      DUPLICATE_POLICY: 'online-or-name-mismatch', ADMIN_CAN_SIT_ANYWHERE: 'false', ONLINE_GRACE_MS: '4000'
+      DUPLICATE_POLICY: 'online-or-name-mismatch', TIKTOK_OEMBED: 'off', ADMIN_CAN_SIT_ANYWHERE: 'false', ONLINE_GRACE_MS: '4000'
     }
   }
 });

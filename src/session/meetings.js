@@ -11,6 +11,7 @@ import { notice } from '../ui/notices.js';
 import { sound } from '../audio/notify.js';
 import { MeetPanel } from '../ui/meetPanel.js';
 import { MeetRoom } from '../ui/meetRoom.js';
+import { facingVec, deg2yaw } from '../core/util.js';
 
 const VN = { timeZone: 'Asia/Ho_Chi_Minh' };
 export const hm = t => new Intl.DateTimeFormat('vi-VN', { ...VN, hour: '2-digit', minute: '2-digit', hour12: false }).format(t);
@@ -124,14 +125,31 @@ export class Meetings {
     this.inRoom = m.id;
     this.panel.close();
     // nhân vật vào trong phòng (ngồi quanh bàn họp)
-    const d = this.door, a = this.s.player?.agent;
-    if (d && a && !this.inside(a.x, a.z, a.f)) this.app.quickTravel?.jump(d.f, d.inX, d.inZ, d.yawOut + Math.PI);
+    const fresh = !this.room;
     if (this.room) this.room.update(m); else this.room = new MeetRoom(this, m);
+    if (fresh) this.sitDown(m.members || []);
+  }
+  /** Ngồi vào một ghế trống quanh bàn họp trong văn phòng — người khác thấy mình đang ngồi họp (nhãn "Đang họp"). */
+  async sitDown(members) {
+    const pl = this.s.player, a = pl?.agent, d = this.door; if (!a || !d) return;
+    const table = [...(this.app.model.meetingRooms?.values() || [])].find(t => t.floor === d.f && this.inside(t.x, t.z, t.floor)) || null;
+    const chairs = table?.seats || [];
+    // ghế: theo thứ tự vào phòng (mỗi người một ghế), tránh ghế đã có người ngồi
+    const taken = this.s.remote.list.filter(r => r.target?.act === 'meet');
+    const free = chairs.filter(c => !taken.some(r => Math.hypot(r.x - c.x, r.z - c.z) < 0.4));
+    const idx = Math.max(0, members.findIndex(p => p.key === this.s.key));
+    const c = free.length ? free[idx % free.length] : chairs[idx % Math.max(1, chairs.length)];
+    if (!c) { if (!this.inside(a.x, a.z, a.f)) this.app.quickTravel?.jump(d.f, d.inX, d.inZ, d.yawOut + Math.PI); return; }
+    const fv = facingVec(c.facing || 0), front = { x: c.x + fv.x * 0.3, z: c.z + fv.z * 0.3 };
+    if (pl.seated) pl.standUp(); if (pl.sofa) pl.standSofa();
+    await this.app.quickTravel?.jump(d.f, front.x, front.z, deg2yaw(c.facing || 0));
+    if (this.inRoom) pl.sitSofa({ x: c.x, z: c.z, f: table.floor, front, yaw: deg2yaw(c.facing || 0) }, 'meet');
   }
   leave() { if (this.inRoom) this.rt.send({ t: 'meet:leave', id: this.inRoom }); this.closeRoom(true); this.loadMine(); this.loadSched(); }
   closeRoom(walkOut = true) {
     const was = this.inRoom; this.inRoom = null;
     this.room?.destroy(); this.room = null;
+    if (this.s.player?.sofa && this.s.player.agent.act === 'meet') this.s.player.standSofa();   // (đứng dậy khỏi ghế họp)
     const a = this.s.player?.agent, d = this.door;
     if (was && walkOut && a && d && this.inside(a.x, a.z, a.f)) this.app.quickTravel?.jump(d.f, d.x, d.z, d.yawOut);
   }

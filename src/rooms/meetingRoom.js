@@ -134,6 +134,8 @@ export class MeetingRoom {
     const p = this.pip;
     if (!p) { renderer.render(this.scene, this.camera); return; }
     const w = p.el.clientWidth, h = p.el.clientHeight; if (w < 2 || h < 2) return;
+    // đang xem màn hình họp (video): khung 3D thu nhỏ chỉ vẽ ~8 khung/giây — GPU dành sức giải mã video chia sẻ màn hình
+    if (this.lowFps) { const now = performance.now(); if (now - (this._lastPip || 0) < 125 && this.pw === w && this.ph === h) return; this._lastPip = now; }
     const pr = renderer.getPixelRatio(), src = renderer.domElement;
     if (w !== this.pw || h !== this.ph) {
       this.pw = w; this.ph = h; this.camera.aspect = w / h; this.camera.fov = 62; this.camera.clearViewOffset(); this.camera.updateProjectionMatrix();

@@ -123,7 +123,7 @@ export class Social {
     if (!m) return;
     if (m.channel.startsWith('meet:')) return;   // (kênh riêng của cuộc họp: src/session/meetings.js)
     if (!this.msgs.has(m.channel)) { if (m.channel !== this.cur) this.msgs.set(m.channel, []); }
-    const list = this.msgs.get(m.channel); if (list && !list.some(x => x.id === m.id)) list.push(m);
+    const list = this.msgs.get(m.channel); if (list && !list.some(x => x.id === m.id)) { list.push(m); if (list.length > 300) list.splice(0, list.length - 300); }   // (giữ 300 tin gần nhất mỗi kênh — mở trang cả ngày không phình bộ nhớ)
     if (m.channel.startsWith('dm:') && !this.dms.includes(m.channel)) this.dms.unshift(m.channel);
     const visible = !this.panel.hidden && m.channel === this.cur;
     if (visible) this.renderMsgs(); else if (m.from !== this.me) this.unread.set(m.channel, (this.unread.get(m.channel) || 0) + 1);
