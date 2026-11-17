@@ -63,11 +63,12 @@ export class Intro {
     layer.classList.toggle('off', hidden); this.pins.bar.classList.toggle('off', hidden); if (hidden) return;
     list.forEach(({ t }, i) => {
       const el = els[i];
-      if (t.f !== f) { el.hidden = true; return; }
+      if (t.f !== f) { if (!el.hidden) el.hidden = true; return; }
       v.set(t.x, app.model.floorY(t.f) + 2.1, t.z).project(cam);
       const on = v.z < 1 && Math.abs(v.x) < 1.05 && Math.abs(v.y) < 1.05;
-      el.hidden = !on; if (!on) return;
-      el.style.transform = `translate(${r.left + (v.x + 1) / 2 * r.width}px, ${r.top + (1 - v.y) / 2 * r.height}px) translate(-50%, -100%)`;
+      if (el.hidden === on) el.hidden = !on; if (!on) return;
+      const tf = `translate(${Math.round(r.left + (v.x + 1) / 2 * r.width)}px, ${Math.round(r.top + (1 - v.y) / 2 * r.height)}px) translate(-50%, -100%)`;
+      if (el._tf !== tf) { el._tf = tf; el.style.transform = tf; }   // (chỉ ghi khi đổi — không ghi DOM mỗi khung hình)
     });
   }
   /** since: phiên bản đã xem trước đó (mục có new_in > since được gắn nhãn MỚI). */

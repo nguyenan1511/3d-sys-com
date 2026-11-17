@@ -662,24 +662,23 @@ export async function startApp(me, hooks = {}) {
 
   // ---------- vòng lặp ----------
   let lastDraw = 0;
-  // ---- độ phân giải tự điều chỉnh (kiểu PerformanceMonitor): khung hình tụt (< 40 /s trong ~2 s) thì hạ từng bậc 0,25×
-  // (thấp nhất 1×); ổn định lâu (> 57 /s trong ~5 s) thì nâng lại tới mức tối đa. Đổi qua lại quá 3 lần thì đứng yên.
-  // Đã ở 1× mà vẫn chậm: ghi nhớ "chất lượng thấp" cho phiên này (lần tải sau tắt khử răng cưa).
-  const adapt = { low: 0, high: 0, flips: 0, last: 0 };
+  // ---- độ phân giải tự điều chỉnh: khung hình tụt (< 40 /s liên tục ~6 s) thì hạ một bậc 0,25× (thấp nhất 1×, tối đa 3 bậc
+  // mỗi phiên). KHÔNG nâng lại (2026-11-17): nâng / hạ qua lại làm canvas cấp phát lại bộ nhớ mỗi 30 s – 1 phút (100–500 ms)
+  // và xoá trắng một khung — người dùng thấy "giật như tải lại trang". Đổi kích thước ở ĐẦU khung hình kế tiếp, trước khi vẽ.
+  // Đã ở 1× mà vẫn chậm: tắt bóng đổ (một lần); vẫn chậm nữa: ghi nhớ "chất lượng thấp" cho lần tải sau.
+  const adapt = { low: 0, high: 0, steps: 0, want: 0 };
   function adaptPR(f) {
     if (PR > 0 || SOFT_GL || window.__RENDER_EVERY_MS || (+(params.get('maxfps') || window.__MAXFPS || 0)) || document.hidden) return;
-    if (fpsCap(performance.now()) < 60) { adapt.low = adapt.high = 0; return; }   // (đang cố ý vẽ chậm — rảnh / cửa sổ khác: không đo để hạ độ phân giải)
+    if (fpsCap(performance.now()) < 60 || app.rooms?.active || document.body.classList.contains('overlay-open')) { adapt.low = 0; return; }   // (cố ý vẽ chậm / đang ở phòng / bảng phủ: không đo)
     const cur = renderer.getPixelRatio();
-    adapt.low = f < 40 ? adapt.low + 1 : 0; adapt.high = f > 57 ? adapt.high + 1 : 0;
-    if (adapt.low >= 4) {
+    adapt.low = f < 40 ? adapt.low + 1 : 0;
+    if (adapt.low >= 12) {
       adapt.low = 0;
-      if (cur > 1.01) { renderer.setPixelRatio(Math.max(1, cur - 0.25)); resize(); if (adapt.last > 0) adapt.flips++; adapt.last = -1; }
+      if (cur > 1.01 && adapt.steps < 3) { adapt.want = Math.max(1, cur - 0.25); adapt.steps++; }   // (áp dụng ở đầu khung hình kế tiếp)
       else if (renderer.shadowMap.enabled) { // đã ở 1× mà vẫn chậm: tắt bóng đổ ngay (lượt vẽ bóng tốn gần gấp đôi draw call)
         renderer.shadowMap.enabled = false; scene.traverse(o => { if (o.material) for (const m of [].concat(o.material)) m.needsUpdate = true; });
       }
       else if (f < 30) { try { sessionStorage.setItem('sysone.quality', 'low'); } catch { /* */ } }
-    } else if (adapt.high >= 10 && cur < PR_MAX - 0.01 && adapt.flips < 3) {
-      adapt.high = 0; renderer.setPixelRatio(Math.min(PR_MAX, cur + 0.25)); resize(); if (adapt.last < 0) adapt.flips++; adapt.last = 1;
     }
   }
   let last = performance.now(), fps = 60, frames = 0, perfT = 0, cutCheck = 0, wasCovered = false;
@@ -768,11 +767,9 @@ export async function startApp(me, hooks = {}) {
   // ?maxfps=N: giới hạn số khung hình mỗi giây (máy yếu, hoặc nhiều trang 3D chạy cùng lúc khi kiểm thử)
   const maxFps = +(params.get('maxfps') || window.__MAXFPS || 0);
   // ---- giới hạn khung hình (2026-11-17: "ở trang 3–5 phút là lag"): không giới hạn thì màn 120/144 Hz vẽ 120–144 khung/giây,
-  // GPU chạy 100% liên tục → máy nóng, tự hạ xung sau vài phút. Tối đa 60/giây; không chạm chuột / phím 30 giây: 30/giây;
-  // cửa sổ không được chọn (đang làm app khác): 20/giây. Có thao tác là lên lại ngay. (?maxfps=N: cố định N)
-  let lastInput = performance.now();
-  for (const ev of ['pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart']) window.addEventListener(ev, () => { lastInput = performance.now(); }, { passive: true, capture: true });
-  const fpsCap = now => maxFps || (!document.hasFocus() ? 20 : now - lastInput > 30000 ? 30 : 60);
+  // GPU chạy 100% liên tục → máy nóng, tự hạ xung sau vài phút. Tối đa 60/giây; cửa sổ không được chọn (đang làm app khác):
+  // 30/giây. (Bỏ mức "rảnh 30 s → 30/giây": người đang xem thấy tụt khung như bị giật.) (?maxfps=N: cố định N)
+  const fpsCap = () => maxFps || (document.hasFocus() ? 60 : 30);
   // vòng vẽ: luôn hẹn khung hình kế tiếp TRƯỚC khi chạy — một lỗi bất ngờ trong một khung hình (dữ liệu lạ từ mạng, đồ vật
   // chưa dựng xong…) chỉ làm hỏng khung đó, không làm đứng cả ứng dụng. Lỗi lặp lại liên tục thì báo một lần.
   let frameErrs = 0, frameErrAt = 0;
@@ -788,6 +785,7 @@ export async function startApp(me, hooks = {}) {
   function frameBody(now) {
     if (window.__PAUSE_RENDER) { last = now; return; } // (kiểm thử nhiều trang trên GPU giả lập: trang khác đang tải cảnh thì tạm dừng vẽ)
     if (now - last < 1000 / fpsCap(now) - 2) { return; }
+    if (adapt.want) { renderer.setPixelRatio(adapt.want); resize(); adapt.want = 0; }   // (đổi độ phân giải trước khi vẽ — không có khung trắng)
     // (khung giật tới 1 s: nhân vật vẫn đi đủ quãng, không bị "quay chậm")
     const rawDt = Math.min((now - last) / 1000, 1.0), rdt = Math.min(rawDt, 0.1); last = now;
     if (!app.paused) sim.step(rdt * app.speed);
@@ -928,7 +926,7 @@ export async function startApp(me, hooks = {}) {
     app, ready: true, session, deskState,
     get avatars() { return avatars; },   // (kiểm thử: rig từng nhân vật)
     get pixelRatio() { return renderer.getPixelRatio(); }, quality: QUALITY,   // (kiểm thử: độ phân giải đang vẽ)
-    fpsCap: now => fpsCap(now),   // (kiểm thử: giới hạn khung hình hiện tại — 60 / 30 rảnh / 20 cửa sổ khác)
+    fpsCap: () => fpsCap(),   // (kiểm thử: giới hạn khung hình hiện tại — 60 / 30 khi cửa sổ khác)
     /** (kiểm thử) các vật tia từ điểm màn hình (x, y) chạm vào: tên, nhóm cha, độ cao. */
     rayHits(x, y, n = 6, maxY = Infinity) {
       const r = canvas.getBoundingClientRect(); ndc.set(((x - r.left) / r.width) * 2 - 1, -((y - r.top) / r.height) * 2 + 1); ray.setFromCamera(ndc, camera);

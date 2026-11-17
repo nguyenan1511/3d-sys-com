@@ -6,6 +6,7 @@ import { uniqueCode, loginEmployeeUI, waitScene, newPage, closeAll, finishAvatar
 
 test.afterEach(closeAll);
 test.setTimeout(240_000);
+test.use({ actionTimeout: 15_000 });
 
 test('giới thiệu bằng ghim nổi: tự hiện lần đầu, bấm ghim để tới, danh sách đầy đủ; có nơi mới thì hiện lại với nhãn MỚI', async ({ browser }) => {
   const a = await newPage(browser);
@@ -23,7 +24,7 @@ test('giới thiệu bằng ghim nổi: tự hiện lần đầu, bấm ghim đ�
   await expect.poll(() => a.locator('.ipin:not([hidden])').count(), { timeout: 15_000 }).toBeGreaterThan(2);
   // bấm ghim → tới nơi đó
   const before = await a.evaluate(() => { const p = window.__app.session.player.agent; return { x: p.x, z: p.z }; });
-  await a.locator('.ipin:not([hidden])').first().click();
+  await a.locator('.ipin:not([hidden])').first().dispatchEvent('click');   // (ghim đi theo camera đang trôi — bấm thẳng, không chờ "đứng yên")
   await expect.poll(() => a.evaluate(b => { const p = window.__app.session.player.agent; return Math.hypot(p.x - b.x, p.z - b.z); }, before), { timeout: 15_000 }).toBeGreaterThan(1);
   // danh sách đầy đủ: hộp cũ (các mục không có chỗ như phím tắt)
   await a.locator('.ipin-bar [data-all]').click();

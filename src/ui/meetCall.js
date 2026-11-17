@@ -136,7 +136,11 @@ export class MeetCall {
       if (on) {
         let stream;
         try { stream = await this.capture(slot); }
-        catch (e) { this.captureError(slot, e); return; }
+        catch (e) {
+          // thiết bị đang bận tạm thời (vừa tắt / bật lại, driver chưa nhả): thử lại một lần
+          if (slot !== 'screen' && (e?.name === 'NotReadableError' || e?.name === 'AbortError')) { await new Promise(r => setTimeout(r, 600)); try { stream = await this.capture(slot); } catch (e2) { this.captureError(slot, e2); return; } }
+          else { this.captureError(slot, e); return; }
+        }
         if (this.gone) { stream.getTracks().forEach(t => t.stop()); return; }
         this.local[slot] = stream;
         const tr = stream.getTracks()[0];
@@ -161,6 +165,7 @@ export class MeetCall {
     return md.getDisplayMedia({ video: { width: { max: 1920 }, height: { max: 1080 }, frameRate: { ideal: 15, max: 24 } }, audio: false, surfaceSwitching: 'include', selfBrowserSurface: 'exclude' });
   }
   captureError(slot, e) {
+    console.warn('[họp] không mở được', slot, e?.name, e?.message);
     const what = { mic: 'micro', cam: 'camera', screen: 'chia sẻ màn hình' }[slot];
     if (slot === 'screen' && e?.name === 'NotAllowedError') return;   // (bấm Huỷ ở hộp chọn màn hình)
     if (e?.name === 'NotSupportedError') this.o.toast('Trình duyệt này chưa hỗ trợ chia sẻ màn hình — dùng Chrome / Edge / Firefox trên máy tính.', true);

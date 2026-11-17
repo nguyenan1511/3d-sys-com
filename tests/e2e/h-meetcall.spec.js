@@ -11,7 +11,7 @@ const videoOk = (p, sel) => p.evaluate(s => { const v = document.querySelector(s
 
 test('họp trực tuyến: camera, chia sẻ màn hình, mic giữa hai người trong phòng họp', async ({ browser }) => {
   const ca = uniqueCode(), cb = uniqueCode();
-  const a = await newPage(browser); await loginEmployeeUI(a, `${ca}-Lan`); await waitScene(a); await finishAvatar(a);
+  const a = await newPage(browser); a.on('console', m => { if (/họp|camera|micro|getUserMedia|Error/i.test(m.text())) console.log('[A]', m.type(), m.text().slice(0, 200)); }); await loginEmployeeUI(a, `${ca}-Lan`); await waitScene(a); await finishAvatar(a);
   const b = await newPage(browser); await loginEmployeeUI(b, `${cb}-Minh`); await waitScene(b); await finishAvatar(b);
   const slot = Math.floor(Date.now() / 1800e3) * 1800e3;
   const bk = await call(a, 'POST', '/api/meetings', { title: 'Họp trực tuyến', start: slot, end: slot + 3600e3, invitees: [`employee:${cb}`] });
@@ -39,7 +39,7 @@ test('họp trực tuyến: camera, chia sẻ màn hình, mic giữa hai ngườ
 
     // A bật camera → B mở màn hình họp, thấy hình của A
     await a.locator('.mt-cb[data-m=cam]').click();
-    await expect(a.locator('.mt-cb[data-m=cam]')).toHaveText(/Tắt camera/);
+    await expect(a.locator('.mt-cb[data-m=cam]'), 'bật camera (thông báo lỗi nếu có hiện trong log [A])').toHaveText(/Tắt camera/, { timeout: 15_000 });
     await b.locator('.mt-vview').click();
     await expect(b.locator('.mt-room.mode-call .mt-vids')).toBeVisible();
     await expect(b.locator('.mt-vview .mt-cnt')).toHaveText('1');
