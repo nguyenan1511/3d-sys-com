@@ -3034,3 +3034,10 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
   .tt-close { top: calc(14px + env(safe-area-inset-top)); right: 14px; z-index: 4; }
 }
 @media (prefers-reduced-motion: reduce) { .tt-phone, .tt-screen { animation: none !important; transition: none !important; } }
+
+/* ===================== Điện thoại: ô nhập chữ >= 16px =====================
+   iOS Safari tự phóng to cả trang khi chạm vào ô nhập có cỡ chữ < 16px (ô chat 13px → màn hình bị scale, phải tự thu lại).
+   Giữ 16px cho mọi ô gõ chữ trên màn hình cảm ứng; không khoá zoom (maximum-scale) để vẫn phóng to được khi cần. */
+@media (pointer: coarse), (max-width: 760px) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), textarea, select { font-size: 16px !important; }
+}
