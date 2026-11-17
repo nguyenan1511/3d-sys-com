@@ -97,6 +97,13 @@ test('lướt TikTok trong buồng vệ sinh: khung điện thoại, dán link t
   await a.click('.tt-close');
   await expect(a.locator('.tt-back')).toHaveCount(0);
   expect(await a.evaluate(() => window.__app.session.player.agent.act || null)).toBe(null);
+  // cất điện thoại xong: cảnh 3D vẽ lại (lỗi cũ: overlay-open không được gỡ → màn hình đứng im mãi); mở lại rồi Esc cũng vậy
+  await expect(a.locator('body')).not.toHaveClass(/overlay-open/);
+  await a.click('.wc-card [data-tt]'); await expect(phone).toBeVisible();
+  await expect(a.locator('body')).toHaveClass(/overlay-open/);
+  await a.evaluate(() => document.activeElement?.blur()); await a.keyboard.press('Escape');
+  await expect(a.locator('.tt-back')).toHaveCount(0);
+  await expect(a.locator('body')).not.toHaveClass(/overlay-open/);
   await a.click('.wc-card [data-out]');
   await expect.poll(() => a.evaluate(() => window.__app.session.wc.inside)).toBe(-1);
 });

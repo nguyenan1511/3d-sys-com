@@ -68,13 +68,13 @@ test('góc âm nhạc: đi tới máy hát bấm E, dán link YouTube (cần CEO
   await a.evaluate(() => { const s = window.__app.session, mc = window.__app.app.musicCorner; Object.assign(s.player.agent, { x: mc.stand.x, z: mc.stand.z, y: 0.05, f: 0 }); s.player.follow(); });
   await expect(a.locator('#hudPrompt')).toContainText('nhạc');
   await a.keyboard.press('e');
-  await expect(a.locator('.music-pop .mp-deny')).toBeVisible();                  // chưa có quyền
-  await expect(a.locator('.music-pop .mp-form')).toBeHidden();
+  await expect(a.locator('.music-pop .mu-deny')).toBeVisible();                  // chưa có quyền
+  await expect(a.locator('.music-pop .mu-form')).toBeHidden();
   const ceo = await newPage(browser); await loginAdminAPI(ceo);
   expect((await call(ceo, 'POST', `/api/v1/admin/music/${code}`, { allow: true })).status).toBe(200);
-  await expect(a.locator('.music-pop .mp-form')).toBeVisible({ timeout: 10_000 });   // bảng tự cập nhật khi được cấp quyền
-  await a.locator('.music-pop .mp-url').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
-  await a.locator('.music-pop .mp-go').click();
+  await expect(a.locator('.music-pop .mu-form')).toBeVisible({ timeout: 10_000 });   // bảng tự cập nhật khi được cấp quyền
+  await a.locator('.music-pop .mu-url').fill('https://www.youtube.com/watch?v=dQw4w9WgXcQ');
+  await a.locator('.music-pop .mu-go').click();
   // cả công ty nhận trạng thái; thanh nhạc hiện ở mọi người; B không có quyền → nút điều khiển bị khoá, âm lượng riêng vẫn chỉnh được
   await expect.poll(() => b.evaluate(() => window.__app.session.social.musicState.videoId)).toBe('dQw4w9WgXcQ');
   await expect(b.locator('.music-bar')).toHaveClass(/show/);

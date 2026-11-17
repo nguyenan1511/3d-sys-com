@@ -94,7 +94,7 @@ export class MeetPanel {
       <div class="mp-dayname">${esc(fmtDate(from))}</div><div class="mp-tl" aria-busy="true"></div>`;
     body.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { this.day = +b.dataset.day; this.renderBook(); });
     { const strip = body.querySelector('.mp-days'), on = strip.querySelector('.on'); if (on) strip.scrollLeft = on.offsetLeft - strip.clientWidth / 2 + on.offsetWidth / 2; }   // (không dùng scrollIntoView: nó cuộn cả khung hộp thoại)
-    const r = await api('GET', `/api/meetings?from=${from}&to=${to}`); if (!this.el || this.tab !== 'book' || this.day !== from) return;
+    const r = await api('GET', `/api/meetings?from=${from}&to=${to}`); if (!this.el || this.tab !== 'book' || this.day !== from || this.sub || !body.querySelector('.mp-tl')) return;   // (đã chuyển sang form đặt phòng trong lúc chờ)
     const list = r.ok ? r.meetings : [], now = Date.now(), open = from + 7 * 3600e3, close = from + 21 * 3600e3, n = (close - open) / SLOT;
     const tl = body.querySelector('.mp-tl'); tl.removeAttribute('aria-busy');
     tl.style.height = `${n * ROW}px`;

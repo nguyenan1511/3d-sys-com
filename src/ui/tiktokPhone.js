@@ -5,6 +5,7 @@
 import { api } from '../net/api.js';
 import { esc, confirmDanger } from '../session/ui.js';
 import { icon } from './icons.js';
+import { overlayOn, overlayOff } from './overlay.js';
 
 const PLAYER = id => `https://www.tiktok.com/player/v1/${id}?autoplay=1&loop=0&controls=1&progress_bar=1&play_button=0&volume_control=1&fullscreen_button=0&timestamp=0&music_info=1&description=1&rel=0&native_context_menu=0&closed_caption=0`;
 
@@ -16,10 +17,12 @@ export class TikTokPhone {
     if (this.el) return;
     const back = this.el = document.createElement('div'); back.className = 'tt-back'; back.setAttribute('role', 'dialog'); back.setAttribute('aria-label', 'Lướt TikTok');
     back.innerHTML = `<div class="tt-phone">
+        <div class="tt-status" aria-hidden="true"><span class="tt-clock"></span><i class="tt-island"></i><span class="tt-sys"><svg viewBox="0 0 18 12" width="17" height="11"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 26 12" width="24" height="11"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="currentColor" opacity=".45"/><rect x="2.5" y="2.5" width="15" height="7" rx="2"/><rect x="23.5" y="4" width="2" height="4" rx="1" opacity=".45"/></svg></span></div>
         <div class="tt-screen"><iframe class="tt-frame" title="Video TikTok" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
           <div class="tt-swipe" aria-hidden="true"></div>
           <div class="tt-empty" hidden><b>📱 Chưa có video nào</b><span>Dán link video TikTok ở ô bên dưới để cả công ty cùng lướt.</span></div>
-          <div class="tt-info"><b class="tt-title"></b><small class="tt-by"></small></div></div>
+          </div>
+        <div class="tt-info"><b class="tt-title"></b><small class="tt-by"></small></div>
         <div class="tt-rail">
           <button type="button" class="tt-btn" data-prev aria-label="Video trước">${icon('chevUp', 18)}</button>
           <span class="tt-pos"></span>
@@ -30,7 +33,7 @@ export class TikTokPhone {
         <form class="tt-add"><input maxlength="500" inputmode="url" autocomplete="off" placeholder="Dán link TikTok…" aria-label="Link video TikTok"><button type="submit" class="sx-primary">Thêm</button></form>
         <button type="button" class="tt-close sx-x" aria-label="Cất điện thoại">${icon('close', 18)}</button>
       </div>`;
-    document.body.appendChild(back); document.body.classList.add('overlay-open');
+    document.body.appendChild(back); overlayOn();   // (thôi vẽ 3D bên dưới; bộ đếm chung với bảng tin / phòng họp)
     requestAnimationFrame(() => back.classList.add('show'));
     this.frame = back.querySelector('.tt-frame');
     back.querySelector('[data-prev]').onclick = () => this.go(-1);
@@ -54,6 +57,8 @@ export class TikTokPhone {
     window.addEventListener('keydown', this._key, true);
     this._msg = e => this.onPlayer(e);
     window.addEventListener('message', this._msg);
+    const tick = () => { const c = this.el?.querySelector('.tt-clock'); if (c) c.textContent = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }); };
+    tick(); this._clock = setInterval(tick, 15000);
     this.s.player?.setAct?.('phone');   // (nhân vật cầm điện thoại)
     const r = await api('GET', '/api/tiktok');
     if (!this.el) return;
@@ -62,9 +67,9 @@ export class TikTokPhone {
   }
   close() {
     const el = this.el; if (!el) return;
-    this.el = null; this.frame = null;
+    this.el = null; this.frame = null; clearInterval(this._clock);
     window.removeEventListener('keydown', this._key, true); window.removeEventListener('message', this._msg);
-    if (!document.querySelector('.sx-back, .intro-back, .mt-room, .tt-back.show:not(.out)')) document.body.classList.remove('overlay-open');
+    overlayOff();   // (trước đây tự dò ".tt-back.show" TRƯỚC khi gỡ class show → tìm thấy chính nó → không bao giờ gỡ overlay-open → cảnh 3D thôi vẽ, màn hình đứng im)
     if (this.s.player?.agent?.act === 'phone') this.s.player.setAct(null);
     el.classList.remove('show'); el.classList.add('out'); setTimeout(() => el.remove(), 220);
   }

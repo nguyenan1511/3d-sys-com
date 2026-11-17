@@ -221,21 +221,21 @@ export class Social {
     const pop = this.mpop = document.createElement('div'); pop.className = 'speaker-pop music-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Góc âm nhạc');
     pop.innerHTML = `<header><b>${icon('music', 16)} Góc âm nhạc</b><button type="button" class="sp-x" aria-label="Đóng">✕</button></header>
       <p class="sp-hint">Dán link YouTube: cả công ty cùng nghe, video chiếu trên TV phòng giải trí.</p>
-      <form class="mp-form"><input class="mp-url" type="url" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" aria-label="Link YouTube"><button type="submit" class="mp-go">Phát</button></form>
-      <p class="sp-note mp-deny">Chỉ CEO và người được CEO cấp quyền mới mở nhạc. Bạn vẫn chỉnh âm lượng trên máy mình ở thanh nhạc phía trên.</p>
-      <div class="mp-now"></div>
-      <div class="mp-recent"><div class="sp-sec">Phát gần đây</div><ul></ul></div>
+      <form class="mu-form"><input class="mu-url" type="url" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" aria-label="Link YouTube"><button type="submit" class="mu-go">Phát</button></form>
+      <p class="sp-note mu-deny">Chỉ CEO và người được CEO cấp quyền mới mở nhạc. Bạn vẫn chỉnh âm lượng trên máy mình ở thanh nhạc phía trên.</p>
+      <div class="mu-now"></div>
+      <div class="mu-recent"><div class="sp-sec">Phát gần đây</div><ul></ul></div>
       ${isAdmin ? '<div class="sp-perm"><div class="sp-sec">Cấp quyền mở nhạc</div><ul class="sp-list"><li class="sp-load">Đang tải…</li></ul></div>' : ''}`;
     document.getElementById('appRoot').appendChild(pop);
     const close = () => { window.removeEventListener('keydown', esc1, true); pop.classList.add('closing'); setTimeout(() => pop.remove(), 180); this.mpop = null; };
     const esc1 = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
     window.addEventListener('keydown', esc1, true);
     pop.querySelector('.sp-x').onclick = close;
-    const input = pop.querySelector('.mp-url');
+    const input = pop.querySelector('.mu-url');
     input.addEventListener('keydown', e => e.stopPropagation());
-    pop.querySelector('.mp-form').onsubmit = async e => {
+    pop.querySelector('.mu-form').onsubmit = async e => {
       e.preventDefault(); const url = input.value.trim(); if (!url) { input.focus(); return; }
-      const btn = pop.querySelector('.mp-go'); btn.disabled = true; btn.textContent = 'Đang mở…';
+      const btn = pop.querySelector('.mu-go'); btn.disabled = true; btn.textContent = 'Đang mở…';
       const r = await this.call('/api/v1/music/play', { url });
       btn.disabled = false; btn.textContent = 'Phát'; if (r.ok) input.value = '';
     };
@@ -258,12 +258,12 @@ export class Social {
   refreshMusicPop() {
     const pop = this.mpop; if (!pop || !pop.isConnected) return;
     const st = this.musicState, can = this.canControl;
-    pop.querySelector('.mp-form').hidden = !can; pop.querySelector('.mp-deny').hidden = can;
-    pop.querySelector('.mp-now').innerHTML = st.on
-      ? `<div class="mp-card"><img src="https://i.ytimg.com/vi/${esc(st.videoId)}/mqdefault.jpg" alt="" width="96" height="54"><div><b>${esc(st.title || 'Video YouTube')}</b><small>${st.paused ? 'Đang tạm dừng' : 'Đang phát'}${st.by ? ` · mở bởi ${esc(st.by)}` : ''}</small></div></div>`
+    pop.querySelector('.mu-form').hidden = !can; pop.querySelector('.mu-deny').hidden = can;
+    pop.querySelector('.mu-now').innerHTML = st.on
+      ? `<div class="mu-card"><img src="https://i.ytimg.com/vi/${esc(st.videoId)}/mqdefault.jpg" alt="" width="96" height="54"><div><b>${esc(st.title || 'Video YouTube')}</b><small>${st.paused ? 'Đang tạm dừng' : 'Đang phát'}${st.by ? ` · mở bởi ${esc(st.by)}` : ''}</small></div></div>`
       : '<p class="sp-now">Loa đang tắt.</p>';
-    const ul = pop.querySelector('.mp-recent ul'), list = this.recent.filter(x => !(st.on && x.videoId === st.videoId)).slice(0, 5);
-    pop.querySelector('.mp-recent').hidden = !list.length;
+    const ul = pop.querySelector('.mu-recent ul'), list = this.recent.filter(x => !(st.on && x.videoId === st.videoId)).slice(0, 5);
+    pop.querySelector('.mu-recent').hidden = !list.length;
     ul.innerHTML = list.map(x => `<li><button type="button" data-v="${esc(x.videoId)}" ${can ? '' : 'disabled'}><img src="https://i.ytimg.com/vi/${esc(x.videoId)}/default.jpg" alt="" width="48" height="36"><span>${esc(x.title || x.videoId)}</span></button></li>`).join('');
     ul.querySelectorAll('[data-v]').forEach(b => b.onclick = () => this.call('/api/v1/music/play', { url: b.dataset.v }));
   }

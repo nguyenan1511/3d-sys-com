@@ -12,6 +12,7 @@ import { notice } from '../ui/notices.js';
 import { overlayOn, overlayOff } from '../ui/overlay.js';
 import { DatePicker, vnDay, fmtLong } from '../ui/datePicker.js';
 import { findDepartment } from '../shared/departments.js';
+import { avatar } from '../ui/meetPanel.js';
 
 const SEEN = 'sysone.board.seen';
 const BW = 3.2, BH = BW * 1000 / 1640, BOTTOM = 0.7;   // kích thước mặt bảng (m) ~3,2 × 1,95 — to, đứng trước bảng đọc được luôn; mép dưới cách sàn
@@ -253,15 +254,18 @@ export class NoticeBoard {
   read(id) {
     const it = this.list.find(x => x.id === id) || this.top.find(x => x.id === id); const body = this.el?.querySelector('.nb-body'); if (!it || !body) return;
     this.reading = id;
+    const edited = it.updatedAt > it.createdAt + 60e3;
     body.innerHTML = `<article class="nb-read">
       <button type="button" class="sx-back-link">${icon('chevLeft', 15)} Tất cả tin</button>
-      ${it.image ? `<a class="nb-cover" href="${esc(it.image)}" target="_blank" rel="noopener" title="Xem ảnh gốc"><img src="${esc(it.image)}" alt="Ảnh của tin: ${esc(it.title)}" decoding="async"></a>` : ''}
-      <div class="nb-kind ${it.kind}">${it.kind === 'event' ? 'Sự kiện' : 'Thông báo'}${it.pinned ? ` · ${icon('pin', 12)} Đã ghim` : ''}</div>
-      <h3>${esc(it.title)}</h3>
-      ${it.kind === 'event' && it.eventAt ? `<div class="nb-when">${icon('calendar', 16)}<span><b>${esc(fmtFull(it.eventAt))}</b>${it.place ? `<br>${esc(it.place)}` : ''}</span><em>${until(it.eventAt)}</em></div>` : ''}
-      ${it.body ? `<div class="nb-text">${esc(it.body).replace(/\n/g, '<br>')}</div>` : ''}
-      <p class="nb-by">${esc(it.byName)} · đăng ${ago(it.createdAt)}${it.updatedAt > it.createdAt + 60e3 ? ` · sửa ${ago(it.updatedAt)}` : ''}</p>
-      ${it.canEdit ? `<div class="nb-acts"><button type="button" class="sx-ghost" data-a="edit">${icon('edit', 14)} Sửa</button>${this.canManage ? `<button type="button" class="sx-ghost" data-a="pin">${icon('pin', 14)} ${it.pinned ? 'Bỏ ghim' : 'Ghim lên đầu'}</button>` : ''}<button type="button" class="sx-ghost danger" data-a="del">${icon('trash', 14)} Gỡ tin</button></div>` : ''}
+      <div class="nb-sheet">
+        ${it.image ? `<a class="nb-cover" href="${esc(it.image)}" target="_blank" rel="noopener" title="Xem ảnh gốc"><img src="${esc(it.image)}" alt="Ảnh của tin: ${esc(it.title)}" decoding="async"></a>` : ''}
+        <div class="nb-chips"><span class="nb-chip k-${it.kind}">${icon(it.kind === 'event' ? 'calendar' : 'megaphone', 13)} ${it.kind === 'event' ? 'Sự kiện' : 'Thông báo'}</span>${it.pinned ? `<span class="nb-chip pin">${icon('pin', 13)} Đã ghim</span>` : ''}</div>
+        <h3>${esc(it.title)}</h3>
+        <div class="nb-meta">${avatar(it.by || it.byName, it.byName)}<span><b>${esc(it.byName)}</b><small>Đăng ${ago(it.createdAt)}${edited ? ` · sửa ${ago(it.updatedAt)}` : ''}</small></span></div>
+        ${it.kind === 'event' && it.eventAt ? `<div class="nb-when"><span class="nb-when-ic">${icon('calendar', 18)}</span><span><b>${esc(fmtFull(it.eventAt))}</b>${it.place ? `<small>${icon('map', 12)} ${esc(it.place)}</small>` : ''}</span><em>${until(it.eventAt)}</em></div>` : ''}
+        ${it.body ? `<div class="nb-text">${esc(it.body).replace(/\n/g, '<br>')}</div>` : ''}
+        ${it.canEdit ? `<div class="nb-acts"><button type="button" class="sx-ghost" data-a="edit">${icon('edit', 14)} Sửa</button>${this.canManage ? `<button type="button" class="sx-ghost" data-a="pin">${icon('pin', 14)} ${it.pinned ? 'Bỏ ghim' : 'Ghim lên đầu'}</button>` : ''}<button type="button" class="sx-ghost danger" data-a="del">${icon('trash', 14)} Gỡ tin</button></div>` : ''}
+      </div>
     </article>`;
     body.scrollTop = 0;
     body.querySelector('.sx-back-link').onclick = () => this.render();
