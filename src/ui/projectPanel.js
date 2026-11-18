@@ -11,7 +11,7 @@ import { icon } from './icons.js';
 import { overlayOn, overlayOff } from './overlay.js';
 import { avatar, filesHtml, uploadFiles } from './meetPanel.js';
 import { ExcaliBoard } from './excaliBoard.js';
-import { DatePicker, vnDay, fmtLong } from './datePicker.js';
+import { DatePicker, vnDay } from './datePicker.js';
 import { hm, dayLabel } from '../session/meetings.js';
 
 const COLS = [['todo', 'Cần làm'], ['doing', 'Đang làm'], ['done', 'Xong']];
@@ -39,18 +39,23 @@ export class ProjectPanel {
   async open(id = null, opts = {}) {
     if (!this.el) {
       const back = this.el = document.createElement('div'); back.className = 'sx-back';
+      // đầu trang + thanh thẻ đổi theo màn: danh sách (Đang làm / Đã lưu trữ) · trong một dự án (tên, thành viên, Vào phòng,
+      // Đặt họp + các thẻ Công việc · Chat · … — luôn ở trên, không cuộn mất)
       back.innerHTML = `<div class="sx pj" role="dialog" aria-modal="true" aria-labelledby="pjTitle">
-        <header class="sx-h pj-h"><span class="sx-ic">${icon('grid', 22)}</span><div><h2 id="pjTitle">Dự án</h2><p>Không gian làm việc của nhóm: công việc, chat, tài liệu, phòng họp riêng</p></div>
-          <button type="button" class="sx-primary pj-new">${icon('plus', 15)} <span>Dự án mới</span></button>
-          <button type="button" class="sx-x" aria-label="Đóng">${icon('close', 16)}</button></header>
-        <nav class="sx-tabs pj-filter" role="tablist">${[['active', 'Đang làm'], ['archived', 'Đã lưu trữ']].map(([k, n]) => `<button type="button" role="tab" data-f="${k}">${n}</button>`).join('')}</nav>
+        <header class="sx-h pj-h"></header><nav class="sx-tabs pj-nav" role="tablist"></nav>
         <div class="sx-body pj-body" tabindex="-1"></div></div>`;
       document.body.appendChild(back); overlayOn();
       requestAnimationFrame(() => back.classList.add('show'));
       back.addEventListener('click', e => { if (e.target === back) this.close(); });
-      back.querySelector('.sx-x').onclick = () => this.close();
-      back.querySelector('.pj-new').onclick = () => this.form();
-      back.querySelectorAll('[data-f]').forEach(b => b.onclick = () => { this.filter = b.dataset.f; this.showList(); });
+      back.querySelector('.pj-h').addEventListener('click', e => {
+        const b = e.target.closest('[data-h]'); if (!b) return;
+        ({ close: () => this.close(), new: () => this.form(), back: () => this.showList(), room: () => this.c.join(this.pid), meet: () => this.bookMeeting() })[b.dataset.h]?.();
+      });
+      back.querySelector('.pj-nav').addEventListener('click', e => {
+        const b = e.target.closest('button'); if (!b) return;
+        if (b.dataset.f) { this.filter = b.dataset.f; this.showList(); }
+        else if (b.dataset.tab) { this.closeTask(true); this.showTab(b.dataset.tab); }
+      });
       this._key = e => {
         if (!this.el || document.querySelector('.modal-back')) return;
         if (e.key === 'Escape' && !e.target.closest?.('.pj-mention')) { e.preventDefault(); if (this.taskOpen) this.closeTask(); else if (this.view !== 'list') this.showList(); else this.close(); }
@@ -67,11 +72,30 @@ export class ProjectPanel {
     window.removeEventListener('keydown', this._key, true); overlayOff();
     el.classList.remove('show'); setTimeout(() => el.remove(), 200);
   }
-  setMode(mode) {
-    this.view = mode;
-    this.el.querySelector('.pj-filter').hidden = mode !== 'list';
-    this.el.querySelector('.pj-new').hidden = mode !== 'list';
-    this.el.querySelectorAll('[data-f]').forEach(b => { b.classList.toggle('on', b.dataset.f === this.filter); b.setAttribute('aria-selected', String(b.dataset.f === this.filter)); });
+  setMode(mode) { this.view = mode; this.renderHead(); }
+  /** Đầu trang + thanh thẻ theo màn đang xem. */
+  renderHead() {
+    const h = this.el?.querySelector('.pj-h'), nav = this.el?.querySelector('.pj-nav'); if (!h) return;
+    const x = `<button type="button" class="sx-x" data-h="close" aria-label="Đóng">${icon('close', 16)}</button>`;
+    if (this.view === 'project' && this.cur) {
+      const p = this.p, open = this.cur.tasks.filter(t => t.status !== 'done').length, here = (this.cur.inRoom || []).length;
+      h.innerHTML = `<button type="button" class="sx-icon pj-hb" data-h="back" aria-label="Tất cả dự án" title="Tất cả dự án">${icon('chevLeft', 18)}</button>
+        <span class="pj-hic" style="--pc:${esc(p.color)}">${esc(p.name.trim().slice(0, 1).toUpperCase())}</span>
+        <div><h2 id="pjTitle">${esc(p.name)}${p.status === 'archived' ? ' <em class="pj-tag">Đã lưu trữ</em>' : ''}</h2>
+          <p>${p.description ? `${esc(p.description)} · ` : ''}${p.members.length} thành viên · ${open} việc đang mở${here ? ` · <b class="pj-live">${here} người trong phòng</b>` : ''}</p></div>
+        <span class="mp-avs pj-havs">${p.members.slice(0, 5).map(m => avatar(m.key, m.name, m.role === 'lead' ? 'host' : '')).join('')}${p.members.length > 5 ? `<span class="mt-av more">+${p.members.length - 5}</span>` : ''}</span>
+        ${p.status === 'active' ? `<button type="button" class="sx-ghost pj-hmeet" data-h="meet" title="Đặt phòng họp cho cả dự án">${icon('calendar', 15)} <span>Đặt họp</span></button>
+        <button type="button" class="sx-primary pj-hroom" data-h="room" title="Vào phòng dự án 3D: bảng vẽ chung, họp video, chia sẻ màn hình">${icon('door', 15)} <span>Vào phòng</span></button>` : ''}${x}`;
+      const tabs = [['tasks', 'check', 'Công việc'], ['chat', 'chat', 'Chat'], ['files', 'folder', 'Tài liệu'], ['notes', 'edit', 'Ghi chú'], ['people', 'users', 'Thành viên'], ...(p.isLead ? [['settings', 'key', 'Cài đặt']] : [])];
+      nav.hidden = false;
+      nav.innerHTML = tabs.map(([k, ic, n]) => `<button type="button" role="tab" data-tab="${k}" class="${k === this.tab ? 'on' : ''}" aria-selected="${k === this.tab}">${icon(ic, 14)} <span>${n}</span><i class="pj-dot" hidden></i></button>`).join('');
+      this.paintTabDots();
+      return;
+    }
+    h.innerHTML = `<span class="sx-ic">${icon('grid', 22)}</span><div><h2 id="pjTitle">${this.view === 'form' ? 'Dự án mới' : 'Dự án'}</h2><p>${this.view === 'form' ? 'Đặt tên, chọn màu, mời đồng đội — bạn là Trưởng dự án.' : 'Không gian làm việc của nhóm: công việc, chat, tài liệu, phòng họp riêng'}</p></div>
+      ${this.view === 'list' ? `<button type="button" class="sx-primary" data-h="new">${icon('plus', 15)} <span>Dự án mới</span></button>` : ''}${x}`;
+    nav.hidden = this.view !== 'list';
+    nav.innerHTML = [['active', 'Đang làm'], ['archived', 'Đã lưu trữ']].map(([k, n]) => { const c = this.c.list.filter(p => p.status === k).length; return `<button type="button" role="tab" data-f="${k}" class="${k === this.filter ? 'on' : ''}" aria-selected="${k === this.filter}">${n}${c ? ` <em class="mt-cnt">${c}</em>` : ''}</button>`; }).join('');
   }
 
   // ---------- danh sách ----------
@@ -85,7 +109,9 @@ export class ProjectPanel {
     const all = this.c.list, list = all.filter(p => p.status === this.filter);
     const ceo = this.s.isAdmin && all.some(p => !p.isMember);
     body.innerHTML = list.length ? `${ceo ? `<p class="pj-note">${icon('info', 14)} Bạn là CEO: thấy mọi dự án của công ty (dự án bạn không tham gia có nhãn "CEO xem").</p>` : ''}<div class="pj-grid">${list.map(p => this.card(p)).join('')}</div>`
-      : this.filter === 'active' ? `<div class="sx-empty">${icon('grid', 34)}<b>Chưa có dự án nào</b><span>Tạo dự án, mời đồng đội rồi chia việc theo bảng Kanban — có kênh chat, tài liệu và phòng họp riêng của nhóm.</span><button type="button" class="sx-primary" data-new>${icon('plus', 15)} Tạo dự án đầu tiên</button></div>`
+      : this.filter === 'active' ? `<div class="pj-start"><div class="pj-start-ic">${icon('grid', 30)}</div><h3>Làm việc nhóm ngay trong văn phòng</h3><p>Mỗi dự án là một không gian riêng của nhóm — chỉ thành viên mới thấy.</p>
+          <ol class="pj-steps"><li><b>1</b><span><strong>Tạo dự án</strong>Đặt tên, chọn màu — bạn là Trưởng dự án.</span></li><li><b>2</b><span><strong>Mời đồng đội</strong>Tìm theo tên hoặc thêm cả phòng ban.</span></li><li><b>3</b><span><strong>Chia việc &amp; làm cùng nhau</strong>Bảng Kanban, chat riêng, tài liệu, phòng họp 3D.</span></li></ol>
+          <button type="button" class="sx-primary" data-new>${icon('plus', 15)} Tạo dự án đầu tiên</button></div>`
         : `<div class="sx-empty">${icon('folder', 34)}<b>Chưa có dự án lưu trữ</b><span>Dự án đã xong: Trưởng dự án vào Cài đặt → "Lưu trữ" để cất đi (vẫn xem lại được).</span></div>`;
     body.querySelector('[data-new]')?.addEventListener('click', () => this.form());
     body.querySelectorAll('[data-p]').forEach(b => b.onclick = () => this.load(+b.dataset.p));
@@ -189,24 +215,12 @@ export class ProjectPanel {
   get editable() { return this.p.status === 'active' && (this.p.isMember || this.p.role === 'admin'); }
   renderProject() {
     const body = this.body, p = this.p, r = this.cur; if (!body) return;
-    const here = r.inRoom || [], next = r.meetings.filter(m => m.end > Date.now()).slice(0, 2);
-    const tabs = [['tasks', 'check', 'Công việc'], ['chat', 'chat', 'Chat'], ['files', 'folder', 'Tài liệu'], ['notes', 'edit', 'Ghi chú'], ['people', 'users', 'Thành viên'], ...(p.isLead ? [['settings', 'key', 'Cài đặt']] : [])];
-    if (!tabs.some(t => t[0] === this.tab)) this.tab = 'tasks';
+    const next = r.meetings.filter(m => m.end > Date.now()).slice(0, 3);
+    if (!['tasks', 'chat', 'files', 'notes', 'people', ...(p.isLead ? ['settings'] : [])].includes(this.tab)) this.tab = 'tasks';
+    this.renderHead();
     body.innerHTML = `<div class="pj-view" style="--pc:${esc(p.color)}">
-      <button type="button" class="sx-back-link">${icon('chevLeft', 15)} Tất cả dự án</button>
-      <section class="pj-top">
-        <div class="pj-tt"><h3>${esc(p.name)}${p.status === 'archived' ? ' <em class="pj-tag">Đã lưu trữ</em>' : ''}</h3>${p.description ? `<p>${esc(p.description)}</p>` : ''}
-          <div class="pj-tm"><span class="mp-avs">${p.members.slice(0, 8).map(m => avatar(m.key, m.name, m.role === 'lead' ? 'host' : '')).join('')}${p.members.length > 8 ? `<span class="mt-av more">+${p.members.length - 8}</span>` : ''}</span>
-            <small>${p.members.length} thành viên${here.length ? ` · <em class="in">${here.length} đang trong phòng</em>` : ''}</small></div>
-          ${next.length ? `<div class="pj-meets">${next.map(m => `<span class="pj-meet">${icon('calendar', 13)} <b>${esc(m.title)}</b> · ${esc(dayLabel(m.start))} ${hm(m.start)}–${hm(m.end)}</span>`).join('')}</div>` : ''}</div>
-        <div class="pj-ta">${p.status === 'active' ? `<button type="button" class="sx-primary" data-room>${icon('grid', 15)} <span>Vào phòng dự án</span></button><button type="button" class="sx-ghost" data-meet>${icon('calendar', 15)} <span>Đặt họp</span></button>` : ''}</div>
-      </section>
-      <nav class="mp-sub pj-tabs" role="tablist">${tabs.map(([k, ic, n]) => `<button type="button" role="tab" data-tab="${k}">${icon(ic, 14)} <span>${n}</span><i class="pj-dot" hidden></i></button>`).join('')}</nav>
+      ${next.length ? `<div class="pj-meets">${icon('calendar', 14)}<span>Họp sắp tới:</span>${next.map(m => `<span class="pj-meet"><b>${esc(m.title)}</b> · ${esc(dayLabel(m.start))} ${hm(m.start)}–${hm(m.end)}</span>`).join('')}</div>` : ''}
       <div class="pj-pane"></div></div>`;
-    body.querySelector('.sx-back-link').onclick = () => this.showList();
-    body.querySelector('[data-room]')?.addEventListener('click', () => this.c.join(p.id));
-    body.querySelector('[data-meet]')?.addEventListener('click', () => this.bookMeeting());
-    body.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { this.taskOpen = null; this.showTab(b.dataset.tab); });
     this.showTab(this.tab);
   }
   async bookMeeting() {
@@ -221,9 +235,10 @@ export class ProjectPanel {
   showTab(tab) {
     this.saveNotesNow(); this.wb?.destroy(); this.wb = null;
     this.tab = tab;
-    this.el.querySelectorAll('.pj-tabs [data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
+    this.el.querySelectorAll('.pj-nav [data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
+    this.body.scrollTop = 0;
     this.paintTabDots();
-    const fn = { tasks: () => this.taskOpen ? this.renderTask(this.taskOpen) : this.renderTasks(), chat: () => this.renderChat(), files: () => { this.renderFiles(); this.reload(); }, notes: () => this.renderNotes(), people: () => this.renderPeople(), settings: () => this.renderSettings() }[tab];
+    const fn = { tasks: () => { this.renderTasks(); if (this.taskOpen) this.renderTask(this.taskOpen); }, chat: () => this.renderChat(), files: () => { this.renderFiles(); this.reload(); }, notes: () => this.renderNotes(), people: () => this.renderPeople(), settings: () => this.renderSettings() }[tab];
     fn?.();
   }
   get pane() { return this.el?.querySelector('.pj-pane'); }
@@ -233,18 +248,19 @@ export class ProjectPanel {
     const pane = this.pane; if (!pane) return;
     const me = this.s.key, ts = this.cur.tasks.filter(t => !this.mineOnly || t.assignee === me), ed = this.editable;
     pane.innerHTML = `<div class="pj-kbar"><label class="sx-check pj-mine"><input type="checkbox" ${this.mineOnly ? 'checked' : ''}> Chỉ việc của tôi</label>
-        <small>${ed ? `${matchMedia('(pointer: coarse)').matches ? 'Giữ thẻ một chút rồi kéo' : 'Kéo thẻ'} để chuyển cột / sắp xếp · bấm thẻ để xem chi tiết` : 'Dự án đã lưu trữ — chỉ xem.'}</small></div>
+        <small>${ed ? `${icon('hand', 13)} ${matchMedia('(pointer: coarse)').matches ? 'Giữ thẻ rồi kéo' : 'Kéo thẻ'} để chuyển cột · bấm thẻ để xem chi tiết` : 'Dự án đã lưu trữ — chỉ xem.'}</small></div>
       <div class="pj-board">${COLS.map(([st, name]) => { const list = ts.filter(t => t.status === st).sort((a, b) => a.order - b.order || a.id - b.id); return `<section class="pj-col" data-st="${st}">
-        <header><i class="pj-cd ${st}"></i><b>${name}</b><em>${list.length}</em></header>
+        <header><i class="pj-cd ${st}"></i><b>${name}</b><em>${list.length}</em>${ed ? `<button type="button" class="pj-cadd" data-cadd="${st}" aria-label="Thêm việc vào cột ${name}" title="Thêm việc">${icon('plus', 15)}</button>` : ''}</header>
         <div class="pj-cards">${list.map(t => this.taskCard(t)).join('')}${list.length ? '' : `<p class="pj-empty">${st === 'done' ? 'Kéo việc đã xong vào đây.' : 'Chưa có việc.'}</p>`}</div>
         ${ed ? `<button type="button" class="pj-add" data-add="${st}">${icon('plus', 14)} Thêm việc</button>` : ''}</section>`; }).join('')}</div>`;
     pane.querySelector('.pj-mine input').onchange = e => { this.mineOnly = e.target.checked; this.renderTasks(); };
     pane.querySelectorAll('[data-add]').forEach(b => b.onclick = () => this.addForm(b));
+    pane.querySelectorAll('[data-cadd]').forEach(b => b.onclick = () => { const add = b.closest('.pj-col').querySelector('[data-add]'); if (add) this.addForm(add); else b.closest('.pj-col').querySelector('.pj-addf textarea')?.focus(); });
     pane.querySelectorAll('.pj-card').forEach(c => this.bindCard(c));
   }
   taskCard(t) {
     const due = dueInfo(t.due, t.status === 'done');
-    return `<div class="pj-card${t.status === 'done' ? ' done' : ''}${t.priority ? ` p${t.priority}` : ''}" data-t="${t.id}" role="button" tabindex="0" aria-label="${esc(t.title)}">
+    return `<div class="pj-card${t.status === 'done' ? ' done' : ''}${t.priority ? ` p${t.priority}` : ''}${t.id === this.taskOpen ? ' sel' : ''}" data-t="${t.id}" role="button" tabindex="0" aria-label="${esc(t.title)}">
       <b>${esc(t.title)}</b>
       <span class="pj-cm">${t.priority ? `<em class="pj-pr p${t.priority}">${PRIO[t.priority][1]}</em>` : ''}${due ? `<em class="pj-due ${due.cls}">${icon('clock', 11)} ${esc(due.label)}</em>` : ''}${t.comments ? `<em class="pj-cc">${icon('chat', 11)} ${t.comments}</em>` : ''}
         <span class="pj-who">${t.assignee ? avatar(t.assignee, t.assigneeName) : '<span class="mt-av none" title="Chưa giao">?</span>'}</span></span></div>`;
@@ -352,25 +368,45 @@ export class ProjectPanel {
   }
 
   // ---------- chi tiết công việc ----------
-  openTask(id) { this.taskOpen = id; this.renderTask(id); }
-  closeTask() { this.taskOpen = null; this.datePop?.remove(); this.renderTasks(); }
+  openTask(id) { this.taskOpen = id; this.markSel(); this.renderTask(id); }
+  /** Tô viền thẻ đang mở chi tiết trên bảng Kanban. */
+  markSel() { this.el?.querySelectorAll('.pj-card').forEach(c => c.classList.toggle('sel', +c.dataset.t === this.taskOpen)); }
+  /** Ngăn chi tiết công việc: trượt từ phải (điện thoại: từ dưới lên), bảng Kanban vẫn ở phía sau. */
+  drawer() {
+    const sx = this.el.querySelector('.sx.pj'); let d = sx.querySelector('.pj-drawer:not(.out)');
+    if (!d) {
+      const scrim = document.createElement('div'); scrim.className = 'pj-scrim'; scrim.onclick = () => this.closeTask();
+      d = document.createElement('aside'); d.className = 'pj-drawer'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Chi tiết công việc'); d.tabIndex = -1;
+      sx.append(scrim, d); requestAnimationFrame(() => { scrim.classList.add('show'); d.classList.add('show'); });
+    }
+    return d;
+  }
+  get dbody() { return this.el?.querySelector('.pj-drawer:not(.out)') || null; }
+  closeTask() {
+    this.taskOpen = null; this.markSel();
+    const sx = this.el?.querySelector('.sx.pj'); if (!sx) return;
+    for (const e of sx.querySelectorAll('.pj-drawer:not(.out), .pj-scrim:not(.out)')) { e.classList.add('out'); e.classList.remove('show'); setTimeout(() => e.remove(), 240); }
+  }
   async renderTask(id, keepComments = false) {
-    const pane = this.pane; if (!pane) return;
+    if (!this.el || !this.cur) return;
     const t = this.cur.tasks.find(x => x.id === id); if (!t) { this.closeTask(); return; }
+    const pane = this.drawer();
     if (!keepComments || !this.tcomments || this.tcomments.id !== id) {
+      if (!pane.firstChild) pane.innerHTML = '<div class="sx-loading">Đang tải…</div>';
       const r = await api('GET', `/api/projects/${this.pid}/tasks/${id}`); if (!this.el || this.taskOpen !== id) return;
       this.tcomments = { id, list: r.ok ? r.comments : [] };
     }
     const p = this.p, ed = this.editable, me = this.s.key, canDel = ed && (p.isLead || t.createdBy === me);
     const due = dueInfo(t.due, t.status === 'done');
+    const col = COLS.find(c => c[0] === t.status)[1];
     pane.innerHTML = `<article class="pj-task">
-      <button type="button" class="sx-back-link">${icon('chevLeft', 15)} Bảng công việc</button>
+      <header class="pj-dh"><span><i class="pj-cd ${t.status}"></i> ${col}</span><button type="button" class="sx-x" data-x aria-label="Đóng chi tiết">${icon('close', 16)}</button></header>
       <div class="pj-tsheet">
         <textarea class="pj-ttl" rows="1" maxlength="200" aria-label="Tên công việc" ${ed ? '' : 'readonly'}>${esc(t.title)}</textarea>
         <dl class="pj-tmeta">
           <dt>Cột</dt><dd><div class="mp-durs pj-seg" role="radiogroup" aria-label="Cột">${COLS.map(([k, n]) => `<button type="button" role="radio" data-st="${k}" class="${t.status === k ? 'on' : ''}" aria-checked="${t.status === k}" ${ed ? '' : 'disabled'}>${n}</button>`).join('')}</div></dd>
           <dt>Người làm</dt><dd><select class="pj-asg" aria-label="Người làm" ${ed ? '' : 'disabled'}><option value="">Chưa giao</option>${p.members.map(m => `<option value="${esc(m.key)}" ${m.key === t.assignee ? 'selected' : ''}>${esc(short(m.name))}${m.key === me ? ' (bạn)' : ''}</option>`).join('')}</select></dd>
-          <dt>Hạn chót</dt><dd class="pj-dued"><button type="button" class="nb-dbtn pj-dbtn" aria-expanded="false" ${ed ? '' : 'disabled'}>${icon('calendar', 15)}<span class="${due?.cls || ''}">${due ? esc(due.cls === 'over' ? due.label : `${fmtLong(t.due).replace(/^./, c => c.toUpperCase())} · ${hm(t.due)}`) : 'Chưa đặt hạn'}</span>${icon('chevDown', 14)}</button>${t.due && ed ? '<button type="button" class="sx-ghost pj-nodue">Bỏ hạn</button>' : ''}<div class="nb-cal pj-cal" hidden></div></dd>
+          <dt>Hạn chót</dt><dd class="pj-dued"><button type="button" class="nb-dbtn pj-dbtn" aria-expanded="false" ${ed ? '' : 'disabled'}>${icon('calendar', 15)}<span class="${due?.cls || ''}">${due ? esc(due.cls === 'over' ? due.label : `${dayLabel(t.due).replace(/^./, c => c.toUpperCase())} · ${hm(t.due)}`) : 'Chưa đặt hạn'}</span>${icon('chevDown', 14)}</button>${t.due && ed ? '<button type="button" class="sx-ghost pj-nodue">Bỏ hạn</button>' : ''}<div class="nb-cal pj-cal" hidden></div></dd>
           <dt>Ưu tiên</dt><dd><div class="mp-durs pj-seg" role="radiogroup" aria-label="Ưu tiên">${PRIO.map(([v, n]) => `<button type="button" role="radio" data-pr="${v}" class="${t.priority === v ? 'on' : ''}" aria-checked="${t.priority === v}" ${ed ? '' : 'disabled'}>${n}</button>`).join('')}</div></dd>
         </dl>
         <label class="sx-field"><span>Mô tả</span><textarea class="pj-tbody" rows="4" maxlength="5000" placeholder="${ed ? 'Chi tiết, tiêu chí hoàn thành, link…' : ''}" ${ed ? '' : 'readonly'}>${esc(t.body)}</textarea></label>
@@ -380,11 +416,11 @@ export class ProjectPanel {
           ${ed ? `<form class="pj-cform"><textarea rows="2" maxlength="2000" placeholder="Viết bình luận… (Enter để gửi, Shift+Enter xuống dòng)" aria-label="Bình luận"></textarea><button type="submit" class="sx-primary">Gửi</button></form>` : ''}</section>
         ${canDel ? `<div class="mp-danger"><button type="button" class="sx-ghost danger" data-del>${icon('trash', 14)} Xoá công việc</button></div>` : ''}
       </div></article>`;
-    pane.querySelector('.sx-back-link').onclick = () => this.closeTask();
+    pane.querySelector('[data-x]').onclick = () => this.closeTask();
     const patch = async (data, quiet = false) => {
       const r = await api('PATCH', `/api/projects/${this.pid}/tasks/${id}`, data);
       if (!r.ok) { this.s.toast(r.error || 'Chưa lưu được.', true); return false; }
-      this.upsert(r.task); if (!quiet && this.taskOpen === id) this.renderTask(id, true); return true;
+      this.upsert(r.task); this.refreshBoard(); if (!quiet && this.taskOpen === id) this.renderTask(id, true); return true;
     };
     const ttl = pane.querySelector('.pj-ttl'), fit = () => { ttl.style.height = 'auto'; ttl.style.height = `${ttl.scrollHeight}px`; }; fit();
     ttl.addEventListener('input', fit);
@@ -405,7 +441,7 @@ export class ProjectPanel {
     pane.querySelector('[data-del]')?.addEventListener('click', async () => {
       if (!(await confirmDanger('Xoá công việc?', `"${t.title}" và các bình luận sẽ bị xoá với cả dự án.`, 'Xoá'))) return;
       const r = await api('DELETE', `/api/projects/${this.pid}/tasks/${id}`); if (!r.ok) { this.s.toast(r.error, true); return; }
-      this.cur.tasks = this.cur.tasks.filter(x => x.id !== id); this.s.toast('Đã xoá công việc.'); this.closeTask();
+      this.cur.tasks = this.cur.tasks.filter(x => x.id !== id); this.s.toast('Đã xoá công việc.'); this.closeTask(); this.refreshBoard();
     });
     pane.querySelectorAll('[data-cdel]').forEach(b => b.onclick = async () => {
       if (!(await confirmDanger('Xoá bình luận?', 'Bình luận sẽ bị xoá với cả dự án.', 'Xoá'))) return;
@@ -426,7 +462,7 @@ export class ProjectPanel {
   addComment(tid, c) {
     if (this.tcomments?.id !== tid || this.tcomments.list.some(x => x.id === c.id)) return;
     this.tcomments.list.push(c);
-    if (this.taskOpen === tid && this.tab === 'tasks') { const typing = this.pane?.querySelector('.pj-cform textarea')?.value; this.renderTask(tid, true).then(() => { const ta = this.pane?.querySelector('.pj-cform textarea'); if (ta && typing) ta.value = typing; const ol = this.pane?.querySelector('.pj-cmts ol'); ol?.lastElementChild?.scrollIntoView({ block: 'nearest' }); }); }
+    if (this.taskOpen === tid) { const typing = this.dbody?.querySelector('.pj-cform textarea')?.value; this.renderTask(tid, true).then(() => { const ta = this.dbody?.querySelector('.pj-cform textarea'); if (ta && typing) ta.value = typing; const ol = this.dbody?.querySelector('.pj-cmts ol'); ol?.lastElementChild?.scrollIntoView({ block: 'nearest' }); }); }
   }
 
   // ---------- chat ----------
@@ -613,24 +649,27 @@ export class ProjectPanel {
     this.renderProject();
   }
   onRemoved(id) { if (this.pid === id && this.el) { this.s.toast('Bạn không còn xem được dự án này.', true); this.showList(); } }
+  /** Vẽ lại bảng Kanban (phía sau ngăn chi tiết) — trừ khi đang kéo thẻ / đang gõ việc mới. */
+  refreshBoard() {
+    if (this.view !== 'project' || this.tab !== 'tasks' || this.drag?.active || !this.pane) return;
+    if (this.el.querySelector('.pj-addf textarea') === document.activeElement) return;
+    const sc = this.body.scrollTop, bl = this.el.querySelector('.pj-board')?.scrollLeft || 0;
+    this.renderTasks(); this.body.scrollTop = sc; const nb = this.el.querySelector('.pj-board'); if (nb) nb.scrollLeft = bl;
+  }
   onTask(m) {
     if (this.pid !== m.id || !this.cur) return;
     if (m.kind === 'del') this.cur.tasks = this.cur.tasks.filter(t => t.id !== m.taskId); else this.upsert(m.task);
-    if (this.view !== 'project' || this.tab !== 'tasks' || this.drag?.active) return;
-    if (this.taskOpen) {
-      if (this.taskOpen !== m.taskId || m.by === this.s.key) return;
+    this.refreshBoard(); this.renderHead();
+    if (this.taskOpen === m.taskId && m.by !== this.s.key) {
       if (m.kind === 'del') { this.s.toast('Công việc này vừa bị xoá.', true); this.closeTask(); return; }
-      if (!this.pane?.contains(document.activeElement)) this.renderTask(m.taskId, true);
-      return;
+      if (!this.dbody?.contains(document.activeElement)) this.renderTask(m.taskId, true);
     }
-    if (this.el.querySelector('.pj-addf textarea') === document.activeElement) return;   // (đang gõ việc mới)
-    this.renderTasks();
   }
   onComment(m) {
     if (this.pid !== m.id || !this.cur) return;
     const t = this.cur.tasks.find(x => x.id === m.taskId); if (t) t.comments = m.count;
     if (m.comment) this.addComment(m.taskId, m.comment);
-    else if (m.removed && this.tcomments?.id === m.taskId) { this.tcomments.list = this.tcomments.list.filter(c => c.id !== m.removed); if (this.taskOpen === m.taskId && this.tab === 'tasks') this.renderTask(m.taskId, true); }
+    else if (m.removed && this.tcomments?.id === m.taskId) { this.tcomments.list = this.tcomments.list.filter(c => c.id !== m.removed); if (this.taskOpen === m.taskId) this.renderTask(m.taskId, true); }
   }
   onFiles(id) { if (this.pid === id && this.tab === 'files') this.reload(); }
   onNotes(m) {

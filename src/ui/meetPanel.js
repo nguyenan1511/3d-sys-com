@@ -22,6 +22,7 @@ const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0
 const initials = name => String(name || '?').replace(/^\d{4}-/, '').replace(/^CEO \((.*)\)$/, '$1').split(/\s+/).filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
 const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 export const avatar = (key, name, cls = '') => `<span class="mt-av ${cls}" style="--h:${hue(key)}" title="${esc(name)}">${esc(initials(name))}</span>`;
+const fmtIn = ms => { const m = Math.max(1, Math.round(ms / 60e3)); return m >= 60 ? `${Math.floor(m / 60)} giờ${m % 60 ? ` ${m % 60} phút` : ''}` : `${m} phút`; };
 const fileIcon = type => /^image\//.test(type) ? 'cube' : /pdf/.test(type) ? 'file' : /sheet|excel|csv/.test(type) ? 'grid' : /presentation|powerpoint/.test(type) ? 'play' : 'file';
 
 /** Tải file lên tài liệu cuộc họp (đọc base64 trên máy, ≤ 5 MB / file). Trả về số file đã lưu. */
@@ -91,8 +92,10 @@ export class MeetPanel {
   async renderBook() {
     const body = this.body, from = this.day, to = from + DAY;
     const days = Array.from({ length: 14 }, (_, i) => dayStart(Date.now()) + i * DAY);
-    body.innerHTML = `<div class="mp-days" role="tablist" aria-label="Chọn ngày">${days.map(d => `<button type="button" data-day="${d}" class="${d === from ? 'on' : ''}"><small>${new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short' }).format(d)}</small><b>${new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric' }).format(d)}</b></button>`).join('')}</div>
-      <div class="mp-dayname">${esc(fmtDate(from))}</div><div class="mp-tl" aria-busy="true"></div>`;
+    body.innerHTML = `<div class="mp-bkhead"><div class="mp-days" role="tablist" aria-label="Chọn ngày">${days.map(d => `<button type="button" data-day="${d}" class="${d === from ? 'on' : ''}"><small>${new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short' }).format(d)}</small><b>${new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric' }).format(d)}</b></button>`).join('')}</div>
+      <div class="mp-dayname">${esc(fmtDate(from))}</div>
+      <div class="mp-legend"><span><i class="lg mine"></i>Cuộc họp của bạn</span><span><i class="lg other"></i>Người khác đã đặt</span><span><i class="lg now"></i>Bây giờ</span><em>${icon('hand', 13)} Bấm vào giờ trống để đặt phòng</em></div></div>
+      <div class="mp-tl" aria-busy="true"></div>`;
     body.querySelectorAll('[data-day]').forEach(b => b.onclick = () => { this.day = +b.dataset.day; this.renderBook(); });
     { const strip = body.querySelector('.mp-days'), on = strip.querySelector('.on'); if (on) strip.scrollLeft = on.offsetLeft - strip.clientWidth / 2 + on.offsetWidth / 2; }   // (không dùng scrollIntoView: nó cuộn cả khung hộp thoại)
     const r = await api('GET', `/api/meetings?from=${from}&to=${to}`); if (!this.el || this.tab !== 'book' || this.day !== from || this.sub || !body.querySelector('.mp-tl')) return;   // (đã chuyển sang form đặt phòng trong lúc chờ)
@@ -106,7 +109,7 @@ export class MeetPanel {
     }
     for (const m of list) {
       const top = (Math.max(m.start, open) - open) / SLOT * ROW, h = (Math.min(m.end, close) - Math.max(m.start, open)) / SLOT * ROW;
-      html += `<button type="button" class="mp-bk${m.invited ? ' mine' : ''}${m.open ? ' live' : ''}" style="top:${top}px;height:${h - 3}px" data-m="${m.id}">
+      html += `<button type="button" class="mp-bk${m.invited ? ' mine' : ''}${m.open ? ' live' : ''}${h < 44 ? ' short' : ''}" style="top:${top}px;height:${h - 3}px" data-m="${m.id}">
         <b>${esc(m.title)}</b><small>${hm(m.start)}–${hm(m.end)} · ${esc(m.hostName.replace(/^\d{4}-/, ''))}${m.open && m.start <= now ? ' · <em>đang họp</em>' : ''}</small></button>`;
     }
     if (now > open && now < close) html += `<i class="mp-now" style="top:${(now - open) / SLOT * ROW}px" aria-hidden="true"></i>`;
@@ -137,11 +140,11 @@ export class MeetPanel {
     const st = this.state(m, now), live = st === 'live', opensAt = hm(m.start - EARLY);
     return `<article class="mp-card${live ? ' live' : ''}">
       <div class="mp-when"><b>${hm(m.start)}</b><small>${hm(m.end)}</small><em>${esc(dayLabel(m.start))}</em></div>
-      <div class="mp-ci"><div class="mp-ct"><b>${esc(m.title)}</b>${live ? '<span class="chip live">Đang diễn ra</span>' : st === 'open' ? '<span class="chip soon">Sắp bắt đầu · phòng đã mở</span>' : `<span class="chip wait">${icon('clock', 11)} Mở phòng lúc ${opensAt}${dayStart(m.start) === dayStart(now) ? '' : ` · ${esc(dayLabel(m.start))}`}</span>`}${m.isHost ? '<span class="chip">Bạn là host</span>' : ''}</div>
+      <div class="mp-ci"><div class="mp-ct"><b>${esc(m.title)}</b>${live ? '<span class="chip live">Đang diễn ra</span>' : st === 'open' ? '<span class="chip soon">Phòng đã mở</span>' : ''}${m.isHost ? '<span class="chip">Bạn là host</span>' : ''}${m.projectName ? `<span class="chip proj">${icon('grid', 11)} ${esc(m.projectName)}</span>` : ''}</div>
         <small>${icon('door', 12)} ${esc(m.roomName)} · host ${esc(m.hostName)}</small>
         <div class="mp-avs">${avatar(m.host, m.hostName, 'host')}${(m.invitees || []).slice(0, 7).map(p => avatar(p.key, p.name)).join('')}${(m.invitees || []).length > 7 ? `<span class="mt-av more">+${m.invitees.length - 7}</span>` : ''}</div>
         ${m.agenda ? `<p class="mp-ag">${esc(m.agenda.slice(0, 160))}${m.agenda.length > 160 ? '…' : ''}</p>` : ''}
-        <div class="mp-acts">${st !== 'later' ? `<button type="button" class="sx-primary" data-join="${m.id}">${icon('door', 14)} Vào phòng</button>` : `<button type="button" class="sx-primary" disabled title="Phòng mở 10 phút trước giờ họp">${icon('door', 14)} Vào phòng · ${opensAt}</button>`}
+        <div class="mp-acts">${st !== 'later' ? `<button type="button" class="sx-primary" data-join="${m.id}">${icon('door', 14)} Vào phòng</button>` : `<span class="mp-wait" title="Phòng mở 10 phút trước giờ họp">${icon('clock', 14)} <span>Phòng mở lúc <b>${opensAt}</b>${dayStart(m.start) === dayStart(now) ? ` · còn ${fmtIn(m.start - EARLY - now)}` : ` · ${esc(dayLabel(m.start))}`}</span></span>`}
           <button type="button" class="sx-ghost" data-open="${m.id}">${icon('folder', 14)} Tài liệu</button>
           ${m.isHost && live ? `<button type="button" class="sx-ghost danger" data-end="${m.id}">${icon('stop', 13)} Kết thúc sớm</button>` : m.isHost ? `<button type="button" class="sx-ghost" data-edit="${m.id}">${icon('edit', 14)} Sửa</button><button type="button" class="sx-ghost danger" data-cancel="${m.id}">${icon('trash', 14)} Huỷ</button>` : ''}</div></div></article>`;
   }
@@ -171,7 +174,7 @@ export class MeetPanel {
     const groups = new Map();
     for (const m of list) { const k = new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', month: 'long', year: 'numeric' }).format(m.start); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(m); }
     body.innerHTML = [...groups].map(([k, ms]) => `<div class="nb-sec">${esc(k)}</div><div class="mp-folders">${ms.map(m => `<button type="button" class="mp-fd" data-id="${m.id}">
-      <span class="mp-fdic">${icon('folder', 22)}</span><span class="mp-fdt"><b>${esc(m.title)}</b><small>${esc(dayLabel(m.start))} · ${hm(m.start)}–${hm(m.end)}${m.past ? '' : m.start <= now ? ' · <em>đang diễn ra</em>' : ' · sắp tới'}</small></span>
+      <span class="mp-fdic">${icon('folder', 22)}</span><span class="mp-fdt"><b>${esc(m.title)}</b>${m.projectName ? `<em class="chip proj">${icon('grid', 11)} ${esc(m.projectName)}</em>` : ''}<small>${esc(dayLabel(m.start))} · ${hm(m.start)}–${hm(m.end)}${m.past ? '' : m.start <= now ? ' · <em>đang diễn ra</em>' : ' · sắp tới'}</small></span>
       <span class="mp-fdn">${icon('file', 13)} ${m.files || 0}</span></button>`).join('')}</div>`).join('');
     body.querySelectorAll('[data-id]').forEach(b => b.onclick = () => this.detail(+b.dataset.id));
   }
@@ -248,6 +251,7 @@ export class MeetPanel {
       <button type="button" class="sx-back-link">${icon('chevLeft', 15)} ${m ? 'Huỷ sửa' : 'Quay lại'}</button>
       <h3>${m ? 'Sửa cuộc họp' : 'Đặt phòng họp'}</h3>
       ${project || m?.projectId ? `<p class="mp-projnote" style="--pc:${esc(project?.color || '#7b61ff')}">${icon('grid', 15)}<span>Họp của dự án <b>${esc(project?.name || m.projectName || '')}</b> — mọi thành viên dự án được mời; tài liệu, bảng vẽ đã lưu của cuộc họp hiện trong tab Tài liệu của dự án.</span></p>` : ''}
+      <label class="sx-field mp-tfield"><span>Tên cuộc họp <i>*</i></span><input name="title" maxlength="120" required value="${esc(m?.title || (project ? `Họp dự án ${project.name}` : ''))}" placeholder="Ví dụ: Họp kế hoạch sprint 12"></label>
       <section class="mp-pickt" aria-label="Chọn thời gian">
         <div class="mp-step"><span class="mp-n">1</span><b>Chọn ngày</b></div>
         <div class="mp-step"><span class="mp-n">2</span><b>Giờ bắt đầu</b><small class="mp-dayname2"></small></div>
@@ -257,15 +261,14 @@ export class MeetPanel {
           <div class="mp-durs" role="radiogroup" aria-label="Thời lượng">${DURS.map(([v, n]) => `<button type="button" role="radio" data-dur="${v}">${n}</button>`).join('')}</div>
           <div class="mp-sum" aria-live="polite"></div></div>
       </section>
-      <label class="sx-field"><span>Tên cuộc họp <i>*</i></span><input name="title" maxlength="120" required value="${esc(m?.title || (project ? `Họp dự án ${project.name}` : ''))}" placeholder="Ví dụ: Họp kế hoạch sprint 12"></label>
-      <div class="sx-field"><span>Người tham dự <small>(${picked.size} người · tối đa ${MAXI})</small></span>
+      <div class="sx-field mp-people-f"><span>Người tham dự <small>(${picked.size} người · tối đa ${MAXI})</small></span>
         <div class="mp-chips"><span class="mp-chip host">${avatar(me, this.s.me.employee?.display || 'CEO')} Bạn (host)</span></div>
         <div class="mp-pick"><input class="mp-q" placeholder="Tìm theo tên, mã hoặc phòng ban…" autocomplete="off" aria-label="Tìm người để mời">
           ${depts.length ? `<select class="mp-dept" aria-label="Mời cả phòng ban"><option value="">+ Mời cả phòng ban…</option>${depts.map(d => `<option>${esc(d)}</option>`).join('')}</select>` : ''}</div>
         <ul class="mp-res" role="listbox" hidden></ul></div>
       <label class="sx-field"><span>Nội dung / chương trình</span><textarea name="agenda" rows="3" maxlength="1000" placeholder="Mục tiêu, các ý cần bàn…">${esc(m?.agenda || '')}</textarea></label>
       <p class="sx-err" role="alert"></p>
-      <div class="sx-acts"><button type="button" class="sx-ghost" data-cancel>Huỷ</button><button type="submit" class="sx-primary">${m ? 'Lưu thay đổi' : 'Đặt phòng & mời'}</button></div>
+      <div class="sx-acts mp-foot"><span class="mp-fsum" aria-live="polite"></span><button type="button" class="sx-ghost" data-cancel>Huỷ</button><button type="submit" class="sx-primary">${m ? 'Lưu thay đổi' : 'Đặt phòng & mời'}</button></div>
     </form>`;
     body.scrollTop = 0;
     const f = body.querySelector('form'), back = () => this.show(this.tab);
@@ -303,6 +306,7 @@ export class MeetPanel {
       f.querySelectorAll('[data-dur]').forEach(b => { const v = +b.dataset.dur, ok = okDur(v); b.disabled = !ok; b.classList.toggle('on', ok && v === dur); b.setAttribute('aria-checked', String(ok && v === dur)); b.title = ok ? '' : 'Trùng lịch khác hoặc quá 21:00'; });
       const sum = f.querySelector('.mp-sum');
       sum.innerHTML = start == null ? `<span class="muted">Chưa chọn giờ.</span>` : `${icon('clock', 16)}<span><b>${hm(start)} – ${hm(start + dur)}</b><small>${esc(fmtDate(day).replace(/^./, c => c.toUpperCase()))} · Phòng họp tầng trệt</small></span>`;
+      const fs = f.querySelector('.mp-fsum'); if (fs) fs.innerHTML = start == null ? 'Chọn ngày và giờ bắt đầu' : `${icon('calendar', 14)} <b>${hm(start)}–${hm(start + dur)}</b> · ${esc(new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: '2-digit', month: '2-digit' }).format(day))}`;
       f.querySelector('[type=submit]').disabled = start == null;
     };
     f.querySelectorAll('[data-dur]').forEach(b => b.onclick = () => { dur = +b.dataset.dur; renderDur(); });
@@ -312,7 +316,7 @@ export class MeetPanel {
     const drawChips = () => {
       chips.querySelectorAll('.mp-chip:not(.host)').forEach(x => x.remove());
       for (const [k, n] of picked) { const c = document.createElement('span'); c.className = 'mp-chip'; c.innerHTML = `${avatar(k, n)} ${esc(n)} <button type="button" aria-label="Bỏ ${esc(n)}">${icon('close', 11)}</button>`; c.querySelector('button').onclick = () => { picked.delete(k); drawChips(); }; chips.appendChild(c); }
-      f.querySelector('.sx-field small').textContent = `(${picked.size} người · tối đa ${MAXI})`;
+      f.querySelector('.mp-people-f > span small').textContent = `(${picked.size} người · tối đa ${MAXI})`;
     };
     const search = () => {
       const s = q.value.trim().toLowerCase().normalize('NFC');

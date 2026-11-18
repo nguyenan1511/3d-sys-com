@@ -72,3 +72,29 @@ Defaults are high, including on phones:
 - On portrait screens (aspect < 0.85) the follow camera uses FOV 66, sits 15% farther away and a little higher.
 
 The compact layout query is `(max-width: 760px), (max-height: 500px) and (max-width: 1100px)`; the mobile rules are the last such blocks in `src/ui/style.css`.
+
+## Work modals — Dự án (projects) and Phòng họp (meetings)
+Layout ideas borrowed from Notion (workspace, Kanban) and Cal.com (booking). SYSONE colours and the shared 38px
+pill buttons stay; nothing is copied from those brands.
+- **Weights:**
+  - titles 800;
+  - card and task titles 700;
+  - body text 500–600.
+  - Avoid walls of 900.
+- **Borders and shadows:**
+  - Warm hairline borders `rgba(43,45,66,.1)`, plus one soft shadow.
+  - Kanban columns sit on warm paper `#f6f2ec`.
+- **Inside a project:**
+  - The modal header becomes the project header: back, colour tile, name, one line of stats, members, Đặt họp, Vào phòng.
+  - The tab bar stays fixed under the header and never scrolls away.
+- **Detail views open in a drawer, not a page swap:**
+  - desktop: from the right, max 500px wide;
+  - phone: a bottom sheet from 6% of the screen height.
+  - The list or board stays visible behind it, and the open card is outlined in the project colour.
+- **Explain before asking:**
+  - Empty states teach the flow (a 3-step "Tạo → Mời → Chia việc").
+  - Calendars carry a colour legend plus a "Bấm vào giờ trống để đặt" hint.
+  - Status chips, not disabled orange buttons; for example "Phòng mở lúc 17:50 · còn 25 phút".
+- **Long forms:**
+  - The most important field (the meeting name) comes first.
+  - The submit bar is sticky at the bottom and shows a live summary of the choice.
