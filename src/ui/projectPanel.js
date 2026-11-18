@@ -41,9 +41,17 @@ export class ProjectPanel {
       const back = this.el = document.createElement('div'); back.className = 'sx-back';
       // đầu trang + thanh thẻ đổi theo màn: danh sách (Đang làm / Đã lưu trữ) · trong một dự án (tên, thành viên, Vào phòng,
       // Đặt họp + các thẻ Công việc · Chat · … — luôn ở trên, không cuộn mất)
-      back.innerHTML = `<div class="sx pj" role="dialog" aria-modal="true" aria-labelledby="pjTitle">
-        <header class="sx-h pj-h"></header><nav class="sx-tabs pj-nav" role="tablist"></nav>
-        <div class="sx-body pj-body" tabindex="-1"></div></div>`;
+      // bố cục dashboard: thanh bên (tìm dự án, Tổng quan, danh sách dự án) + vùng chính (đầu trang, thẻ, nội dung)
+      back.innerHTML = `<div class="sx pj dash" role="dialog" aria-modal="true" aria-labelledby="pjTitle">
+        <aside class="ds-side" aria-label="Danh sách dự án">
+          <div class="ds-head"><span class="ds-logo">${icon('grid', 16)}</span><b>Dự án</b><button type="button" class="ds-add" data-s="new" title="Dự án mới" aria-label="Dự án mới">${icon('plus', 15)}</button></div>
+          <label class="ds-search">${icon('target', 14)}<input type="search" placeholder="Tìm dự án…" aria-label="Tìm dự án" autocomplete="off"></label>
+          <button type="button" class="ds-item ds-home" data-s="home">${icon('grid', 15)}<span>Tổng quan</span><em class="ds-n"></em></button>
+          <div class="ds-scroll"></div>
+          <p class="ds-foot">${icon('info', 13)} Chỉ thành viên mới thấy dự án.</p>
+        </aside>
+        <section class="ds-main"><header class="sx-h pj-h"></header><nav class="sx-tabs pj-nav" role="tablist"></nav>
+        <div class="sx-body pj-body" tabindex="-1"></div></section></div>`;
       document.body.appendChild(back); overlayOn();
       requestAnimationFrame(() => back.classList.add('show'));
       back.addEventListener('click', e => { if (e.target === back) this.close(); });
@@ -51,6 +59,14 @@ export class ProjectPanel {
         const b = e.target.closest('[data-h]'); if (!b) return;
         ({ close: () => this.close(), new: () => this.form(), back: () => this.showList(), room: () => this.c.join(this.pid), meet: () => this.bookMeeting() })[b.dataset.h]?.();
       });
+      const side = back.querySelector('.ds-side');
+      side.addEventListener('click', e => {
+        const b = e.target.closest('[data-s], [data-p]'); if (!b) return;
+        if (b.dataset.p) this.load(+b.dataset.p); else if (b.dataset.s === 'new') this.form(); else if (b.dataset.s === 'home') this.showList(); else if (b.dataset.s === 'arch') { this.showArch = !this.showArch; this.renderSide(); }
+      });
+      const sq = side.querySelector('.ds-search input');
+      sq.addEventListener('input', () => { this.q = sq.value.trim().toLowerCase(); this.renderSide(); });
+      sq.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
       back.querySelector('.pj-nav').addEventListener('click', e => {
         const b = e.target.closest('button'); if (!b) return;
         if (b.dataset.f) { this.filter = b.dataset.f; this.showList(); }
@@ -72,7 +88,18 @@ export class ProjectPanel {
     window.removeEventListener('keydown', this._key, true); overlayOff();
     el.classList.remove('show'); setTimeout(() => el.remove(), 200);
   }
-  setMode(mode) { this.view = mode; this.renderHead(); }
+  setMode(mode) { this.view = mode; this.el.querySelector('.sx.pj').dataset.view = mode; this.renderHead(); this.renderSide(); }
+  /** Thanh bên: Tổng quan + dự án đang làm (chấm tin mới, số việc của tôi) + dự án đã lưu trữ (thu gọn); lọc theo ô tìm. */
+  renderSide() {
+    const box = this.el?.querySelector('.ds-scroll'); if (!box) return;
+    const q = this.q || '', match = p => !q || p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q);
+    const act = this.c.list.filter(p => p.status === 'active' && match(p)), arch = this.c.list.filter(p => p.status === 'archived' && match(p));
+    const item = p => `<button type="button" class="ds-item${p.id === this.pid ? ' on' : ''}" data-p="${p.id}" style="--pc:${esc(p.color)}" title="${esc(p.name)}"><i class="ds-dot"></i><span>${esc(p.name)}</span>${this.c.unread(p) ? '<i class="pj-dot" title="Tin nhắn mới"></i>' : ''}${p.counts.overdue && p.counts.mine ? `<em class="ds-n over" title="Việc của bạn quá hạn">${p.counts.overdue}</em>` : p.counts.mine ? `<em class="ds-n" title="Việc của bạn">${p.counts.mine}</em>` : ''}</button>`;
+    box.innerHTML = `<div class="ds-sec">Đang làm <em>${act.length}</em></div>${act.map(item).join('') || `<p class="ds-none">${q ? 'Không có dự án khớp.' : 'Chưa có dự án nào.'}</p>`}
+      ${arch.length ? `<button type="button" class="ds-sec ds-toggle" data-s="arch" aria-expanded="${!!this.showArch || !!q}">${icon('chevDown', 13)} Đã lưu trữ <em>${arch.length}</em></button>${this.showArch || q ? arch.map(item).join('') : ''}` : ''}`;
+    this.el.querySelector('.ds-home').classList.toggle('on', this.view === 'list');
+    const mine = this.myTasks?.length || 0, n = this.el.querySelector('.ds-home .ds-n'); n.textContent = mine || ''; n.hidden = !mine; n.title = 'Việc của bạn';
+  }
   /** Đầu trang + thanh thẻ theo màn đang xem. */
   renderHead() {
     const h = this.el?.querySelector('.pj-h'), nav = this.el?.querySelector('.pj-nav'); if (!h) return;
@@ -92,29 +119,47 @@ export class ProjectPanel {
       this.paintTabDots();
       return;
     }
-    h.innerHTML = `<span class="sx-ic">${icon('grid', 22)}</span><div><h2 id="pjTitle">${this.view === 'form' ? 'Dự án mới' : 'Dự án'}</h2><p>${this.view === 'form' ? 'Đặt tên, chọn màu, mời đồng đội — bạn là Trưởng dự án.' : 'Không gian làm việc của nhóm: công việc, chat, tài liệu, phòng họp riêng'}</p></div>
+    h.innerHTML = `${this.view === 'form' ? `<button type="button" class="sx-icon pj-hb" data-h="back" aria-label="Tổng quan" title="Tổng quan">${icon('chevLeft', 18)}</button>` : ''}<div><h2 id="pjTitle">${this.view === 'form' ? 'Dự án mới' : 'Tổng quan'}</h2><p>${this.view === 'form' ? 'Đặt tên, chọn màu, mời đồng đội — bạn là Trưởng dự án.' : 'Việc của bạn và các dự án của nhóm'}</p></div>
       ${this.view === 'list' ? `<button type="button" class="sx-primary" data-h="new">${icon('plus', 15)} <span>Dự án mới</span></button>` : ''}${x}`;
-    nav.hidden = this.view !== 'list';
-    nav.innerHTML = [['active', 'Đang làm'], ['archived', 'Đã lưu trữ']].map(([k, n]) => { const c = this.c.list.filter(p => p.status === k).length; return `<button type="button" role="tab" data-f="${k}" class="${k === this.filter ? 'on' : ''}" aria-selected="${k === this.filter}">${n}${c ? ` <em class="mt-cnt">${c}</em>` : ''}</button>`; }).join('');
+    nav.hidden = true; nav.innerHTML = '';
   }
 
   // ---------- danh sách ----------
   showList() {
     if (!this.el) return;
     this.saveNotesNow(); this.wb?.destroy(); this.wb = null; this.cur = null; this.taskOpen = null; this.chat = null;
-    this.setMode('list'); this.renderList(); this.c.load();
+    this.setMode('list'); this.renderList(); this.c.load(); this.loadMine();
   }
+  async loadMine() { const r = await api('GET', '/api/projects/tasks/mine'); if (!r.ok || !this.el) return; this.myTasks = r.tasks; this.renderSide(); if (this.view === 'list') this.renderList(); }
+  /** Tổng quan: ô số liệu + "Việc của tôi" (mọi dự án) + thẻ các dự án đang làm. */
   renderList() {
     const body = this.body; if (!body || this.view !== 'list') return;
-    const all = this.c.list, list = all.filter(p => p.status === this.filter);
-    const ceo = this.s.isAdmin && all.some(p => !p.isMember);
-    body.innerHTML = list.length ? `${ceo ? `<p class="pj-note">${icon('info', 14)} Bạn là CEO: thấy mọi dự án của công ty (dự án bạn không tham gia có nhãn "CEO xem").</p>` : ''}<div class="pj-grid">${list.map(p => this.card(p)).join('')}</div>`
-      : this.filter === 'active' ? `<div class="pj-start"><div class="pj-start-ic">${icon('grid', 30)}</div><h3>Làm việc nhóm ngay trong văn phòng</h3><p>Mỗi dự án là một không gian riêng của nhóm — chỉ thành viên mới thấy.</p>
-          <ol class="pj-steps"><li><b>1</b><span><strong>Tạo dự án</strong>Đặt tên, chọn màu — bạn là Trưởng dự án.</span></li><li><b>2</b><span><strong>Mời đồng đội</strong>Tìm theo tên hoặc thêm cả phòng ban.</span></li><li><b>3</b><span><strong>Chia việc &amp; làm cùng nhau</strong>Bảng Kanban, chat riêng, tài liệu, phòng họp 3D.</span></li></ol>
-          <button type="button" class="sx-primary" data-new>${icon('plus', 15)} Tạo dự án đầu tiên</button></div>`
-        : `<div class="sx-empty">${icon('folder', 34)}<b>Chưa có dự án lưu trữ</b><span>Dự án đã xong: Trưởng dự án vào Cài đặt → "Lưu trữ" để cất đi (vẫn xem lại được).</span></div>`;
-    body.querySelector('[data-new]')?.addEventListener('click', () => this.form());
+    const all = this.c.list, act = all.filter(p => p.status === 'active'), arch = all.filter(p => p.status === 'archived'), mine = this.myTasks || [], now = Date.now();
+    if (!all.length) {
+      body.innerHTML = `<div class="pj-start"><div class="pj-start-ic">${icon('grid', 30)}</div><h3>Làm việc nhóm ngay trong văn phòng</h3><p>Mỗi dự án là một không gian riêng của nhóm — chỉ thành viên mới thấy.</p>
+        <ol class="pj-steps"><li><b>1</b><span><strong>Tạo dự án</strong>Đặt tên, chọn màu — bạn là Trưởng dự án.</span></li><li><b>2</b><span><strong>Mời đồng đội</strong>Tìm theo tên hoặc thêm cả phòng ban.</span></li><li><b>3</b><span><strong>Chia việc &amp; làm cùng nhau</strong>Bảng Kanban, chat riêng, tài liệu, phòng họp 3D.</span></li></ol>
+        <button type="button" class="sx-primary" data-new>${icon('plus', 15)} Tạo dự án đầu tiên</button></div>`;
+      body.querySelector('[data-new]').onclick = () => this.form(); return;
+    }
+    const over = mine.filter(t => t.due && t.due < now).length, soon = mine.filter(t => t.due && t.due >= now && t.due - now < 86400e3).length;
+    const stat = (ic, n, label, cls = '') => `<div class="ov-stat ${cls}"><span class="ov-ic">${icon(ic, 16)}</span><b>${n}</b><small>${label}</small></div>`;
+    const row = t => { const d = dueInfo(t.due, false); return `<button type="button" class="ov-row" data-tp="${t.projectId}" data-tt="${t.id}" style="--pc:${esc(t.projectColor)}">
+        <i class="pj-cd ${t.status}" title="${COLS.find(c => c[0] === t.status)[1]}"></i><span class="ov-t">${esc(t.title)}</span>
+        <span class="ov-p"><i class="ds-dot"></i>${esc(t.projectName)}</span>
+        ${t.priority ? `<em class="pj-pr p${t.priority}">${PRIO[t.priority][1]}</em>` : '<span></span>'}
+        ${d ? `<em class="pj-due ${d.cls}">${icon('clock', 11)} ${esc(d.label)}</em>` : '<em class="pj-due none">Không hạn</em>'}</button>`; };
+    body.innerHTML = `<div class="ov">
+      <div class="ov-stats">${stat('grid', act.length, 'Dự án đang làm')}${stat('check', mine.length, 'Việc của bạn')}${stat('clock', soon, 'Tới hạn trong 24 giờ', soon ? 'warn' : '')}${stat('info', over, 'Quá hạn', over ? 'bad' : '')}</div>
+      ${this.s.isAdmin && all.some(p => !p.isMember) ? `<p class="pj-note">${icon('info', 14)} Bạn là CEO: thấy mọi dự án của công ty (dự án bạn không tham gia có nhãn "CEO xem").</p>` : ''}
+      <section class="ov-card"><header><h4>${icon('check', 15)} Việc của bạn</h4><small>${mine.length ? 'Sắp xếp theo hạn chót · bấm để mở' : ''}</small></header>
+        ${mine.length ? `<div class="ov-list">${mine.map(row).join('')}</div>` : `<p class="ov-empty">${icon('check', 18)} Không có việc nào đang chờ bạn. Tuyệt!</p>`}</section>
+      <section class="ov-card"><header><h4>${icon('grid', 15)} Dự án đang làm <em>${act.length}</em></h4><button type="button" class="sx-ghost" data-new>${icon('plus', 14)} Dự án mới</button></header>
+        ${act.length ? `<div class="pj-grid">${act.map(p => this.card(p)).join('')}</div>` : '<p class="ov-empty">Chưa có dự án đang làm.</p>'}</section>
+      ${arch.length ? `<section class="ov-card"><header><h4>${icon('folder', 15)} Đã lưu trữ <em>${arch.length}</em></h4></header><div class="pj-grid sm">${arch.map(p => this.card(p)).join('')}</div></section>` : ''}
+    </div>`;
+    body.querySelectorAll('[data-new]').forEach(b => b.onclick = () => this.form());
     body.querySelectorAll('[data-p]').forEach(b => b.onclick = () => this.load(+b.dataset.p));
+    body.querySelectorAll('[data-tt]').forEach(b => b.onclick = () => this.load(+b.dataset.tp, { tab: 'tasks', task: +b.dataset.tt }));
   }
   card(p) {
     const un = this.c.unread(p), c = p.counts, open = c.todo + c.doing, total = open + c.done;
@@ -145,7 +190,7 @@ export class ProjectPanel {
       const s = q.value.trim().toLowerCase().normalize('NFC'); if (!s) { res.hidden = true; return; }
       const hits = people.filter(p => ok(p) && `${p.name} ${p.code} ${p.department}`.toLowerCase().includes(s)).slice(0, 8);
       res.hidden = false;
-      res.innerHTML = hits.length ? hits.map((p, i) => `<li role="option" data-k="${esc(p.key)}" class="${i ? '' : 'act'}">${avatar(p.key, p.name)}<span><b>${esc(p.name)}</b><small>${esc(p.department || '—')}${p.online ? ' · <em>đang online</em>' : ''}</small></span></li>`).join('') : '<li class="none">Không tìm thấy ai.</li>';
+      res.innerHTML = hits.length ? hits.map((p, i) => `<li role="option" data-k="${esc(p.key)}" class="${i ? '' : 'act'}">${avatar(p.key, p.name)}<span class="mp-rt"><b>${esc(p.name)}</b>${p.department || p.online ? `<small>${esc(p.department || '')}${p.department && p.online ? ' · ' : ''}${p.online ? '<em>đang online</em>' : ''}</small>` : ''}</span></li>`).join('') : '<li class="none">Không tìm thấy ai.</li>';
       res.querySelectorAll('[data-k]').forEach(li => li.onmousedown = e => { e.preventDefault(); add(li.dataset.k); });
     };
     q.onblur = () => setTimeout(() => { res.hidden = true; }, 120);
@@ -169,8 +214,6 @@ export class ProjectPanel {
     let color = COLORS[(this.c.list.length + 3) % COLORS.length];
     const picked = new Map();
     body.innerHTML = `<form class="pj-form" novalidate>
-      <button type="button" class="sx-back-link">${icon('chevLeft', 15)} Tất cả dự án</button>
-      <h3>Dự án mới</h3>
       <label class="sx-field"><span>Tên dự án <i>*</i></span><input name="name" maxlength="80" required placeholder="Ví dụ: Website SYSONE 2027"></label>
       <label class="sx-field"><span>Mô tả</span><textarea name="description" rows="3" maxlength="1000" placeholder="Mục tiêu, phạm vi, link quan trọng…"></textarea></label>
       <div class="sx-field"><span>Màu</span>${this.colors(color)}</div>
@@ -178,7 +221,7 @@ export class ProjectPanel {
       <p class="sx-err" role="alert"></p>
       <div class="sx-acts"><button type="button" class="sx-ghost" data-cancel>Huỷ</button><button type="submit" class="sx-primary">${icon('plus', 15)} Tạo dự án</button></div></form>`;
     const f = body.querySelector('form');
-    body.querySelector('.sx-back-link').onclick = f.querySelector('[data-cancel]').onclick = () => this.showList();
+    f.querySelector('[data-cancel]').onclick = () => this.showList();
     f.querySelectorAll('input,textarea').forEach(x => x.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); }));
     this.bindColors(f, c => { color = c; });
     this.picker(f.querySelector('.pj-pickhost'), { people, picked, onChange: n => { f.querySelector('.pj-cnt').textContent = n ? `(bạn + ${n} người)` : '(bạn là Trưởng dự án)'; } });
@@ -217,10 +260,11 @@ export class ProjectPanel {
     const body = this.body, p = this.p, r = this.cur; if (!body) return;
     const next = r.meetings.filter(m => m.end > Date.now()).slice(0, 3);
     if (!['tasks', 'chat', 'files', 'notes', 'people', ...(p.isLead ? ['settings'] : [])].includes(this.tab)) this.tab = 'tasks';
-    this.renderHead();
-    body.innerHTML = `<div class="pj-view" style="--pc:${esc(p.color)}">
+    this.renderHead(); this.renderSide();
+    body.innerHTML = `<div class="pj-view" style="--pc:${esc(p.color)}"><div class="pj-sum"></div>
       ${next.length ? `<div class="pj-meets">${icon('calendar', 14)}<span>Họp sắp tới:</span>${next.map(m => `<span class="pj-meet"><b>${esc(m.title)}</b> · ${esc(dayLabel(m.start))} ${hm(m.start)}–${hm(m.end)}</span>`).join('')}</div>` : ''}
       <div class="pj-pane"></div></div>`;
+    this.paintSum();
     this.showTab(this.tab);
   }
   async bookMeeting() {
@@ -279,7 +323,7 @@ export class ProjectPanel {
       const r = await api('POST', `/api/projects/${this.pid}/tasks`, { title, status: st });
       ta.disabled = false;
       if (!r.ok) { this.s.toast(r.error || 'Chưa thêm được.', true); return; }
-      this.upsert(r.task); ta.value = ''; ta.focus();
+      this.upsert(r.task); this.paintSum(); ta.value = ''; ta.focus();
       const list = col.querySelector('.pj-cards'); list.querySelector('.pj-empty')?.remove();
       const tmp = document.createElement('div'); tmp.innerHTML = this.taskCard(r.task); const card = tmp.firstElementChild; list.appendChild(card); this.bindCard(card);
       col.querySelector('header em').textContent = list.querySelectorAll('.pj-card').length;
@@ -359,7 +403,7 @@ export class ProjectPanel {
     const o = a != null && b != null ? (a + b) / 2 : a != null ? a + 1 : b != null ? b - 1 : 1;
     st.ph.remove();
     if (status === t.status && (prev?.dataset.t === String(t.id) || next?.dataset.t === String(t.id) || (a != null && b != null && t.order > a && t.order < b))) { this.renderTasks(); return; }
-    const before = { ...t }; Object.assign(t, { status, order: o, doneAt: status === 'done' ? Date.now() : null });
+    const before = { ...t }; Object.assign(t, { status, order: o, doneAt: status === 'done' ? Date.now() : null }); this.paintSum();
     this.renderTasks();
     const r = await api('PATCH', `/api/projects/${this.pid}/tasks/${t.id}`, { status, order: o });
     if (!r.ok) { Object.assign(t, before); this.s.toast(r.error || 'Chưa chuyển được.', true); this.renderTasks(); return; }
@@ -420,7 +464,7 @@ export class ProjectPanel {
     const patch = async (data, quiet = false) => {
       const r = await api('PATCH', `/api/projects/${this.pid}/tasks/${id}`, data);
       if (!r.ok) { this.s.toast(r.error || 'Chưa lưu được.', true); return false; }
-      this.upsert(r.task); this.refreshBoard(); if (!quiet && this.taskOpen === id) this.renderTask(id, true); return true;
+      this.upsert(r.task); this.refreshBoard(); this.paintSum(); if (!quiet && this.taskOpen === id) this.renderTask(id, true); return true;
     };
     const ttl = pane.querySelector('.pj-ttl'), fit = () => { ttl.style.height = 'auto'; ttl.style.height = `${ttl.scrollHeight}px`; }; fit();
     ttl.addEventListener('input', fit);
@@ -636,7 +680,7 @@ export class ProjectPanel {
   }
 
   // ---------- cập nhật từ server ----------
-  onList() { if (this.view === 'list') this.renderList(); else this.paintTabDots(); }
+  onList() { this.renderSide(); if (this.view === 'list') { this.renderList(); this.loadMine(); } else this.paintTabDots(); }
   async onChanged(id) {
     if (this.pid !== id || this.view !== 'project') return;
     const r = await api('GET', `/api/projects/${id}`); if (!this.el || this.pid !== id) return;
@@ -649,6 +693,15 @@ export class ProjectPanel {
     this.renderProject();
   }
   onRemoved(id) { if (this.pid === id && this.el) { this.s.toast('Bạn không còn xem được dự án này.', true); this.showList(); } }
+  /** Dải số liệu của dự án: tiến độ, số việc từng cột, quá hạn, việc của tôi. */
+  paintSum() {
+    const box = this.el?.querySelector('.pj-sum'); if (!box || !this.cur) return;
+    const ts = this.cur.tasks, n = k => ts.filter(t => t.status === k).length, total = ts.length, done = n('done'), pct = total ? Math.round(done / total * 100) : 0, now = Date.now();
+    const over = ts.filter(t => t.status !== 'done' && t.due && t.due < now).length, mine = ts.filter(t => t.status !== 'done' && t.assignee === this.s.key).length;
+    box.innerHTML = `<div class="pj-prog2" title="${done}/${total} việc xong"><b>${pct}%</b><span><i style="width:${pct}%"></i></span><small>${done}/${total} xong</small></div>
+      ${COLS.map(([k, name]) => `<span class="pj-st"><i class="pj-cd ${k}"></i><b>${n(k)}</b> ${name.toLowerCase()}</span>`).join('')}
+      <span class="pj-st me"><b>${mine}</b> việc của bạn</span>${over ? `<span class="pj-st bad">${icon('clock', 12)} <b>${over}</b> quá hạn</span>` : ''}`;
+  }
   /** Vẽ lại bảng Kanban (phía sau ngăn chi tiết) — trừ khi đang kéo thẻ / đang gõ việc mới. */
   refreshBoard() {
     if (this.view !== 'project' || this.tab !== 'tasks' || this.drag?.active || !this.pane) return;
@@ -659,7 +712,7 @@ export class ProjectPanel {
   onTask(m) {
     if (this.pid !== m.id || !this.cur) return;
     if (m.kind === 'del') this.cur.tasks = this.cur.tasks.filter(t => t.id !== m.taskId); else this.upsert(m.task);
-    this.refreshBoard(); this.renderHead();
+    this.refreshBoard(); this.renderHead(); this.paintSum();
     if (this.taskOpen === m.taskId && m.by !== this.s.key) {
       if (m.kind === 'del') { this.s.toast('Công việc này vừa bị xoá.', true); this.closeTask(); return; }
       if (!this.dbody?.contains(document.activeElement)) this.renderTask(m.taskId, true);

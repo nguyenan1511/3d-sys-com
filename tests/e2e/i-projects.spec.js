@@ -30,9 +30,9 @@ test('dự án: tạo + mời, Kanban kéo thả, giao việc, chat @nhắc, ri�
   expect((await call(c, 'GET', '/api/projects')).body.projects).toEqual([]);
   await b.evaluate(id => window.__app.session.projects.panel.open(id), pid);
   await expect(b.locator('.pj-h h2')).toHaveText('Dự án kiểm thử');
-  // hệ nút chung: nút + thẻ tab cao 38
+  // hệ nút chung (modal dashboard): nút + thẻ tab cùng cao 32
   const hs = await a.evaluate(() => [...new Set([...document.querySelectorAll('.pj .sx-primary, .pj .sx-ghost, .pj-nav button')].filter(x => x.offsetParent).map(x => Math.round(x.getBoundingClientRect().height)))]);
-  expect(hs).toEqual([38]);
+  expect(hs).toEqual([32]);
   // A thêm việc ở cột "Cần làm" → B thấy ngay
   await a.locator('.pj-col[data-st=todo] .pj-add').click();
   await a.locator('.pj-addf textarea').fill('Viết tài liệu');

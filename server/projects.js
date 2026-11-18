@@ -238,6 +238,16 @@ export class Projects {
     const cnt = new Map(); for (const c of this.db.task_comments.by('project_id', Number(id))) cnt.set(c.task_id, (cnt.get(c.task_id) || 0) + 1);
     return this.db.project_tasks.by('project_id', Number(id)).sort((a, b) => a.order - b.order || a.id - b.id).map(t => this.taskView(t, cnt.get(t.id) || 0));
   }
+  /** Việc chưa xong giao cho tôi ở mọi dự án đang làm (trang Tổng quan): hạn gần trước, không hạn sau. */
+  myTasks(actor) {
+    const key = keyOf(actor), mine = new Set(this.db.project_members.by('key', key).map(r => r.project_id));
+    const out = [];
+    for (const pid of mine) {
+      const p = getProject(this.store, pid); if (!p || p.status !== 'active') continue;
+      for (const t of this.db.project_tasks.by('project_id', pid)) if (t.assignee === key && t.status !== 'done') out.push({ ...this.taskView(t), projectName: p.name, projectColor: p.color });
+    }
+    return out.sort((a, b) => (a.due ?? Infinity) - (b.due ?? Infinity) || b.priority - a.priority || a.id - b.id).slice(0, 100);
+  }
   lastOrder(pid, status) { return this.db.project_tasks.by('project_id', pid).filter(t => t.status === status).reduce((m, t) => Math.max(m, t.order), 0); }
   cleanTask(p, body, base = {}) {
     const out = {};

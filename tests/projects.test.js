@@ -89,6 +89,16 @@ describe('dự án: Kanban, bình luận, nhắc hạn', () => {
     P.delTask(emp('1002'), p.id, b.id); P.delTask(emp('1001'), p.id, a.id);
     expect(P.tasks(p.id).map(t => t.title)).toEqual(['C']);
   });
+  it('việc của tôi ở mọi dự án: chưa xong, hạn gần trước; dự án lưu trữ không tính', () => {
+    const a = P.create(emp('1001'), { name: 'A', members: [K('1002')] }).p, b = P.create(emp('1002'), { name: 'B' }).p;
+    P.createTask(emp('1001'), a.id, { title: 'không hạn', assignee: K('1002') });
+    P.createTask(emp('1001'), a.id, { title: 'gần', assignee: K('1002'), due: Date.now() + 3600e3 });
+    P.createTask(emp('1002'), b.id, { title: 'xa', assignee: K('1002'), due: Date.now() + 86400e3 });
+    P.createTask(emp('1002'), b.id, { title: 'xong', assignee: K('1002'), status: 'done' });
+    expect(P.myTasks(emp('1002')).map(t => [t.title, t.projectName])).toEqual([['gần', 'A'], ['xa', 'B'], ['không hạn', 'A']]);
+    P.setArchived(emp('1002'), b.id, true);
+    expect(P.myTasks(emp('1002')).map(t => t.title)).toEqual(['gần', 'không hạn']);
+  });
   it('bình luận: thành viên viết; chỉ người viết / Trưởng dự án xoá', async () => {
     const { p } = P.create(emp('1001'), { name: 'A', members: [K('1002'), K('1003')] });
     const { t } = P.createTask(emp('1001'), p.id, { title: 'A' });

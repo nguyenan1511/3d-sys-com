@@ -1,6 +1,7 @@
 // Hệ nút chung (src/ui/style.css "HỆ NÚT CHUNG"): đo thật mọi nút trong luồng phòng họp + bảng tin + hộp xác nhận, trên
 // máy tính và điện thoại — nút hành động, thẻ tab, ô chọn giờ / thời lượng, thanh họp trực tuyến: cùng chiều cao 38px,
 // bo tròn hẳn, phẳng (không gờ nổi), cùng chữ 800/13px, biểu tượng cùng màu chữ. Hộp xác nhận luôn nằm trên cùng, bấm được.
+// Modal dạng dashboard (.sx.dash — Phòng họp, Dự án): thu nhỏ một cỡ — mọi nút 32px, chữ 700/12.5px (vẫn MỘT cỡ trong modal).
 import { test, expect } from '@playwright/test';
 import { uniqueCode, loginEmployeeUI, waitScene, newPage, closeAll, finishAvatar, call } from './helpers.js';
 
@@ -11,11 +12,11 @@ test.use({ actionTimeout: 15_000 });
 const SEL = ['.sx-primary', '.sx-ghost', '.sx-tabs button', '.mp-sub button', '.mp-durs button', '.mp-sl', '.mt-open', '.mt-end', '.mt-leave', '.mt-cb', '.mt-tabs button[data-tab]', '#modalRoot .modal:not(.charsel) .actions button'].join(', ');
 /** Các nút lệch chuẩn trên màn đang mở (rỗng = đạt). */
 const outliers = p => p.evaluate(sel => [...document.querySelectorAll(sel)].filter(b => b.offsetParent && b.getBoundingClientRect().width > 0).map(b => {
-  const cs = getComputedStyle(b), r = b.getBoundingClientRect(), svg = b.querySelector(':scope > svg'), bad = [];
-  if (b.offsetHeight !== 38) bad.push(`cao ${b.offsetHeight}`);   // (offsetHeight: không tính hiệu ứng phóng to lúc hộp mở)
+  const cs = getComputedStyle(b), r = b.getBoundingClientRect(), svg = b.querySelector(':scope > svg'), bad = [], dash = !!b.closest('.sx.dash');
+  if (b.offsetHeight !== (dash ? 32 : 38)) bad.push(`cao ${b.offsetHeight}`);   // (offsetHeight: không tính hiệu ứng phóng to lúc hộp mở)
   if (parseFloat(cs.borderTopLeftRadius) < b.offsetHeight / 2 - 1) bad.push(`bo ${cs.borderTopLeftRadius}`);
   if (cs.boxShadow !== 'none') bad.push(`bóng ${cs.boxShadow}`);
-  if (cs.fontWeight !== '800' || cs.fontSize !== '13px') bad.push(`chữ ${cs.fontWeight}/${cs.fontSize}`);
+  if (dash ? (cs.fontWeight !== '700' || cs.fontSize !== '12.5px') : (cs.fontWeight !== '800' || cs.fontSize !== '13px')) bad.push(`chữ ${cs.fontWeight}/${cs.fontSize}`);
   if (svg && getComputedStyle(svg).color !== cs.color) bad.push('biểu tượng khác màu chữ');
   return bad.length ? `${b.className || b.tagName} "${b.textContent.trim().slice(0, 20)}": ${bad.join(', ')}` : null;
 }).filter(Boolean), SEL);

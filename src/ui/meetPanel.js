@@ -54,12 +54,22 @@ export class MeetPanel {
   async open(tab = this.tab, arg = null) {
     if (this.el) { this.show(tab, arg); return; }
     const back = this.el = document.createElement('div'); back.className = 'sx-back';
-    back.innerHTML = `<div class="sx mp" role="dialog" aria-modal="true" aria-labelledby="mpTitle">
-      <header class="sx-h mp-h"><span class="sx-ic">${icon('calendar', 22)}</span><div><h2 id="mpTitle">Phòng họp</h2><p>Phòng họp tầng trệt · 5 ghế · đặt theo khung 30 phút (07:00–21:00)</p></div>
-        <button type="button" class="sx-primary mp-new">${icon('plus', 15)} Đặt phòng</button>
+    // bố cục dashboard: thanh bên (điều hướng, lịch tháng nhỏ có chấm ngày có họp, "Sắp tới của bạn") + vùng chính.
+    // Điện thoại: thanh bên ẩn, điều hướng thành hàng thẻ dưới đầu trang.
+    const TABS = [['book', 'calendar', 'Lịch phòng'], ['mine', 'users', 'Cuộc họp của tôi'], ['folder', 'folder', 'Folder của tôi']];
+    back.innerHTML = `<div class="sx mp dash" role="dialog" aria-modal="true" aria-labelledby="mpTitle">
+      <aside class="ds-side" aria-label="Phòng họp">
+        <div class="ds-head"><span class="ds-logo">${icon('calendar', 16)}</span><b>Phòng họp</b></div>
+        <nav class="ds-nav" role="tablist">${TABS.map(([k, ic, n]) => `<button type="button" role="tab" class="ds-item" data-tab="${k}">${icon(ic, 15)}<span>${n}</span></button>`).join('')}</nav>
+        <div class="ds-sec">Chọn ngày</div><div class="mp-mini"></div>
+        <div class="ds-sec">Sắp tới của bạn</div><div class="mp-upc"></div>
+        <p class="ds-foot">${icon('info', 13)} Phòng họp tầng trệt · 5 ghế · khung 30 phút, 07:00–21:00.</p>
+      </aside>
+      <section class="ds-main"><header class="sx-h mp-h"><div><h2 id="mpTitle">Phòng họp</h2><p class="mp-hsub"></p></div>
+        <button type="button" class="sx-primary mp-new">${icon('plus', 15)} <span>Đặt phòng</span></button>
         <button type="button" class="sx-x" aria-label="Đóng">${icon('close', 16)}</button></header>
-      <nav class="sx-tabs" role="tablist">${[['book', 'calendar', 'Lịch phòng'], ['mine', 'users', 'Cuộc họp của tôi'], ['folder', 'folder', 'Folder của tôi']].map(([k, ic, n]) => `<button type="button" role="tab" data-tab="${k}">${icon(ic, 15)} ${n}</button>`).join('')}</nav>
-      <div class="sx-body mp-body" tabindex="-1"></div></div>`;
+      <nav class="sx-tabs mp-ptabs" role="tablist">${TABS.map(([k, ic, n]) => `<button type="button" role="tab" data-tab="${k}">${icon(ic, 15)} ${n}</button>`).join('')}</nav>
+      <div class="sx-body mp-body" tabindex="-1"></div></section></div>`;
     document.body.appendChild(back); overlayOn();
     requestAnimationFrame(() => back.classList.add('show'));
     back.addEventListener('click', e => { if (e.target === back) this.close(); });
@@ -69,11 +79,27 @@ export class MeetPanel {
     this._key = e => { if (!this.el || document.querySelector('.modal-back')) return; if (e.key === 'Escape') { e.preventDefault(); if (this.sub) this.show(this.tab); else this.close(); } if (!this.el?.contains(e.target)) e.stopPropagation(); };   // (phím trong ô nhập của panel vẫn tới ô nhập: Enter / mũi tên ở ô tìm người)
     window.addEventListener('keydown', this._key, true);
     // tới giờ mở phòng / bắt đầu / hết giờ: thẻ "Cuộc họp của tôi" tự đổi nút (không phải đóng mở lại)
-    this.clock = setInterval(() => { if (this.tab === 'mine' && !this.sub && this.mineList) this.paintMine(); }, 15000);
+    this.clock = setInterval(() => { if (this.tab === 'mine' && !this.sub && this.mineList) this.paintMine(); this.paintUpcoming(); }, 15000);
+    this.mini = new DatePicker(back.querySelector('.mp-mini'), { value: this.day, min: Date.now(), max: dayStart(Date.now()) + 29 * DAY, label: 'Xem lịch phòng ngày', onPick: d => { this.day = d; this.show('book'); } });
+    this.loadMarks(); this.paintUpcoming();
     this.show(tab, arg);
   }
+  /** Lịch tháng nhỏ: chấm ở ngày có cuộc họp (30 ngày tới). */
+  async loadMarks() {
+    const now = Date.now(), r = await api('GET', `/api/meetings?from=${dayStart(now)}&to=${dayStart(now) + 31 * DAY}`); if (!r.ok || !this.mini) return;
+    const mk = new Map(); for (const x of r.meetings || []) { const d = dayStart(x.start); mk.set(d, (mk.get(d) || 0) + 1); }
+    this.mini.setMarks(mk);
+  }
+  /** "Sắp tới của bạn" ở thanh bên: tối đa 4 cuộc họp mình đặt / được mời (bấm để mở). */
+  paintUpcoming() {
+    const box = this.el?.querySelector('.mp-upc'); if (!box) return;
+    const now = Date.now(), list = (this.c.mine || []).filter(m => m.end > now).sort((a, b) => a.start - b.start).slice(0, 4);
+    box.innerHTML = list.length ? list.map(m => `<button type="button" class="mp-ui${m.start <= now ? ' live' : ''}" data-u="${m.id}"><b>${hm(m.start)}</b><span><strong>${esc(m.title)}</strong><small>${m.start <= now ? 'Đang diễn ra' : esc(dayLabel(m.start))}${m.projectName ? ` · ${esc(m.projectName)}` : ''}</small></span></button>`).join('')
+      : `<p class="ds-none">Chưa có cuộc họp sắp tới.</p>`;
+    box.querySelectorAll('[data-u]').forEach(b => b.onclick = () => this.detail(+b.dataset.u));
+  }
   close() {
-    const el = this.el; if (!el) return; this.el = null; this.sub = null; clearInterval(this.clock);
+    const el = this.el; if (!el) return; this.el = null; this.sub = null; this.mini = null; clearInterval(this.clock);
     this.wb?.destroy(); this.wb = null;
     window.removeEventListener('keydown', this._key, true); overlayOff();
     el.classList.remove('show'); setTimeout(() => el.remove(), 200);
@@ -81,12 +107,20 @@ export class MeetPanel {
   get body() { return this.el?.querySelector('.mp-body'); }
   show(tab, arg = null) {
     this.tab = tab; this.sub = null; this.wb?.destroy(); this.wb = null;
+    this.head();
     this.el.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
     this.body.scrollTop = 0;
     if (tab === 'book') this.renderBook(); else if (tab === 'mine') this.renderMine(); else if (arg) this.detail(arg); else this.renderFolder();
   }
+  /** Tiêu đề vùng chính theo màn đang xem. */
+  head(view = this.sub || this.tab) {
+    const h = this.el?.querySelector('.mp-h'); if (!h) return;
+    const T = { book: ['Lịch phòng', 'Xem giờ trống của phòng họp — bấm vào giờ trống để đặt'], mine: ['Cuộc họp của tôi', 'Cuộc họp bạn đặt hoặc được mời — vào phòng, sửa, huỷ'], folder: ['Folder của tôi', 'Tài liệu, bảng vẽ, chat của từng cuộc họp'], form: ['Đặt phòng họp', 'Chọn giờ trống, đặt tên và mời người tham dự'], detail: ['Folder cuộc họp', 'Tài liệu, bảng vẽ, chat'] }[view] || ['Phòng họp', ''];
+    h.querySelector('h2').textContent = T[0]; h.querySelector('.mp-hsub').textContent = T[1];
+    if (this.mini && view === 'book') this.mini.set(this.day);
+  }
   /** Lịch vừa đổi (server báo): vẽ lại thẻ đang xem nếu không đang điền form. */
-  refresh() { if (!this.el || this.sub) return; if (this.tab === 'book') this.renderBook(); else if (this.tab === 'mine') this.renderMine(); }
+  refresh() { this.paintUpcoming?.(); this.loadMarks?.(); if (!this.el || this.sub) return; if (this.tab === 'book') this.renderBook(); else if (this.tab === 'mine') this.renderMine(); }
 
   // ---------- lịch phòng ----------
   async renderBook() {
@@ -128,25 +162,35 @@ export class MeetPanel {
   /** Vẽ thẻ từ danh sách đã tải (đồng hồ gọi lại mỗi 15 giây — chỉ vẽ lại khi trạng thái một thẻ đổi). */
   paintMine() {
     const body = this.body, now = Date.now(), list = this.mineList.filter(m => m.end > now).sort((a, b) => a.start - b.start);
-    const sig = list.map(m => `${m.id}:${this.state(m, now)}`).join('|'); if (sig === this.mineSig) return; this.mineSig = sig;
-    body.innerHTML = list.length ? `<div class="mp-cards">${list.map(m => this.card(m, now)).join('')}</div>`
+    // (đang họp: vẽ lại mỗi phút cho thanh "đã họp / còn lại")
+    const sig = list.map(m => `${m.id}:${this.state(m, now)}${this.state(m, now) === 'live' ? `:${Math.floor(now / 60e3)}` : ''}`).join('|'); if (sig === this.mineSig) return; this.mineSig = sig;
+    const t0 = dayStart(now), groups = [];
+    for (const m of list) { const d = dayStart(m.start), g = groups.at(-1); if (g && g.d === d) g.items.push(m); else groups.push({ d, items: [m] }); }
+    const gname = d => d === t0 ? 'Hôm nay' : d === t0 + DAY ? 'Ngày mai' : fmtDate(d).replace(/^./, c => c.toUpperCase());
+    body.innerHTML = list.length ? groups.map(g => `<section class="mc-group"><h4>${esc(gname(g.d))} <em>${g.items.length} cuộc họp</em></h4><div class="mp-cards">${g.items.map(m => this.card(m, now)).join('')}</div></section>`).join('')
       : `<div class="sx-empty">${icon('calendar', 34)}<b>Chưa có cuộc họp nào sắp tới</b><span>Đặt phòng rồi mời đồng nghiệp — tới giờ mọi người sẽ được nhắn để tới phòng.</span><button type="button" class="sx-primary" data-new>${icon('plus', 15)} Đặt phòng họp</button></div>`;
     body.querySelector('[data-new]')?.addEventListener('click', () => this.form());
     this.bindCards(body, list);
   }
   /** live: đang họp · open: phòng đã mở (10 phút trước giờ) · later: chưa tới giờ mở phòng. Tính theo giờ hiện tại, không theo lúc tải. */
   state(m, now) { return m.start <= now && now < m.end ? 'live' : now >= m.start - EARLY ? 'open' : 'later'; }
+  /** Thẻ một cuộc họp (dạng hàng dashboard): khối giờ · tên + nhãn + thông tin + người tham dự (+ tiến độ khi đang họp) · nút. */
   card(m, now) {
-    const st = this.state(m, now), live = st === 'live', opensAt = hm(m.start - EARLY);
-    return `<article class="mp-card${live ? ' live' : ''}">
-      <div class="mp-when"><b>${hm(m.start)}</b><small>${hm(m.end)}</small><em>${esc(dayLabel(m.start))}</em></div>
-      <div class="mp-ci"><div class="mp-ct"><b>${esc(m.title)}</b>${live ? '<span class="chip live">Đang diễn ra</span>' : st === 'open' ? '<span class="chip soon">Phòng đã mở</span>' : ''}${m.isHost ? '<span class="chip">Bạn là host</span>' : ''}${m.projectName ? `<span class="chip proj">${icon('grid', 11)} ${esc(m.projectName)}</span>` : ''}</div>
-        <small>${icon('door', 12)} ${esc(m.roomName)} · host ${esc(m.hostName)}</small>
-        <div class="mp-avs">${avatar(m.host, m.hostName, 'host')}${(m.invitees || []).slice(0, 7).map(p => avatar(p.key, p.name)).join('')}${(m.invitees || []).length > 7 ? `<span class="mt-av more">+${m.invitees.length - 7}</span>` : ''}</div>
-        ${m.agenda ? `<p class="mp-ag">${esc(m.agenda.slice(0, 160))}${m.agenda.length > 160 ? '…' : ''}</p>` : ''}
-        <div class="mp-acts">${st !== 'later' ? `<button type="button" class="sx-primary" data-join="${m.id}">${icon('door', 14)} Vào phòng</button>` : `<span class="mp-wait" title="Phòng mở 10 phút trước giờ họp">${icon('clock', 14)} <span>Phòng mở lúc <b>${opensAt}</b>${dayStart(m.start) === dayStart(now) ? ` · còn ${fmtIn(m.start - EARLY - now)}` : ` · ${esc(dayLabel(m.start))}`}</span></span>`}
-          <button type="button" class="sx-ghost" data-open="${m.id}">${icon('folder', 14)} Tài liệu</button>
-          ${m.isHost && live ? `<button type="button" class="sx-ghost danger" data-end="${m.id}">${icon('stop', 13)} Kết thúc sớm</button>` : m.isHost ? `<button type="button" class="sx-ghost" data-edit="${m.id}">${icon('edit', 14)} Sửa</button><button type="button" class="sx-ghost danger" data-cancel="${m.id}">${icon('trash', 14)} Huỷ</button>` : ''}</div></div></article>`;
+    const st = this.state(m, now), live = st === 'live', opensAt = hm(m.start - EARLY), d0 = dayStart(now), d = dayStart(m.start);
+    const people = [{ key: m.host, name: m.hostName, host: true }, ...(m.invitees || [])], dur = fmtIn(m.end - m.start);
+    const status = live ? `<span class="mc-st live"><i></i>Đang diễn ra</span>` : st === 'open' ? `<span class="mc-st open"><i></i>Phòng đã mở</span>` : `<span class="mc-st later">Sắp tới</span>`;
+    const pct = live ? Math.min(100, Math.max(0, (now - m.start) / (m.end - m.start) * 100)) : 0;
+    return `<article class="mp-card mc ${st}">
+      <div class="mc-when"><span>${d === d0 ? 'Hôm nay' : d === d0 + DAY ? 'Ngày mai' : esc(dayLabel(m.start))}</span><b>${hm(m.start)}</b><small>đến ${hm(m.end)}</small><em>${dur}</em></div>
+      <div class="mc-main">
+        <div class="mc-top"><b class="mc-title">${esc(m.title)}</b>${status}${m.isHost ? '<span class="mc-chip host">Bạn là host</span>' : ''}${m.projectName ? `<span class="mc-chip proj">${icon('grid', 11)} ${esc(m.projectName)}</span>` : ''}</div>
+        <div class="mc-meta"><span>${icon('door', 13)} ${esc(m.roomName)}</span><span>${icon('user', 13)} Host ${esc(m.hostName.replace(/^\d{4}-/, ''))}</span>${m.agenda ? `<span class="mc-ag" title="${esc(m.agenda)}">${icon('clipboard', 13)} ${esc(m.agenda.replace(/\s+/g, ' ').slice(0, 120))}</span>` : ''}</div>
+        ${live ? `<div class="mc-prog" title="Đã họp ${fmtIn(now - m.start)}"><span><i style="width:${pct.toFixed(1)}%"></i></span><small>Đã họp ${fmtIn(now - m.start)} · còn <b>${fmtIn(m.end - now)}</b></small></div>` : ''}
+        <div class="mc-people"><span class="mp-avs">${people.slice(0, 6).map(p => avatar(p.key, p.name, p.host ? 'host' : '')).join('')}${people.length > 6 ? `<span class="mt-av more">+${people.length - 6}</span>` : ''}</span><small>${people.length} người tham dự</small></div>
+      </div>
+      <div class="mc-acts">${st !== 'later' ? `<button type="button" class="sx-primary" data-join="${m.id}">${icon('door', 14)} Vào phòng</button>` : `<span class="mp-wait" title="Phòng mở 10 phút trước giờ họp">${icon('clock', 14)} <span>Mở phòng lúc <b>${opensAt}</b>${d === d0 ? ` · còn ${fmtIn(m.start - EARLY - now)}` : ''}</span></span>`}
+        <div class="mc-sec"><button type="button" class="sx-ghost" data-open="${m.id}" title="Tài liệu, bảng vẽ, chat của cuộc họp">${icon('folder', 14)} Tài liệu</button>
+          ${m.isHost && live ? `<button type="button" class="sx-ghost danger" data-end="${m.id}">${icon('stop', 13)} Kết thúc</button>` : m.isHost ? `<button type="button" class="sx-ghost" data-edit="${m.id}">${icon('edit', 14)} Sửa</button><button type="button" class="sx-ghost danger" data-cancel="${m.id}">${icon('trash', 14)} Huỷ</button>` : ''}</div></div></article>`;
   }
   bindCards(root, list) {
     const find = id => list.find(m => m.id === +id);
@@ -180,7 +224,7 @@ export class MeetPanel {
   }
   async detail(id, sub = 'files') {
     if (this.tab !== 'folder') { this.tab = 'folder'; this.el.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === 'folder')); }
-    this.sub = 'detail'; this.wb?.destroy(); this.wb = null;
+    this.sub = 'detail'; this.wb?.destroy(); this.wb = null; this.head('detail');
     const body = this.body; body.innerHTML = '<div class="sx-loading">Đang tải…</div>';
     const r = await api('GET', `/api/meetings/${id}`);
     if (!this.el || this.sub !== 'detail') return;
@@ -236,7 +280,7 @@ export class MeetPanel {
   /** project: { id, name, members: [{ key, name }] } — họp của dự án (cả dự án được mời, tối đa 50). */
   async form(m = null, startAt = null, project = null) {
     if (!this.el) { await this.open(this.tab); }
-    this.sub = 'form'; this.wb?.destroy(); this.wb = null;
+    this.sub = 'form'; this.wb?.destroy(); this.wb = null; this.head('form');
     const body = this.body; body.innerHTML = '<div class="sx-loading">Đang tải…</div>';
     const people = await this.loadPeople(), me = this.s.key, now = Date.now();
     const firstFree = () => { let t = Math.ceil(now / SLOT) * SLOT; for (let i = 0; i < 28 * 14; i++, t += SLOT) { const d = dayStart(t), h = (t - d) / 3600e3; if (h >= 7 && h < 21 && !this.c.sched.some(x => x.start < t + SLOT && x.end > t)) return t; } return Math.ceil(now / SLOT) * SLOT; };
@@ -249,9 +293,8 @@ export class MeetPanel {
     let dur = end - start;
     body.innerHTML = `<form class="mp-form" novalidate>
       <button type="button" class="sx-back-link">${icon('chevLeft', 15)} ${m ? 'Huỷ sửa' : 'Quay lại'}</button>
-      <h3>${m ? 'Sửa cuộc họp' : 'Đặt phòng họp'}</h3>
       ${project || m?.projectId ? `<p class="mp-projnote" style="--pc:${esc(project?.color || '#7b61ff')}">${icon('grid', 15)}<span>Họp của dự án <b>${esc(project?.name || m.projectName || '')}</b> — mọi thành viên dự án được mời; tài liệu, bảng vẽ đã lưu của cuộc họp hiện trong tab Tài liệu của dự án.</span></p>` : ''}
-      <label class="sx-field mp-tfield"><span>Tên cuộc họp <i>*</i></span><input name="title" maxlength="120" required value="${esc(m?.title || (project ? `Họp dự án ${project.name}` : ''))}" placeholder="Ví dụ: Họp kế hoạch sprint 12"></label>
+      <div class="mp-fgrid">
       <section class="mp-pickt" aria-label="Chọn thời gian">
         <div class="mp-step"><span class="mp-n">1</span><b>Chọn ngày</b></div>
         <div class="mp-step"><span class="mp-n">2</span><b>Giờ bắt đầu</b><small class="mp-dayname2"></small></div>
@@ -259,14 +302,18 @@ export class MeetPanel {
         <div class="mp-slots" role="listbox" aria-label="Giờ bắt đầu"></div>
         <div class="mp-durw"><div class="mp-step"><span class="mp-n">3</span><b>Thời lượng</b></div>
           <div class="mp-durs" role="radiogroup" aria-label="Thời lượng">${DURS.map(([v, n]) => `<button type="button" role="radio" data-dur="${v}">${n}</button>`).join('')}</div>
-          <div class="mp-sum" aria-live="polite"></div></div>
+</div>
       </section>
+        <div class="mp-fcol">
+      <label class="sx-field mp-tfield"><span>Tên cuộc họp <i>*</i></span><input name="title" maxlength="120" required value="${esc(m?.title || (project ? `Họp dự án ${project.name}` : ''))}" placeholder="Ví dụ: Họp kế hoạch sprint 12"></label>
       <div class="sx-field mp-people-f"><span>Người tham dự <small>(${picked.size} người · tối đa ${MAXI})</small></span>
         <div class="mp-chips"><span class="mp-chip host">${avatar(me, this.s.me.employee?.display || 'CEO')} Bạn (host)</span></div>
         <div class="mp-pick"><input class="mp-q" placeholder="Tìm theo tên, mã hoặc phòng ban…" autocomplete="off" aria-label="Tìm người để mời">
           ${depts.length ? `<select class="mp-dept" aria-label="Mời cả phòng ban"><option value="">+ Mời cả phòng ban…</option>${depts.map(d => `<option>${esc(d)}</option>`).join('')}</select>` : ''}</div>
         <ul class="mp-res" role="listbox" hidden></ul></div>
       <label class="sx-field"><span>Nội dung / chương trình</span><textarea name="agenda" rows="3" maxlength="1000" placeholder="Mục tiêu, các ý cần bàn…">${esc(m?.agenda || '')}</textarea></label>
+        </div>
+      </div>
       <p class="sx-err" role="alert"></p>
       <div class="sx-acts mp-foot"><span class="mp-fsum" aria-live="polite"></span><button type="button" class="sx-ghost" data-cancel>Huỷ</button><button type="submit" class="sx-primary">${m ? 'Lưu thay đổi' : 'Đặt phòng & mời'}</button></div>
     </form>`;
@@ -304,7 +351,7 @@ export class MeetPanel {
       const okDur = d => start != null && fits(start, d);
       if (!okDur(dur)) dur = [2 * SLOT, SLOT, 3 * SLOT, 4 * SLOT].find(okDur) ?? SLOT;
       f.querySelectorAll('[data-dur]').forEach(b => { const v = +b.dataset.dur, ok = okDur(v); b.disabled = !ok; b.classList.toggle('on', ok && v === dur); b.setAttribute('aria-checked', String(ok && v === dur)); b.title = ok ? '' : 'Trùng lịch khác hoặc quá 21:00'; });
-      const sum = f.querySelector('.mp-sum');
+      const sum = f.querySelector('.mp-sum') || document.createElement('div');
       sum.innerHTML = start == null ? `<span class="muted">Chưa chọn giờ.</span>` : `${icon('clock', 16)}<span><b>${hm(start)} – ${hm(start + dur)}</b><small>${esc(fmtDate(day).replace(/^./, c => c.toUpperCase()))} · Phòng họp tầng trệt</small></span>`;
       const fs = f.querySelector('.mp-fsum'); if (fs) fs.innerHTML = start == null ? 'Chọn ngày và giờ bắt đầu' : `${icon('calendar', 14)} <b>${hm(start)}–${hm(start + dur)}</b> · ${esc(new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: '2-digit', month: '2-digit' }).format(day))}`;
       f.querySelector('[type=submit]').disabled = start == null;
@@ -323,7 +370,7 @@ export class MeetPanel {
       if (!s) { res.hidden = true; return; }
       const hits = people.filter(p => p.key !== me && !picked.has(p.key) && (`${p.name} ${p.code} ${p.department}`.toLowerCase().includes(s))).slice(0, 8);
       res.hidden = false;
-      res.innerHTML = hits.length ? hits.map((p, i) => `<li role="option" data-k="${esc(p.key)}" class="${i ? '' : 'act'}">${avatar(p.key, p.name)}<span><b>${esc(p.name)}</b><small>${esc(p.department || '—')}${p.online ? ' · <em>đang online</em>' : ''}</small></span></li>`).join('') : '<li class="none">Không tìm thấy ai.</li>';
+      res.innerHTML = hits.length ? hits.map((p, i) => `<li role="option" data-k="${esc(p.key)}" class="${i ? '' : 'act'}">${avatar(p.key, p.name)}<span class="mp-rt"><b>${esc(p.name)}</b>${p.department || p.online ? `<small>${esc(p.department || '')}${p.department && p.online ? ' · ' : ''}${p.online ? '<em>đang online</em>' : ''}</small>` : ''}</span></li>`).join('') : '<li class="none">Không tìm thấy ai.</li>';
       res.querySelectorAll('[data-k]').forEach(li => li.onmousedown = e => { e.preventDefault(); add(li.dataset.k); });
     };
     const add = k => { const p = people.find(x => x.key === k); if (!p) return; if (picked.size >= MAXI) { this.s.toast(`Mời tối đa ${MAXI} người.`, true); return; } picked.set(k, p.name); q.value = ''; res.hidden = true; drawChips(); q.focus(); };

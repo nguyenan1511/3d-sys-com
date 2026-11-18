@@ -21,6 +21,8 @@ export function projectRoutes(api, { store, hub, guards: { needAuth } }) {
   api.get('/projects/config', needAuth, (_req, res) => res.json({ colors: PROJECT_COLORS, maxMembers: MAX_MEMBERS, maxTasks: MAX_TASKS, fileMax: FILE_MAX, filesMax: PROJECT_FILES_MAX, ext: ALLOWED_EXT }));
   /** Dự án của tôi (CEO: mọi dự án) — thẻ trong danh sách. */
   api.get('/projects', needAuth, (req, res) => res.json({ projects: P.list(req.actor), now: Date.now() }));
+  /** Việc của tôi ở mọi dự án (trang Tổng quan). */
+  api.get('/projects/tasks/mine', needAuth, (req, res) => res.json({ tasks: P.myTasks(req.actor), now: Date.now() }));
   api.post('/projects', needAuth, (req, res) => {
     const { p, added } = P.create(req.actor, req.body);
     H.invited(p, added, me(req));
