@@ -36,6 +36,8 @@ export class Social {
     bar.innerHTML = `<button type="button" class="soc-btn" id="btnChat" title="Chat nội bộ (phím T)">${icon('chat', 17)}<span>Chat</span><i class="soc-dot" hidden></i></button>
       ${this.s.isAdmin ? `<button type="button" class="soc-btn" id="btnAttendance" title="Bảng chấm công: hôm nay / tháng / năm">${icon('clipboard', 17)}<span>Chấm công</span></button>` : ''}`;
     root.appendChild(bar); this.bar = bar;
+    // (điện thoại: thẻ tên / logo góc trái không lấn sang các nút tròn góc phải — số nút đổi theo người: CEO thêm Chấm công)
+    if (typeof ResizeObserver === 'function') new ResizeObserver(() => document.documentElement.style.setProperty('--soc-w', `${Math.ceil(bar.offsetWidth)}px`)).observe(bar);
     const panel = document.createElement('aside'); panel.className = 'chat-panel'; panel.id = 'chatPanel'; panel.hidden = true; panel.setAttribute('aria-label', 'Chat nội bộ');
     panel.innerHTML = `<header class="cp-head"><b>Chat nội bộ</b><button type="button" class="cp-x" aria-label="Đóng chat">✕</button></header>
       <div class="cp-body"><nav class="cp-chans" aria-label="Kênh chat"></nav>
@@ -58,10 +60,12 @@ export class Social {
   addFeatureButtons() {
     if (this.bar.querySelector('#btnBoard')) return;
     const add = (id, ic, label, title, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'soc-btn'; b.id = id; b.title = title; b.innerHTML = `${icon(ic, 17)}<span>${label}</span><i class="soc-dot" hidden></i>`; b.onclick = fn; this.bar.insertBefore(b, this.bar.firstChild); return b; };
+    if (this.s.projects) add('btnProj', 'grid', 'Dự án', 'Dự án: công việc, chat, tài liệu, phòng làm việc của nhóm', () => this.s.projects.panel.open());
     if (this.s.meet) add('btnMeet', 'calendar', 'Họp', 'Phòng họp: lịch, đặt phòng, cuộc họp của tôi, folder tài liệu', () => this.s.meet.panel.open());
     if (this.s.board) add('btnBoard', 'megaphone', 'Bảng tin', 'Bảng thông báo công ty', () => this.s.board.open());
   }
   setBoardDot(on) { const d = this.bar.querySelector('#btnBoard .soc-dot'); if (d) d.hidden = !on; }
+  setProjDot(on) { const d = this.bar.querySelector('#btnProj .soc-dot'); if (d) d.hidden = !on; }
   setMeetDot(on) { const d = this.bar.querySelector('#btnMeet .soc-dot'); if (d) d.hidden = !on; }
   toggle(open = this.panel.hidden) {
     this.panel.hidden = !open;
@@ -121,7 +125,7 @@ export class Social {
   }
   onChat(m) {
     if (!m) return;
-    if (m.channel.startsWith('meet:')) return;   // (kênh riêng của cuộc họp: src/session/meetings.js)
+    if (m.channel.startsWith('meet:') || m.channel.startsWith('proj:')) return;   // (kênh riêng của cuộc họp / dự án: src/session/meetings.js, projects.js)
     if (!this.msgs.has(m.channel)) { if (m.channel !== this.cur) this.msgs.set(m.channel, []); }
     const list = this.msgs.get(m.channel); if (list && !list.some(x => x.id === m.id)) { list.push(m); if (list.length > 300) list.splice(0, list.length - 300); }   // (giữ 300 tin gần nhất mỗi kênh — mở trang cả ngày không phình bộ nhớ)
     if (m.channel.startsWith('dm:') && !this.dms.includes(m.channel)) this.dms.unshift(m.channel);

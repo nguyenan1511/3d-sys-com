@@ -295,7 +295,7 @@ export class Store {
       return seat;
     });
     if (released?.length) this.emit({ type: 'seat', deskIds: released.map(r => r.desk_id) });
-    if (next.status === 'disabled' && e.status !== 'disabled') this.emit({ type: 'kick', code, reason: 'Tài khoản đã bị vô hiệu hóa.' });
+    if (next.status === 'disabled' && e.status !== 'disabled') this.emit({ type: 'kick', code, reason: 'Tài khoản đã bị vô hiệu hóa.', disabled: true });
     this.emit({ type: 'employees' });
     if (next.name !== e.name) this.emit({ type: 'seat', deskIds: this.seatsOf(code).map(r => r.desk_id) });
   }
@@ -310,7 +310,7 @@ export class Store {
       this.db.attendance.delWhere(r => r.code === code);   // (như ON DELETE CASCADE của bảng chấm công cũ)
       audit(this.db, actor.key, 'admin.employee.delete', code, { name: e.name, seat: seat?.desk_id || null, seats: mine.map(r => r.desk_id) });
     });
-    this.emit({ type: 'kick', code, reason: 'Tài khoản đã bị xóa.' });
+    this.emit({ type: 'kick', code, reason: 'Tài khoản đã bị xóa.', disabled: true });
     if (mine.length) this.emit({ type: 'seat', deskIds: mine.map(r => r.desk_id) });
     this.emit({ type: 'employees' });
   }
@@ -366,11 +366,12 @@ export class Store {
       else if (row.owner_code && row.owner_code !== it.code && !seenCode.has(row.owner_code)) errors.push(`Dòng ${it.line}: ${this.ownerMessage(row)} (người này không có trong CSV).`);
     }
     if (errors.length) throw new HttpError(400, `CSV có ${errors.length} lỗi, chưa thay đổi gì.`, { errors });
-    const changed = new Set();
+    const changed = new Set(), disabled = [];
     this.db.tx(() => {
       const now = Date.now();
       for (const it of items) {
         const e = this.employee(it.code);
+        if (e && e.status !== 'disabled' && it.status === 'disabled') disabled.push(it.code);
         if (e) this.db.employees.update(it.code, { name: it.name, name_key: nameKey(it.name), department: it.department ?? e.department, status: it.status ?? e.status });
         else this.db.employees.insert(newEmployee({ code: it.code, name: it.name, name_key: nameKey(it.name), department: it.department || '', status: it.status || 'active', created_at: now }));
       }
@@ -392,6 +393,7 @@ export class Store {
       audit(this.db, actor.key, 'admin.csv.import', null, { rows: items.length, seats: [...changed] });
     });
     this.emit({ type: 'seat', deskIds: [...changed] }); this.emit({ type: 'employees' });
+    for (const code of disabled) this.emit({ type: 'kick', code, reason: 'Tài khoản đã bị vô hiệu hóa.', disabled: true });   // (như vô hiệu hoá từng người: đăng xuất, rời dự án)
     return { updated: items.length, seats: changed.size };
   }
 

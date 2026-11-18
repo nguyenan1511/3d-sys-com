@@ -2,16 +2,19 @@
 //  • Chỉ host + người được mời vào được phòng (từ 10 phút trước giờ họp tới hết giờ); đúng giờ server nhắn cho từng người
 //    (server/meetHub.js). Trong phòng: kênh chat riêng "meet:<id>" (bảng chat_messages), bảng vẽ chung, tài liệu.
 //  • "Folder của tôi": mọi cuộc họp mình đặt / được mời — xem lại tài liệu, bảng vẽ, chat của cuộc họp đó (cả sau khi họp xong).
+//  • Họp của dự án (projectId — server/projects.js): người đặt phải là thành viên dự án; mọi thành viên tự được mời (tối đa 50);
+//    tài liệu / bảng vẽ đã lưu của cuộc họp hiện trong tab Tài liệu của dự án.
 //  • Host sửa / huỷ được lịch của mình; CEO huỷ được mọi lịch. Không hai lịch trùng giờ trong cùng một phòng.
 // Bảng meetings: { id, room, title, agenda, start, end, host, host_name, invitees: [khoá phiên], status: 'booked'|'cancelled',
-//   created_at, updated_at }. Bảng meeting_files: { id, meeting_id, name, type, size, by, by_name, ts } (nội dung: db.blobs 'file:<id>').
+//   created_at, updated_at, project_id? }. Bảng meeting_files: { id, meeting_id, name, type, size, by, by_name, ts } (nội dung: db.blobs 'file:<id>').
 import { HttpError } from './store.js';
 import { audit } from './db.js';
 import { parseBoard } from '../src/shared/whiteboard.js';
+import { memberKeys } from './projects.js';
 
 export const ROOMS = [{ id: 'MR1', name: 'Phòng họp tầng trệt', seats: 5, floor: 0 }];
 export const SLOT = 30 * 60e3, OPEN_H = 7, CLOSE_H = 21, MAX_LEN = 4 * 3600e3, AHEAD = 30 * 86400e3, EARLY = 10 * 60e3;
-export const MAX_INVITEES = 20, FILE_MAX = 5 * 1024 * 1024, MEETING_FILES_MAX = 30 * 1024 * 1024;
+export const MAX_INVITEES = 20, PROJECT_INVITEES = 50, FILE_MAX = 5 * 1024 * 1024, MEETING_FILES_MAX = 30 * 1024 * 1024;
 const VN = 7 * 3600e3;
 /** Giờ trong ngày (giờ Việt Nam, đơn vị giờ thập phân) của một mốc thời gian. */
 const vnHour = t => (((t + VN) % 86400e3) + 86400e3) % 86400e3 / 3600e3;
@@ -46,6 +49,7 @@ export class Meetings {
       id: m.id, room: m.room, roomName: room?.name || m.room, title: m.title, start: m.start, end: m.end, host: m.host, hostName: m.host_name, status: m.status,
       isHost: m.host === key, invited: mine, open: isOpen(m, now), past: now >= m.end,
       // người ngoài chỉ thấy phòng đã có người đặt (tên cuộc họp, host) — không thấy danh sách mời, nội dung
+      ...(mine && m.project_id ? { projectId: m.project_id, projectName: this.db.projects.get(m.project_id)?.name || '' } : {}),
       ...(mine ? { agenda: m.agenda || '', invitees: m.invitees.map(k => ({ key: k, name: this.names(k) })), files: this.db.meeting_files.by('meeting_id', m.id).length } : {})
     };
   }
@@ -54,7 +58,7 @@ export class Meetings {
   /** Cuộc họp của tôi (đặt / được mời), gần đây trước. */
   mine(key) { return this.all().filter(m => isParticipant(m, key) && m.status === 'booked' && !m.hidden.includes(key)).sort((a, b) => b.start - a.start).map(m => this.view(m, key)); }
 
-  cleanInvitees(list, host) {
+  cleanInvitees(list, host, max = MAX_INVITEES) {
     if (list === undefined) return undefined;
     if (!Array.isArray(list)) throw new HttpError(400, 'Danh sách người mời không hợp lệ.', { code: 'invalid', field: 'invitees' });
     const out = [];
@@ -64,7 +68,7 @@ export class Meetings {
       if (!ok) throw new HttpError(400, `Không tìm thấy người được mời (${k.replace(/^employee:/, '')}).`, { code: 'invalid', field: 'invitees' });
       if (k !== host && !out.includes(k)) out.push(k);
     }
-    if (out.length > MAX_INVITEES) throw new HttpError(400, `Mời tối đa ${MAX_INVITEES} người.`, { code: 'invalid', field: 'invitees' });
+    if (out.length > max) throw new HttpError(400, `Mời tối đa ${max} người.`, { code: 'invalid', field: 'invitees' });
     return out;
   }
   checkTime(room, start, end, skipId = null) {
@@ -91,11 +95,16 @@ export class Meetings {
   book(actor, body) {
     const key = keyOf(actor), room = String(body?.room || ROOMS[0].id), start = Number(body?.start), end = Number(body?.end);
     const title = this.text(body?.title, 120, 'title', true), agenda = this.text(body?.agenda, 1000, 'agenda');
-    const invitees = this.cleanInvitees(body?.invitees ?? [], key);
+    let invitees, projectId = null;
+    if (body?.projectId != null && body.projectId !== '') {
+      // họp của dự án: mời cả dự án (người đặt phải là thành viên)
+      const { p } = this.projects.need(actor, body.projectId, { write: true }); projectId = p.id;
+      invitees = this.cleanInvitees([...(body?.invitees ?? []), ...memberKeys(this.store, p.id)], key, PROJECT_INVITEES);
+    } else invitees = this.cleanInvitees(body?.invitees ?? [], key);
     this.checkTime(room, start, end);
     const now = Date.now();
-    const id = this.db.meetings.insert({ room, title, agenda, start, end, host: key, host_name: this.names(key), invitees: JSON.stringify(invitees), status: 'booked', created_at: now, updated_at: now });
-    audit(this.db, key, 'meeting.book', String(id), { room, title, start, end, invitees: invitees.length });
+    const id = this.db.meetings.insert({ room, title, agenda, start, end, host: key, host_name: this.names(key), invitees: JSON.stringify(invitees), status: 'booked', created_at: now, updated_at: now, project_id: projectId });
+    audit(this.db, key, 'meeting.book', String(id), { room, title, start, end, invitees: invitees.length, ...(projectId ? { projectId } : {}) });
     return getMeeting(this.store, id);
   }
   /** Host sửa lịch: tên, nội dung, giờ, người mời. Trả về { m, added } (added: người mới được mời). */
@@ -107,7 +116,7 @@ export class Meetings {
     const next = { ...m };
     if (body?.title !== undefined) next.title = this.text(body.title, 120, 'title', true);
     if (body?.agenda !== undefined) next.agenda = this.text(body.agenda, 1000, 'agenda');
-    const inv = this.cleanInvitees(body?.invitees, key); if (inv) next.invitees = inv;
+    const inv = this.cleanInvitees(body?.invitees, key, m.project_id ? PROJECT_INVITEES : MAX_INVITEES); if (inv) next.invitees = inv;
     if (body?.start !== undefined || body?.end !== undefined) {
       next.start = Number(body.start ?? m.start); next.end = Number(body.end ?? m.end);
       if (next.start !== m.start || next.end !== m.end) this.checkTime(m.room, next.start, next.end, m.id);

@@ -8,6 +8,8 @@
 // Họp trực tuyến (src/ui/meetCall.js): thanh nút ở dưới — Mic · Camera · Chia sẻ màn hình · "Màn hình họp" (xem camera của
 // mọi người; ai chia sẻ màn hình thì màn hình đó hiện to, camera xếp bên cạnh). Có người bắt đầu chia sẻ màn hình khi mình
 // đang xem cảnh 3D: tự mở "Màn hình họp".
+// Phòng dự án (meeting.kind === 'project', mã phòng "p<id>" — src/session/projects.js): cùng giao diện, không có giờ họp /
+// nút kết thúc; chat là kênh proj:<id>, tài liệu là tài liệu của dự án.
 import { api } from '../net/api.js';
 import { esc, confirmDanger } from '../session/ui.js';
 import { icon } from './icons.js';
@@ -16,6 +18,7 @@ import { ExcaliBoard } from './excaliBoard.js';
 import { avatar, filesHtml, uploadFiles } from './meetPanel.js';
 import { hm } from '../session/meetings.js';
 import { MeetCall, canCall, canShareScreen } from './meetCall.js';
+import { spaceBase, spaceChannel } from './space.js';
 
 const PIP_KEY = 'sysone.meetPip';
 const narrow = () => matchMedia('(max-width: 760px)').matches;
@@ -24,22 +27,24 @@ const fmtLeft = ms => { const m = Math.max(0, Math.ceil(ms / 60e3)); return m >=
 export class MeetRoom {
   constructor(ctl, st) {
     this.c = ctl; this.s = ctl.s; this.m = st.meeting; this.id = st.id; this.inRoom = st.members; this.chat = []; this.files = []; this.tab = 'chat'; this.unread = 0;
-    const el = this.el = document.createElement('div'); el.className = 'mt-room'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `Phòng họp: ${this.m.title}`);
+    this.proj = this.m.kind === 'project'; this.channel = spaceChannel(this.id); this.base = spaceBase(this.id);
+    const el = this.el = document.createElement('div'); el.className = `mt-room${this.proj ? ' is-proj' : ''}`; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', `${this.proj ? 'Phòng dự án' : 'Phòng họp'}: ${this.m.title}`);
+    if (this.proj && this.m.color) el.style.setProperty('--pc', this.m.color);
     el.innerHTML = `<header class="mt-top">
-        <span class="mt-badge">${icon('door', 16)} Phòng họp</span>
+        <span class="mt-badge">${icon(this.proj ? 'grid' : 'door', 16)} ${this.proj ? 'Phòng dự án' : 'Phòng họp'}</span>
         <div class="mt-title"><b>${esc(this.m.title)}</b><small class="mt-time"></small></div>
         <div class="mt-here" aria-label="Người trong phòng"></div>
         <button type="button" class="mt-open" aria-pressed="false">${icon('pen', 15)} <span>Bảng &amp; nội dung</span><i class="mt-un" hidden></i></button>
         ${this.m.isHost ? `<button type="button" class="mt-end" title="Kết thúc cuộc họp cho mọi người">${icon('stop', 14)} <span>Kết thúc họp</span></button>` : ''}
         <button type="button" class="mt-leave">${icon('logout', 15)} <span>Rời phòng</span></button>
       </header>
-      <button type="button" class="mt-hint">${icon('hand', 16)} Bấm vào <b>bảng trắng</b> để mở bảng vẽ &amp; nội dung cuộc họp</button>
+      <button type="button" class="mt-hint">${icon('hand', 16)} Bấm vào <b>bảng trắng</b> để mở bảng vẽ &amp; nội dung ${this.proj ? 'dự án' : 'cuộc họp'}</button>
       <div class="mt-main"><section class="mt-wb"><div class="mt-vids" aria-label="Màn hình họp"><div class="mt-vmain"></div><div class="mt-vstrip"></div></div></section>
         <aside class="mt-side">
           <nav class="mt-tabs" role="tablist">${[['chat', 'chat', 'Chat'], ['files', 'folder', 'Tài liệu'], ['people', 'users', 'Thành viên']].map(([k, ic, n]) => `<button type="button" role="tab" data-tab="${k}">${icon(ic, 15)} <span>${n}</span><em class="mt-cnt" hidden></em><i class="mt-un" hidden></i></button>`).join('')}
             <button type="button" class="mt-sx" aria-label="Thu gọn">${icon('chevDown', 16)}</button></nav>
           <div class="mt-pane" data-pane="chat"><ol class="mt-chat" aria-live="polite"></ol>
-            <form class="mt-form"><input maxlength="500" autocomplete="off" placeholder="Nhắn cho mọi người trong cuộc họp…" aria-label="Tin nhắn cuộc họp"><button type="submit" aria-label="Gửi">${icon('send', 16)}</button></form></div>
+            <form class="mt-form"><input maxlength="500" autocomplete="off" placeholder="${this.proj ? 'Nhắn cho cả dự án… (@tên để nhắc)' : 'Nhắn cho mọi người trong cuộc họp…'}" aria-label="${this.proj ? 'Tin nhắn dự án' : 'Tin nhắn cuộc họp'}"><button type="submit" aria-label="Gửi">${icon('send', 16)}</button></form></div>
           <div class="mt-pane off" data-pane="files"><div class="mt-up"><label class="sx-ghost">${icon('upload', 14)} Tải lên<input type="file" multiple hidden></label><button type="button" class="sx-ghost" data-saveboard>${icon('pen', 14)} Lưu bảng vẽ vào tài liệu</button></div><div class="mt-flist"></div></div>
           <div class="mt-pane off" data-pane="people"><div class="mt-plist"></div></div>
         </aside></div>
@@ -65,7 +70,7 @@ export class MeetRoom {
     el.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => this.show(b.dataset.tab, true));
     el.querySelector('.mt-sx').onclick = () => el.classList.remove('sheet');
     const input = el.querySelector('.mt-form input');
-    el.querySelector('.mt-form').onsubmit = e => { e.preventDefault(); const t = input.value.trim(); if (!t) return; if (!this.s.rt.connected) { this.s.toast('Mất kết nối, chưa gửi được.', true); return; } this.s.rt.send({ t: 'chat', channel: `meet:${this.id}`, body: t }); input.value = ''; };
+    el.querySelector('.mt-form').onsubmit = e => { e.preventDefault(); const t = input.value.trim(); if (!t) return; if (!this.s.rt.connected) { this.s.toast('Mất kết nối, chưa gửi được.', true); return; } this.s.rt.send({ t: 'chat', channel: this.channel, body: t }); input.value = ''; };
     input.addEventListener('keydown', e => e.stopPropagation());
     el.querySelector('.mt-up input').onchange = async e => { await uploadFiles(this.id, [...e.target.files], (t, b) => this.s.toast(t, b)); e.target.value = ''; this.loadFiles(); };
     el.querySelector('[data-saveboard]').onclick = () => this.saveBoard();
@@ -166,6 +171,7 @@ export class MeetRoom {
 
   tick() {
     const now = Date.now(), m = this.m, el = this.el.querySelector('.mt-time');
+    if (this.proj) { el.textContent = `Dự án · ${(m.invitees || []).length} thành viên · phòng luôn mở`; return; }
     el.textContent = now < m.start ? `${hm(m.start)}–${hm(m.end)} · bắt đầu sau ${fmtLeft(m.start - now)}` : `${hm(m.start)}–${hm(m.end)} · còn ${fmtLeft(m.end - now)}`;
     el.classList.toggle('warn', now >= m.start && m.end - now < 5 * 60e3);
   }
@@ -194,11 +200,12 @@ export class MeetRoom {
   /** Số nhỏ cạnh tên thẻ (dạng huy hiệu, luôn một hàng). */
   count(tab, v) { const e = this.el.querySelector(`[data-tab=${tab}] .mt-cnt`); e.textContent = v; e.hidden = v === ''; }
   renderPeople() {
-    const here = new Set(this.inRoom.map(p => p.key)), all = [{ key: this.m.host, name: this.m.hostName }, ...(this.m.invitees || [])];
-    const row = p => `<li>${avatar(p.key, p.name, p.key === this.m.host ? 'host' : '')}<span><b>${esc(p.name)}${p.key === this.s.key ? ' (bạn)' : ''}</b><small>${p.key === this.m.host ? 'Host · ' : ''}${here.has(p.key) ? '<em class="in">Đang trong phòng</em>' : 'Chưa vào'}</small></span>${here.has(p.key) ? this.mediaIcons(p.key) : ''}</li>`;
+    const here = new Set(this.inRoom.map(p => p.key)), all = this.proj ? [...(this.m.invitees || [])] : [{ key: this.m.host, name: this.m.hostName }, ...(this.m.invitees || [])];
+    const lead = p => this.proj ? p.role === 'lead' : p.key === this.m.host;
+    const row = p => `<li>${avatar(p.key, p.name, lead(p) ? 'host' : '')}<span><b>${esc(p.name)}${p.key === this.s.key ? ' (bạn)' : ''}</b><small>${lead(p) ? (this.proj ? 'Trưởng dự án · ' : 'Host · ') : ''}${here.has(p.key) ? '<em class="in">Đang trong phòng</em>' : 'Chưa vào'}</small></span>${here.has(p.key) ? this.mediaIcons(p.key) : ''}</li>`;
     this.count('people', `${all.filter(p => here.has(p.key)).length}/${all.length}`);
     this.el.querySelector('.mt-plist').innerHTML = `<ul class="mt-people">${all.filter(p => here.has(p.key)).map(row).join('')}${all.filter(p => !here.has(p.key)).map(row).join('')}</ul>
-      <p class="mt-note">${icon('info', 13)} Chỉ những người trong danh sách mới vào được phòng. ${this.m.isHost ? 'Thêm / bớt người: Phòng họp → Cuộc họp của tôi → Sửa.' : ''}</p>`;
+      <p class="mt-note">${icon('info', 13)} ${this.proj ? `Chỉ thành viên dự án mới vào được phòng. ${this.m.isLead ? 'Thêm / bớt người: Dự án → Thành viên.' : ''}` : `Chỉ những người trong danh sách mới vào được phòng. ${this.m.isHost ? 'Thêm / bớt người: Phòng họp → Cuộc họp của tôi → Sửa.' : ''}`}</p>`;
   }
 
   // ---------- họp trực tuyến ----------
@@ -268,11 +275,11 @@ export class MeetRoom {
 
   // ---------- chat ----------
   async loadChat() {
-    const r = await api('GET', `/api/chat/${encodeURIComponent(`meet:${this.id}`)}`);
+    const r = await api('GET', `/api/chat/${encodeURIComponent(this.channel)}`);
     if (r.ok) { const ids = new Set(this.chat.map(x => x.id)); this.chat = [...r.messages, ...this.chat.filter(x => !r.messages.some(y => y.id === x.id))].sort((a, b) => a.id - b.id); void ids; this.renderChat(); }
   }
   onChat(msg) {
-    if (msg.channel !== `meet:${this.id}` || this.chat.some(x => x.id === msg.id)) return;
+    if (msg.channel !== this.channel || this.chat.some(x => x.id === msg.id)) return;
     this.chat.push(msg); if (this.chat.length > 200) this.chat.shift();
     this.renderChat();
     if (msg.from !== 'system') this.room?.say(msg.from, msg.body);   // (bong bóng chat trên đầu người nói trong cảnh 3D)
@@ -282,16 +289,16 @@ export class MeetRoom {
   renderChat() {
     const ol = this.el.querySelector('.mt-chat'), stick = ol.scrollHeight - ol.scrollTop - ol.clientHeight < 60;
     ol.innerHTML = this.chat.length ? this.chat.map(x => `<li class="${x.from === 'system' ? 'sys' : x.from === this.s.key ? 'me' : ''}">${x.from === 'system' ? '' : `<div class="mt-cm"><b>${esc(x.name.replace(/^\d{4}-/, ''))}</b><time>${hm(x.ts)}</time></div>`}<p>${esc(x.body)}</p></li>`).join('')
-      : '<li class="mt-empty">Kênh chat riêng của cuộc họp — chỉ người trong danh sách đọc được. Tin nhắn được lưu lại trong "Folder của tôi".</li>';
+      : `<li class="mt-empty">${this.proj ? 'Kênh chat riêng của dự án — chỉ thành viên đọc được. Gõ @tên để nhắc ai đó.' : 'Kênh chat riêng của cuộc họp — chỉ người trong danh sách đọc được. Tin nhắn được lưu lại trong "Folder của tôi".'}</li>`;
     if (stick) ol.scrollTop = ol.scrollHeight;
   }
 
   // ---------- tài liệu ----------
   async loadFiles() {
-    const r = await api('GET', `/api/meetings/${this.id}`); if (!r.ok || !this.el.isConnected) return;
+    const r = await api('GET', this.base); if (!r.ok || !this.el.isConnected) return;
     this.files = r.files; const box = this.el.querySelector('.mt-flist');
-    box.innerHTML = filesHtml(this.files, this.s.key, this.m.isHost).replaceAll('{MID}', this.id);
-    box.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!(await confirmDanger('Xoá tài liệu?', 'Mọi người trong cuộc họp sẽ không xem được file này nữa.', 'Xoá'))) return; const x = await api('DELETE', `/api/meetings/${this.id}/files/${b.dataset.del}`); if (!x.ok) this.s.toast(x.error, true); });
+    box.innerHTML = filesHtml(this.files, this.s.key, this.m.isHost || this.m.isLead).replaceAll('{BASE}', spaceBase(this.id));
+    box.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!(await confirmDanger('Xoá tài liệu?', `Mọi người trong ${this.proj ? 'dự án' : 'cuộc họp'} sẽ không xem được file này nữa.`, 'Xoá'))) return; const x = await api('DELETE', `${this.base}/files/${b.dataset.del}`); if (!x.ok) this.s.toast(x.error, true); });
     this.count('files', this.files.length || '');
   }
   async saveBoard() {

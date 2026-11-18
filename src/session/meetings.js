@@ -41,7 +41,7 @@ export class Meetings {
     rt.on('meet:changed', m => { this.loadSched(); this.loadMine(); if (!m.meeting.isHost) notice({ title: 'Lịch họp vừa thay đổi', text: `${m.meeting.title} · ${dayLabel(m.meeting.start)} ${hm(m.meeting.start)}–${hm(m.meeting.end)}`, icon: 'calendar', tone: 'info', onClick: () => this.panel.open('mine') }); this.room?.meetingChanged?.(m.meeting); });
     rt.on('meet:cancelled', m => { this.loadSched(); this.loadMine(); notice({ title: m.removed ? 'Bạn không còn trong cuộc họp' : 'Cuộc họp đã bị huỷ', text: m.title, icon: 'calendar', tone: 'info', ms: 7000 }); if (this.inRoom === m.id) this.closeRoom(); });
     rt.on('meet:remind', m => this.remind(m.kind, m.meeting));
-    rt.on('chat', m => { if (m.msg?.channel?.startsWith('meet:')) this.room?.onChat(m.msg); });
+    rt.on('chat', m => { if (/^(meet|proj):/.test(m.msg?.channel || '')) this.room?.onChat(m.msg); });   // (phòng dự án: kênh proj:<id>)
     rt.on('close', () => { if (this.inRoom) this.closeRoom(); });
     this.schedT = setInterval(() => this.loadSched(), 5 * 60e3);
   }
@@ -122,12 +122,13 @@ export class Meetings {
     await this.app.quickTravel?.jump(this.door.f, this.door.x, this.door.z, this.door.yawOut + Math.PI);
   }
   onState(m) {
+    if (this.inRoom && this.inRoom !== m.id) { this.room?.destroy(); this.room = null; }   // (đổi phòng: dự án ↔ cuộc họp)
     this.inRoom = m.id;
-    this.panel.close();
-    // nhân vật vào trong phòng (ngồi quanh bàn họp)
+    this.panel.close(); this.s.projects?.panel?.close();
+    // nhân vật vào trong phòng (ngồi quanh bàn họp) — phòng dự án là phòng ảo riêng: nhân vật đứng yên ở chỗ cũ
     const fresh = !this.room;
     if (this.room) this.room.update(m); else this.room = new MeetRoom(this, m);
-    if (fresh) this.sitDown(m.members || []);
+    if (fresh && m.meeting?.kind !== 'project') this.sitDown(m.members || []);
   }
   /** Ngồi vào một ghế trống quanh bàn họp trong văn phòng — người khác thấy mình đang ngồi họp (nhãn "Đang họp"). */
   async sitDown(members) {

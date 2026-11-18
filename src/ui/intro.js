@@ -153,6 +153,7 @@ export class Intro {
     if (go === 'karaoke') { const b = s.ktv?.spot; return b ? { name: 'phòng karaoke', f: b.f, x: b.x, z: b.z, r: 1.6 } : null; }
     if (go === 'board') { const b = s.board; b?.ensure(); return b?.stand ? { name: 'bảng thông báo', f: 0, x: b.stand.x, z: b.stand.z, r: 1.0 } : null; }
     if (go === 'meeting') { const d = s.meet?.door; return d ? { name: 'cửa phòng họp', f: d.f, x: d.x, z: d.z, r: 1.0 } : null; }
+    if (go === 'projects') { const pj = s.projects; pj?.ensure(); return pj?.stand ? { name: 'bảng Dự án', f: pj.stand.f, x: pj.stand.x, z: pj.stand.z, r: 0.8 } : null; }
     if (go === 'wc') { const st = s.wc?.stalls?.[0]; return st ? { name: 'nhà vệ sinh', f: 0, x: st.out.x, z: st.out.z, r: 0.6 } : null; }
     if (go === 'billiards') { const t = s.bil?.table; return t ? { name: 'bàn bi-a', f: t.f, x: t.x, z: t.z, r: 2.2 } : null; }
     const want = String(go).toLowerCase();

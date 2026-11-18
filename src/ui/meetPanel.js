@@ -13,6 +13,7 @@ import { overlayOn, overlayOff } from './overlay.js';
 import { ExcaliBoard } from './excaliBoard.js';
 import { DatePicker } from './datePicker.js';
 import { hm, dayLabel, EARLY } from '../session/meetings.js';
+import { spaceBase } from './space.js';
 
 const VN = 7 * 3600e3, DAY = 86400e3, SLOT = 30 * 60e3, ROW = 30;
 const dayStart = t => Math.floor((t + VN) / DAY) * DAY - VN;
@@ -30,7 +31,7 @@ export async function uploadFiles(meetingId, files, toast, kind = 'file') {
     if (f.size > 5 * 1024 * 1024) { toast(`"${f.name}" lớn hơn 5 MB — chưa tải lên.`, true); continue; }
     const data = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = rej; r.readAsDataURL(f); }).catch(() => null);
     if (data == null) { toast(`Không đọc được "${f.name}".`, true); continue; }
-    const r = await api('POST', `/api/meetings/${meetingId}/files`, { name: f.name, data, kind });
+    const r = await api('POST', `${spaceBase(meetingId)}/files`, { name: f.name, data, kind });
     if (r.ok) ok++; else toast(r.error || `Chưa tải lên được "${f.name}".`, true);
   }
   if (ok) toast(ok === 1 ? 'Đã lưu tài liệu.' : `Đã lưu ${ok} tài liệu.`);
@@ -41,8 +42,8 @@ export function filesHtml(files, me, isHost) {
   if (!files.length) return `<div class="sx-empty sm">${icon('folder', 28)}<b>Chưa có tài liệu</b><span>Tải lên slide, biên bản, hình ảnh… (PDF, ảnh, Word, Excel, PowerPoint, txt — tối đa 5 MB / file). Mọi người trong cuộc họp đều xem được.</span></div>`;
   return `<ul class="mt-files">${files.map(f => `<li><span class="mt-fic ${f.kind === 'board' ? 'board' : ''}">${icon(f.kind === 'board' ? 'pen' : fileIcon(f.type), 17)}</span>
     <span class="mt-fn"><b title="${esc(f.name)}">${esc(f.name)}</b><small>${fmtSize(f.size)} · ${esc(f.byName.replace(/^\d{4}-/, ''))} · ${dayLabel(f.ts)} ${hm(f.ts)}</small></span>
-    <a class="sx-icon" href="/api/meetings/{MID}/files/${f.id}" target="_blank" rel="noopener" title="Mở" aria-label="Mở ${esc(f.name)}">${icon('arrowRight', 15)}</a>
-    <a class="sx-icon" href="/api/meetings/{MID}/files/${f.id}?dl=1" download="${esc(f.name)}" title="Tải về" aria-label="Tải ${esc(f.name)} về">${icon('download', 15)}</a>
+    <a class="sx-icon" href="{BASE}/files/${f.id}" target="_blank" rel="noopener" title="Mở" aria-label="Mở ${esc(f.name)}">${icon('arrowRight', 15)}</a>
+    <a class="sx-icon" href="{BASE}/files/${f.id}?dl=1" download="${esc(f.name)}" title="Tải về" aria-label="Tải ${esc(f.name)} về">${icon('download', 15)}</a>
     ${f.by === me || isHost ? `<button type="button" class="sx-icon danger" data-del="${f.id}" title="Xoá" aria-label="Xoá ${esc(f.name)}">${icon('trash', 15)}</button>` : ''}</li>`).join('')}</ul>`;
 }
 
@@ -209,7 +210,7 @@ export class MeetPanel {
       body.querySelectorAll('[data-sub]').forEach(b => b.classList.toggle('on', b.dataset.sub === k));
       this.wb?.destroy(); this.wb = null;
       if (k === 'files') {
-        sb.innerHTML = `<div class="mp-up"><label class="sx-ghost">${icon('upload', 14)} Tải tài liệu lên<input type="file" multiple hidden></label><span>PDF, ảnh, Word, Excel, PowerPoint, txt · tối đa 5 MB / file</span></div>${filesHtml(r.files, me, m.isHost).replaceAll('{MID}', m.id)}`;
+        sb.innerHTML = `<div class="mp-up"><label class="sx-ghost">${icon('upload', 14)} Tải tài liệu lên<input type="file" multiple hidden></label><span>PDF, ảnh, Word, Excel, PowerPoint, txt · tối đa 5 MB / file</span></div>${filesHtml(r.files, me, m.isHost).replaceAll('{BASE}', spaceBase(m.id))}`;
         sb.querySelector('input[type=file]').onchange = async e => { const n = await uploadFiles(m.id, [...e.target.files], (t, b) => this.s.toast(t, b)); if (n) this.detail(m.id, 'files'); };
         sb.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => { if (!(await confirmDanger('Xoá tài liệu?', 'Mọi người trong cuộc họp sẽ không xem được file này nữa.', 'Xoá'))) return; const x = await api('DELETE', `/api/meetings/${m.id}/files/${b.dataset.del}`); if (x.ok) this.detail(m.id, 'files'); else this.s.toast(x.error, true); });
       } else if (k === 'board') {
@@ -229,7 +230,8 @@ export class MeetPanel {
 
   // ---------- đặt / sửa ----------
   async loadPeople() { if (this.people) return this.people; const r = await api('GET', '/api/people'); this.people = r.ok ? r.people : []; return this.people; }
-  async form(m = null, startAt = null) {
+  /** project: { id, name, members: [{ key, name }] } — họp của dự án (cả dự án được mời, tối đa 50). */
+  async form(m = null, startAt = null, project = null) {
     if (!this.el) { await this.open(this.tab); }
     this.sub = 'form'; this.wb?.destroy(); this.wb = null;
     const body = this.body; body.innerHTML = '<div class="sx-loading">Đang tải…</div>';
@@ -237,12 +239,15 @@ export class MeetPanel {
     const firstFree = () => { let t = Math.ceil(now / SLOT) * SLOT; for (let i = 0; i < 28 * 14; i++, t += SLOT) { const d = dayStart(t), h = (t - d) / 3600e3; if (h >= 7 && h < 21 && !this.c.sched.some(x => x.start < t + SLOT && x.end > t)) return t; } return Math.ceil(now / SLOT) * SLOT; };
     let start = m?.start || startAt || firstFree(), end = m?.end || start + 2 * SLOT;
     const picked = new Map((m?.invitees || []).map(p => [p.key, p.name]));
+    if (project) for (const p of project.members || []) if (p.key !== me) picked.set(p.key, p.name);
+    const MAXI = project || m?.projectId ? 50 : 20;
     const depts = [...new Set(people.map(p => p.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'vi'));
     const DURS = [[SLOT, '30 phút'], [2 * SLOT, '1 giờ'], [3 * SLOT, '1,5 giờ'], [4 * SLOT, '2 giờ'], [6 * SLOT, '3 giờ'], [8 * SLOT, '4 giờ']];
     let dur = end - start;
     body.innerHTML = `<form class="mp-form" novalidate>
       <button type="button" class="sx-back-link">${icon('chevLeft', 15)} ${m ? 'Huỷ sửa' : 'Quay lại'}</button>
       <h3>${m ? 'Sửa cuộc họp' : 'Đặt phòng họp'}</h3>
+      ${project || m?.projectId ? `<p class="mp-projnote" style="--pc:${esc(project?.color || '#7b61ff')}">${icon('grid', 15)}<span>Họp của dự án <b>${esc(project?.name || m.projectName || '')}</b> — mọi thành viên dự án được mời; tài liệu, bảng vẽ đã lưu của cuộc họp hiện trong tab Tài liệu của dự án.</span></p>` : ''}
       <section class="mp-pickt" aria-label="Chọn thời gian">
         <div class="mp-step"><span class="mp-n">1</span><b>Chọn ngày</b></div>
         <div class="mp-step"><span class="mp-n">2</span><b>Giờ bắt đầu</b><small class="mp-dayname2"></small></div>
@@ -252,8 +257,8 @@ export class MeetPanel {
           <div class="mp-durs" role="radiogroup" aria-label="Thời lượng">${DURS.map(([v, n]) => `<button type="button" role="radio" data-dur="${v}">${n}</button>`).join('')}</div>
           <div class="mp-sum" aria-live="polite"></div></div>
       </section>
-      <label class="sx-field"><span>Tên cuộc họp <i>*</i></span><input name="title" maxlength="120" required value="${esc(m?.title || '')}" placeholder="Ví dụ: Họp kế hoạch sprint 12"></label>
-      <div class="sx-field"><span>Người tham dự <small>(${picked.size} người · tối đa 20)</small></span>
+      <label class="sx-field"><span>Tên cuộc họp <i>*</i></span><input name="title" maxlength="120" required value="${esc(m?.title || (project ? `Họp dự án ${project.name}` : ''))}" placeholder="Ví dụ: Họp kế hoạch sprint 12"></label>
+      <div class="sx-field"><span>Người tham dự <small>(${picked.size} người · tối đa ${MAXI})</small></span>
         <div class="mp-chips"><span class="mp-chip host">${avatar(me, this.s.me.employee?.display || 'CEO')} Bạn (host)</span></div>
         <div class="mp-pick"><input class="mp-q" placeholder="Tìm theo tên, mã hoặc phòng ban…" autocomplete="off" aria-label="Tìm người để mời">
           ${depts.length ? `<select class="mp-dept" aria-label="Mời cả phòng ban"><option value="">+ Mời cả phòng ban…</option>${depts.map(d => `<option>${esc(d)}</option>`).join('')}</select>` : ''}</div>
@@ -307,7 +312,7 @@ export class MeetPanel {
     const drawChips = () => {
       chips.querySelectorAll('.mp-chip:not(.host)').forEach(x => x.remove());
       for (const [k, n] of picked) { const c = document.createElement('span'); c.className = 'mp-chip'; c.innerHTML = `${avatar(k, n)} ${esc(n)} <button type="button" aria-label="Bỏ ${esc(n)}">${icon('close', 11)}</button>`; c.querySelector('button').onclick = () => { picked.delete(k); drawChips(); }; chips.appendChild(c); }
-      f.querySelector('.sx-field small').textContent = `(${picked.size} người · tối đa 20)`;
+      f.querySelector('.sx-field small').textContent = `(${picked.size} người · tối đa ${MAXI})`;
     };
     const search = () => {
       const s = q.value.trim().toLowerCase().normalize('NFC');
@@ -317,10 +322,10 @@ export class MeetPanel {
       res.innerHTML = hits.length ? hits.map((p, i) => `<li role="option" data-k="${esc(p.key)}" class="${i ? '' : 'act'}">${avatar(p.key, p.name)}<span><b>${esc(p.name)}</b><small>${esc(p.department || '—')}${p.online ? ' · <em>đang online</em>' : ''}</small></span></li>`).join('') : '<li class="none">Không tìm thấy ai.</li>';
       res.querySelectorAll('[data-k]').forEach(li => li.onmousedown = e => { e.preventDefault(); add(li.dataset.k); });
     };
-    const add = k => { const p = people.find(x => x.key === k); if (!p) return; if (picked.size >= 20) { this.s.toast('Mời tối đa 20 người.', true); return; } picked.set(k, p.name); q.value = ''; res.hidden = true; drawChips(); q.focus(); };
+    const add = k => { const p = people.find(x => x.key === k); if (!p) return; if (picked.size >= MAXI) { this.s.toast(`Mời tối đa ${MAXI} người.`, true); return; } picked.set(k, p.name); q.value = ''; res.hidden = true; drawChips(); q.focus(); };
     q.oninput = search; q.onblur = () => setTimeout(() => { res.hidden = true; }, 120);
     q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const a = res.querySelector('.act'); if (a) add(a.dataset.k); } if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const lis = [...res.querySelectorAll('[data-k]')], i = lis.findIndex(x => x.classList.contains('act')), j = Math.max(0, Math.min(lis.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1))); lis.forEach((x, k) => x.classList.toggle('act', k === j)); } });
-    f.querySelector('.mp-dept')?.addEventListener('change', e => { const d = e.target.value; e.target.value = ''; if (!d) return; for (const p of people) if (p.department === d && p.key !== me && picked.size < 20) picked.set(p.key, p.name); drawChips(); });
+    f.querySelector('.mp-dept')?.addEventListener('change', e => { const d = e.target.value; e.target.value = ''; if (!d) return; for (const p of people) if (p.department === d && p.key !== me && picked.size < MAXI) picked.set(p.key, p.name); drawChips(); });
     drawChips();
     if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => f.title.focus({ preventScroll: true }), 30);   // (điện thoại: không tự bật bàn phím, giữ lịch ở trên cùng)
     f.onsubmit = async e => {
@@ -328,7 +333,7 @@ export class MeetPanel {
       const err = f.querySelector('.sx-err'), btn = f.querySelector('[type=submit]');
       if (!f.title.value.trim()) { err.textContent = 'Cần nhập tên cuộc họp.'; f.title.focus(); return; }
       if (start == null) { err.textContent = 'Chọn ngày và giờ bắt đầu.'; return; }
-      const data = { title: f.title.value, agenda: f.agenda.value, start, end: start + dur, invitees: [...picked.keys()], room: 'MR1' };
+      const data = { title: f.title.value, agenda: f.agenda.value, start, end: start + dur, invitees: [...picked.keys()], room: 'MR1', ...(project && !m ? { projectId: project.id } : {}) };
       btn.disabled = true;
       const r = m ? await api('PATCH', `/api/meetings/${m.id}`, data) : await api('POST', '/api/meetings', data);
       btn.disabled = false;

@@ -7,6 +7,7 @@
 import { DEPARTMENTS, findDepartment, departmentOfDesk } from '../src/shared/departments.js';
 import { worldGet, worldSet } from './db.js';
 import { getMeeting, isParticipant } from './meetings.js';
+import { getProject, roleIn } from './projects.js';
 
 const MAX_LEN = 500, HISTORY = 80;
 
@@ -27,6 +28,7 @@ export function canUseChannel(store, actor, key, channel) {
   if (channel.startsWith('dept:')) { const id = channel.slice(5); return DEPARTMENTS.some(d => d.id === id) && (actor.kind === 'admin' || deptIdOf(store, actor) === id); }
   if (channel.startsWith('dm:')) return channel.slice(3).split('|').includes(key);
   if (channel.startsWith('meet:')) return isParticipant(getMeeting(store, channel.slice(5)), key);   // (kênh riêng của cuộc họp: host + người được mời)
+  if (channel.startsWith('proj:')) { const p = /^\d{1,9}$/.test(channel.slice(5)) && getProject(store, channel.slice(5)); return !!p && !!roleIn(store, p, key); }   // (kênh riêng của dự án: thành viên + CEO)
   return false;
 }
 export function history(store, channel, before = null) {
@@ -44,6 +46,7 @@ export function postMessage(store, actor, key, name, channel, body) {
   const text = String(body || '').replace(/\s+/g, ' ').trim().slice(0, MAX_LEN);
   if (!text) return null;
   if (!canUseChannel(store, actor, key, channel)) return null;
+  if (channel.startsWith('proj:') && getProject(store, channel.slice(5))?.status !== 'active') return null;   // (dự án đã lưu trữ: chỉ đọc)
   const ts = Date.now();
   const id = store.db.chat_messages.insert({ channel, sender: key, sender_name: name, body: text, ts });
   return { id, channel, from: key, name, body: text, ts };

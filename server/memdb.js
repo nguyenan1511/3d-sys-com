@@ -25,7 +25,12 @@ export const TABLES = {
   announcements: { auto: true },                                          // bảng thông báo công ty (server/board.js)
   meetings: { auto: true, json: ['invitees', 'hidden'] },                           // lịch đặt phòng họp (server/meetings.js)
   meeting_files: { auto: true, index: ['meeting_id'] },                   // tài liệu cuộc họp (nội dung file: db.blobs)
-  meeting_boards: { key: 'meeting_id', json: ['strokes'] }                // bảng vẽ của từng cuộc họp
+  meeting_boards: { key: 'meeting_id', json: ['strokes'] },               // bảng vẽ của từng cuộc họp
+  projects: { auto: true },                                               // workspace dự án (server/projects.js)
+  project_members: { auto: true, index: ['project_id', 'key'] },          // thành viên dự án: role 'lead' | 'member'
+  project_tasks: { auto: true, index: ['project_id'] },                   // công việc (Kanban 3 cột)
+  task_comments: { auto: true, index: ['task_id', 'project_id'] },        // bình luận trên công việc
+  project_files: { auto: true, index: ['project_id'] }                    // tài liệu dự án (nội dung file: db.blobs 'pfile:<id>')
 };
 
 class Table {

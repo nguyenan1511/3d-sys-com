@@ -8,6 +8,7 @@
 //  • ảnh dán lên bảng: tải lên máy chủ trước (REST), rồi mới gửi hình ảnh; máy khác tự tải ảnh còn thiếu;
 //  • con trỏ + vùng chọn của từng người (meet:ptr) hiện như cộng tác của Excalidraw.
 // Thư viện (React + Excalidraw, ~1 MB) chỉ tải khi vào phòng họp / mở bảng vẽ xem lại (loadExcalidraw).
+import { spaceBase } from './space.js';
 import { api } from '../net/api.js';
 import { newer, WB_MAX_ELEMENT_BYTES } from '../shared/whiteboard.js';
 
@@ -30,7 +31,7 @@ export class ExcaliBoard {
    *            onChange() (bản vẽ đổi — vẽ lại bảng trên tường 3D), onSaveDocs() (mục "Lưu bảng vào tài liệu"), toast(t, bad) }
    */
   constructor(host, o) {
-    this.host = host; this.o = o; this.id = o.meetingId; this.readOnly = !o.send;
+    this.host = host; this.o = o; this.id = o.meetingId; this.base = spaceBase(o.meetingId); this.readOnly = !o.send;
     this.known = new Map();      // hình máy chủ đang giữ (đã gửi / đã nhận) — chỉ gửi hình mới hơn
     this.pending = new Map(); this.flushT = 0; this.ptrAt = 0; this.peers = new Map(); this.raf = 0;
     this.files = new Map();      // ảnh đã có trên máy (mã → { id, mimeType, dataURL, created })
@@ -106,7 +107,7 @@ export class ExcaliBoard {
   }
   upload(f) {
     let p = this.uploading.get(f.id); if (p) return p;
-    p = api('POST', `/api/meetings/${this.id}/wbfile`, { id: f.id, mimeType: f.mimeType, dataURL: f.dataURL, created: f.created }).then(r => {
+    p = api('POST', `${this.base}/wbfile`, { id: f.id, mimeType: f.mimeType, dataURL: f.dataURL, created: f.created }).then(r => {
       if (r.ok) { this.uploaded.add(f.id); this.files.set(f.id, f); return true; }
       this.o.toast?.(r.error || 'Chưa đưa được ảnh lên bảng.', true); return false;
     });
@@ -137,7 +138,7 @@ export class ExcaliBoard {
     const got = [];
     await Promise.all([...want].map(async fid => {
       this.files.set(fid, null);
-      try { const r = await fetch(`/api/meetings/${this.id}/wbfile/${encodeURIComponent(fid)}`, { credentials: 'same-origin' }); if (!r.ok) throw new Error(r.status); const f = await r.json(); this.files.set(fid, f); this.uploaded.add(fid); got.push(f); }
+      try { const r = await fetch(`${this.base}/wbfile/${encodeURIComponent(fid)}`, { credentials: 'same-origin' }); if (!r.ok) throw new Error(r.status); const f = await r.json(); this.files.set(fid, f); this.uploaded.add(fid); got.push(f); }
       catch { this.files.delete(fid); this.failed.set(fid, Date.now()); }
     }));
     if (got.length && this.xapi) { this.xapi.addFiles(got); this.o.onChange?.(); }

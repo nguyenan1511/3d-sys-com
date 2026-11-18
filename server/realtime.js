@@ -15,6 +15,8 @@ import { lightsState, canLights } from './lights.js';
 import { modeOfDesk } from '../src/core/mode.js';
 import { Meetings } from './meetings.js';
 import { MeetHub } from './meetHub.js';
+import { Projects } from './projects.js';
+import { ProjectHub } from './projectHub.js';
 import * as att from './attendance.js';
 import { audit } from './db.js';
 const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'quay', 'jump', 'tv', 'meet', ...PROP_ACTS]); // tv: ngồi sofa xem TV; meet: đang ngồi trong phòng họp; còn lại: dùng đồ vật
@@ -24,6 +26,8 @@ export class Hub {
   constructor(store, config) {
     this.store = store; this.config = config; this.ktv = new Karaoke(this); this.bil = new Billiards(this); this.wc = new Restroom(this);
     this.meetings = new Meetings(store, k => this.nameOf(k)); this.meet = new MeetHub(this, this.meetings);   // phòng họp: lịch + phòng (server/meetings.js, meetHub.js)
+    this.projects = new Projects(store, k => this.nameOf(k)); this.proj = new ProjectHub(this, this.projects);   // dự án (server/projects.js, projectHub.js)
+    this.meetings.projects = this.projects; this.meet.projects = this.projects;   // (họp của dự án; phòng dự án p<id>)
     this.sockets = new Map();   // key -> Set<ws>
     this.presence = new Map();  // key -> { key, kind, code, display, x,y,z,f,yaw,walk, seated }
     this.pending = new Map();   // code -> hạn "đang vào" sau khi đăng nhập, trước khi mở WS
@@ -35,7 +39,7 @@ export class Hub {
     this.hist = []; this.sampleOnline(); this.histTimer = setInterval(() => this.sampleOnline(), 60000); this.histTimer.unref?.();
     store.on(ev => this.onStore(ev));
   }
-  close() { clearInterval(this.timer); clearInterval(this.heartbeat); clearInterval(this.histTimer); this.wss?.close(); return this.meet.close(); }
+  close() { clearInterval(this.timer); clearInterval(this.heartbeat); clearInterval(this.histTimer); this.wss?.close(); this.proj.close(); return this.meet.close(); }
   /** Tên hiển thị theo khoá phiên (đang online: theo presence; không thì theo hồ sơ). */
   nameOf(key) {
     const p = this.presence.get(key); if (p) return p.display;
@@ -148,6 +152,7 @@ export class Hub {
     if (!msg) return;
     // chỉ gửi cho người được đọc kênh đó
     for (const [key, set] of this.sockets) for (const s of set) if (s.readyState === 1 && canUseChannel(this.store, this.actorOf(s), key, ch)) s.send(JSON.stringify({ t: 'chat', msg }));
+    if (ch.startsWith('proj:')) this.proj.onChat(msg);   // (@nhắc tên trong chat dự án)
   }
   // ---------- loa: phát/điều khiển qua REST (server/routes/music.js); ở đây chỉ phát trạng thái ----------
   /** Tên hiển thị của người thao tác (theo phiên đang online). */
@@ -241,6 +246,7 @@ export class Hub {
       if (p) { p.look = ev.look; p.pv = (p.pv || 0) + 1; if (p.x !== null) this.dirty.add(p.key); }
     } else if (ev.type === 'kick') {
       this.pending.delete(ev.code);
+      if (ev.disabled) this.proj.disabled(ev.code);   // (nhân viên bị vô hiệu hoá: rời mọi dự án)
       for (const ws of this.sockets.get(`employee:${ev.code}`) || []) this.kickSocket(ws, ev.reason);
     }
   }

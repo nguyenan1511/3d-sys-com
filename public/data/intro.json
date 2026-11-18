@@ -5,7 +5,7 @@
   "Mỗi mục: id (không trùng), group (start | work | fun | more), ảnh 3D tự lấy public/intro/<id>.webp — chụp từ cảnh thật bằng: npm run build && node scripts/intro-shots.mjs --only=<id> (thêm góc máy cho id mới trong SHOTS của script); icon (emoji, chỉ dùng khi chưa có ảnh), color (màu nền khi chưa có ảnh), title, text (1-2 câu ngắn), pc / mobile (cách dùng trên máy tính / điện thoại), go (tuỳ chọn: nút 'Đi tới' — 'desk', 'karaoke', 'billiards' hoặc tên một nơi trong 'Đi nhanh tới').",
   "Không cần kể hết: mỗi mục là một thứ người dùng làm được ngay."
  ],
- "version": 3,
+ "version": 4,
  "title": "Có gì ở văn phòng SYSONE?",
  "subtitle": "Văn phòng 3D để làm việc, gặp đồng nghiệp và giải trí. Lướt qua 1 phút là nắm hết!",
  "groups": [
@@ -94,6 +94,18 @@
    "pc": "Nút Họp · E ở cửa phòng",
    "mobile": "Nút lịch góc trên",
    "go": "meeting"
+  },
+  {
+   "id": "projects",
+   "group": "work",
+   "new_in": 4,
+   "icon": "🗂️",
+   "color": "#f3f0ff",
+   "title": "Dự án của nhóm",
+   "text": "Tạo dự án, mời đồng đội, chia việc trên bảng Kanban (kéo thả, hạn chót, giao người làm). Mỗi dự án có chat riêng (@tên để nhắc), tài liệu, ghi chú và phòng dự án 3D để họp, vẽ chung.",
+   "pc": "Nút Dự án · E ở bảng cạnh phòng họp",
+   "mobile": "Nút ô vuông góc trên",
+   "go": "projects"
   },
   {
    "id": "desk",

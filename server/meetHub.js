@@ -10,9 +10,15 @@
 //  • Họp trực tuyến: mic / camera / chia sẻ màn hình truyền thẳng giữa các máy trong phòng (WebRTC, nối từng cặp — như
 //    phòng karaoke). Máy chủ chỉ chuyển tin bắt tay (meet:rtc, chỉ giữa hai người cùng phòng) và giữ ai đang bật gì
 //    (meet:media {mic, cam, screen} → có trong danh sách người trong phòng). Không ghi âm, không lưu hình.
+//  • Phòng dự án (server/projects.js): mã phòng "p<id>" — cùng bảng vẽ / họp trực tuyến / người trong phòng; thành viên dự án
+//    (và CEO) vào lúc nào cũng được, không nhắc giờ, không chặn vị trí trong toà nhà. Bản vẽ: db.blobs 'board:p<id>'.
 //  • Chặn người ngoài: trong giờ họp, vị trí của người không có trong danh sách mà nằm trong phòng họp sẽ bị bỏ qua
 //    (client cũng tự đẩy nhân vật ra cửa).
 import { getMeeting, isParticipant, isOpen, ROOMS, EARLY } from './meetings.js';
+import { projectOfRoom, getProject } from './projects.js';
+
+/** Mã phòng: số (cuộc họp) hoặc "p<id>" (phòng dự án). */
+export const roomKey = v => (typeof v === 'string' && /^p\d{1,9}$/.test(v) ? v : Number(v));
 import { WB_MAX_BYTES, WB_MAX_ELEMENTS, WB_MAX_ELEMENT_BYTES, WB_MAX_FILES_BYTES, WB_ID, byIndex, checkElement, checkFile, newer, parseBoard } from '../src/shared/whiteboard.js';
 
 const SAVE_MS = 2500;
@@ -116,7 +122,7 @@ export class MeetHub {
   }
 
   async onMessage(ws, m) {
-    const id = Number(m.id);
+    const id = roomKey(m.id);
     switch (m.t) {
       case 'meet:join': return this.join(ws, id);
       case 'meet:leave': return this.leave(ws.key, id);
@@ -140,7 +146,27 @@ export class MeetHub {
     if (JSON.stringify(m.data ?? null).length > 64000) return;
     this.sendKey(m.to, { t: 'meet:rtc', id, from: ws.key, data: m.data });
   }
+  /** Bỏ trạng thái phòng (dự án vừa bị xoá: không lưu lại bản vẽ). */
+  forget(id) { const r = this.rooms.get(id); if (r) { clearTimeout(r.saveT); r.dirty = false; this.rooms.delete(id); } }
+  /** Vào phòng dự án: thành viên / CEO, lúc nào cũng được. */
+  async joinProject(ws, id) {
+    const pid = projectOfRoom(id), P = this.projects, p = pid && getProject(this.store, pid);
+    if (!p || !P?.canJoin(pid, ws.key)) return this.err(ws, 'Không tìm thấy dự án (hoặc bạn không còn trong dự án này).');
+    const other = this.roomOf(ws.key); if (other && other !== id) this.leave(ws.key, other);
+    const r = await this.room(id);
+    const fresh = !r.members.has(ws.key);
+    r.members.set(ws.key, { display: this.hub.presence.get(ws.key)?.display || this.meetings.names(ws.key), media: { mic: false, cam: false, screen: false } });
+    for (const s of this.hub.sockets.get(ws.key) || []) this.hub.send(s, { t: 'meet:state', id, meeting: this.projectView(p, ws.key), members: this.members(id), elements: this.scene(r), files: [...r.files.keys()] });
+    this.pushMembers(id);
+    if (fresh) this.hub.proj?.joinedRoom(pid, ws.key, new Set(r.members.keys()));
+  }
+  /** Phòng dự án theo dạng "cuộc họp" mà src/ui/meetRoom.js hiểu (kind: 'project', không có giờ, không có host). */
+  projectView(p, key) {
+    const v = this.projects.view(p, key, { full: true });
+    return { id: `p${p.id}`, kind: 'project', projectId: p.id, title: p.name, color: p.color, host: null, hostName: '', isHost: false, isLead: v.isLead, invitees: v.members.map(m => ({ key: m.key, name: m.name, role: m.role })) };
+  }
   async join(ws, id) {
+    if (typeof id === 'string') return this.joinProject(ws, id);
     const m = getMeeting(this.store, id);
     if (!m || m.status !== 'booked') return this.err(ws, 'Không còn cuộc họp này.');
     if (!isParticipant(m, ws.key)) return this.err(ws, 'Bạn không có trong danh sách cuộc họp này — chỉ người được mời mới vào được phòng.');
