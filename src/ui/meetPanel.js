@@ -94,8 +94,9 @@ export class MeetPanel {
   paintUpcoming() {
     const box = this.el?.querySelector('.mp-upc'); if (!box) return;
     const now = Date.now(), list = (this.c.mine || []).filter(m => m.end > now).sort((a, b) => a.start - b.start).slice(0, 4);
-    box.innerHTML = list.length ? list.map(m => `<button type="button" class="mp-ui${m.start <= now ? ' live' : ''}" data-u="${m.id}"><b>${hm(m.start)}</b><span><strong>${esc(m.title)}</strong><small>${m.start <= now ? 'Đang diễn ra' : esc(dayLabel(m.start))}${m.projectName ? ` · ${esc(m.projectName)}` : ''}</small></span></button>`).join('')
+    const html = list.length ? list.map(m => `<button type="button" class="mp-ui${m.start <= now ? ' live' : ''}" data-u="${m.id}"><b>${hm(m.start)}</b><span><strong>${esc(m.title)}</strong><small>${m.start <= now ? 'Đang diễn ra' : esc(dayLabel(m.start))}${m.projectName ? ` · ${esc(m.projectName)}` : ''}</small></span></button>`).join('')
       : `<p class="ds-none">Chưa có cuộc họp sắp tới.</p>`;
+    if (box._h === html) return; box._h = html; box.innerHTML = html;   // (đồng hồ 15 giây: không đổi gì thì không vẽ lại)
     box.querySelectorAll('[data-u]').forEach(b => b.onclick = () => this.detail(+b.dataset.u));
   }
   close() {
@@ -105,7 +106,10 @@ export class MeetPanel {
     el.classList.remove('show'); setTimeout(() => el.remove(), 200);
   }
   get body() { return this.el?.querySelector('.mp-body'); }
+  /** Hiệu ứng hiện dần MỘT lần khi đổi màn — chạy trên khung thân (vẽ lại nội dung bên trong không làm nó chạy lại). */
+  enter() { const b = this.body; if (!b) return; b.classList.remove('enter'); void b.offsetWidth; b.classList.add('enter'); }
   show(tab, arg = null) {
+    if (tab !== this.tab || this.sub) this.enter();
     this.tab = tab; this.sub = null; this.wb?.destroy(); this.wb = null;
     this.head();
     this.el.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
@@ -224,7 +228,7 @@ export class MeetPanel {
   }
   async detail(id, sub = 'files') {
     if (this.tab !== 'folder') { this.tab = 'folder'; this.el.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === 'folder')); }
-    this.sub = 'detail'; this.wb?.destroy(); this.wb = null; this.head('detail');
+    this.sub = 'detail'; this.wb?.destroy(); this.wb = null; this.head('detail'); this.enter();
     const body = this.body; body.innerHTML = '<div class="sx-loading">Đang tải…</div>';
     const r = await api('GET', `/api/meetings/${id}`);
     if (!this.el || this.sub !== 'detail') return;
@@ -280,7 +284,7 @@ export class MeetPanel {
   /** project: { id, name, members: [{ key, name }] } — họp của dự án (cả dự án được mời, tối đa 50). */
   async form(m = null, startAt = null, project = null) {
     if (!this.el) { await this.open(this.tab); }
-    this.sub = 'form'; this.wb?.destroy(); this.wb = null; this.head('form');
+    this.sub = 'form'; this.wb?.destroy(); this.wb = null; this.head('form'); this.enter();
     const body = this.body; body.innerHTML = '<div class="sx-loading">Đang tải…</div>';
     const people = await this.loadPeople(), me = this.s.key, now = Date.now();
     const firstFree = () => { let t = Math.ceil(now / SLOT) * SLOT; for (let i = 0; i < 28 * 14; i++, t += SLOT) { const d = dayStart(t), h = (t - d) / 3600e3; if (h >= 7 && h < 21 && !this.c.sched.some(x => x.start < t + SLOT && x.end > t)) return t; } return Math.ceil(now / SLOT) * SLOT; };

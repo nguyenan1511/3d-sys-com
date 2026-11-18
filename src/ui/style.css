@@ -3545,3 +3545,8 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
 @media (max-width: 760px) { .mp-card.mc { grid-template-columns: 1fr; gap: 10px; padding: 12px; } .mc-when { flex-direction: row; align-items: baseline; gap: 8px; align-self: auto; } .mc-when > em { margin: 0 0 0 auto; } .mc .mp-wait { white-space: normal; height: auto; min-height: var(--btn-h); padding: 6px 12px; } }
 @media (prefers-reduced-motion: reduce) { .mc-st.live i { animation: none; } }
 @media (max-width: 760px) { .mc-prog { flex-wrap: wrap; gap: 4px; } .mc-prog > span { flex: 1 0 100%; } }
+/* modal dashboard: KHÔNG cho từng khối con hiện dần mỗi lần vẽ lại (dữ liệu mới tới → vẽ lại → hiệu ứng chạy lại, nhìn giật
+   như lặp); hiện dần một lần trên khung thân khi đổi màn / đổi thẻ (src/ui/projectPanel.js, meetPanel.js: enter()) */
+.sx.dash .sx-body > * { animation: none; }
+.sx.dash .sx-body.enter { animation: sx-in .2s ease both; }
+@media (prefers-reduced-motion: reduce) { .sx.dash .sx-body.enter { animation: none; } }
