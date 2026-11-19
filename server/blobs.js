@@ -12,6 +12,7 @@ export class MemBlobs {
   async put(id, data, type) { this.m.set(String(id), { data: Buffer.from(data), type }); }
   async get(id) { return this.m.get(String(id)) || null; }
   async del(id) { this.m.delete(String(id)); }
+  async sizes() { return [...this.m].map(([k, v]) => [k, v.data.length]); }
 }
 
 export class FileBlobs {
@@ -27,6 +28,11 @@ export class FileBlobs {
     try { return { data: await fs.promises.readFile(f), type: await fs.promises.readFile(`${f}.type`, 'utf8').catch(() => '') }; } catch { return null; }
   }
   async del(id) { const f = path.join(this.dir, safe(id)); await Promise.all([f, `${f}.type`].map(x => fs.promises.rm(x, { force: true }))); }
+  async sizes() {
+    const names = await fs.promises.readdir(this.dir).catch(() => []), out = [];
+    for (const n of names) if (!n.endsWith('.type') && !n.endsWith('.tmp')) out.push([n, (await fs.promises.stat(path.join(this.dir, n))).size]);
+    return out;
+  }
 }
 
 export class MongoBlobs {
@@ -37,4 +43,34 @@ export class MongoBlobs {
     const b = d.data; return { data: Buffer.isBuffer(b) ? b : Buffer.from(b.buffer ?? b), type: d.type || '' };
   }
   async del(id) { await this.col.deleteOne({ _id: String(id) }); }
+  async sizes() { return (await this.col.find({}, { projection: { size: 1 } }).toArray()).map(d => [String(d._id), d.size || 0]); }
+}
+
+/**
+ * Hạn mức dung lượng tổng cho mọi file tải lên (tài liệu họp / dự án, ảnh bảng tin, ảnh bảng vẽ): Atlas M0 chỉ có 512 MB cho
+ * cả database — đầy là mọi lệnh ghi đều lỗi. Đếm theo từng id (ghi đè thì tính phần chênh); bảng vẽ ('board:') luôn được ghi
+ * (trạng thái đang vẽ) nhưng vẫn tính vào tổng. Quá hạn mức: lỗi { code: 'quota' } — các API báo 507 kèm lời nhắn rõ ràng.
+ */
+export class QuotaBlobs {
+  constructor(inner, maxBytes) { this.inner = inner; this.max = maxBytes; this.sizes = new Map(); this.used = 0; }
+  /** Nạp kích thước các file đang có (lúc khởi động). */
+  async init() {
+    try { for (const [id, n] of await this.inner.sizes?.() ?? []) this.track(id, n); }
+    catch (e) { console.warn('[file] Không đọc được dung lượng đang dùng:', e.message); }
+    return this;
+  }
+  track(id, n) { this.used += n - (this.sizes.get(id) || 0); if (n) this.sizes.set(id, n); else this.sizes.delete(id); }
+  usage() { return { used: this.used, max: this.max, files: this.sizes.size }; }
+  /** Còn chỗ cho `n` byte mới không (để API báo lỗi trước khi nhận file). */
+  room(n) { return this.used + n <= this.max; }
+  async put(id, data, type) {
+    id = String(id); const n = data.length, after = this.used - (this.sizes.get(id) || 0) + n;
+    if (after > this.max && !id.startsWith('board:')) {
+      const mb = x => Math.round(x / 1048576);
+      throw Object.assign(new Error(`Bộ nhớ lưu file của công ty đã đầy (${mb(this.used)}/${mb(this.max)} MB). Nhờ CEO hoặc trưởng dự án xoá bớt tài liệu cũ rồi thử lại.`), { code: 'quota' });
+    }
+    await this.inner.put(id, data, type); this.track(id, n);
+  }
+  get(id) { return this.inner.get(id); }
+  async del(id) { await this.inner.del(id); this.track(String(id), 0); }
 }

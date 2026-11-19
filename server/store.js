@@ -308,11 +308,27 @@ export class Store {
       this.db.sessions.delWhere(r => r.kind === 'employee' && r.subject === code);
       this.db.employees.del(code);
       this.db.attendance.delWhere(r => r.code === code);   // (như ON DELETE CASCADE của bảng chấm công cũ)
+      this.forgetKey(`employee:${code}`);
       audit(this.db, actor.key, 'admin.employee.delete', code, { name: e.name, seat: seat?.desk_id || null, seats: mine.map(r => r.desk_id) });
     });
     this.emit({ type: 'kick', code, reason: 'Tài khoản đã bị xóa.', disabled: true });
     if (mine.length) this.emit({ type: 'seat', deskIds: mine.map(r => r.desk_id) });
     this.emit({ type: 'employees' });
+  }
+  /**
+   * Xoá dấu vết quyền truy cập của một khoá phiên đã bị xoá — để người được tạo lại với CÙNG MÃ không thừa hưởng: bỏ khỏi danh
+   * sách mời các cuộc họp, cuộc họp người đó chủ trì chưa diễn ra thì huỷ, đã qua thì chuyển chủ sang khoá "đã xoá"; xoá tin nhắn
+   * riêng (DM). (Thành viên dự án: Projects.disable khi có sự kiện kick { disabled: true }.)
+   */
+  forgetKey(key) {
+    const now = Date.now(), gone = `deleted:${key}:${now}`, list = v => { try { return Array.isArray(v) ? v : JSON.parse(v || '[]'); } catch { return []; } };
+    for (const m of this.db.meetings.all()) {
+      const inv = list(m.invitees), patch = {};
+      if (inv.includes(key)) patch.invitees = JSON.stringify(inv.filter(k => k !== key));
+      if (m.host === key) { if (m.start > now && m.status !== 'cancelled') patch.status = 'cancelled'; patch.host = gone; }
+      if (Object.keys(patch).length) this.db.meetings.update(m.id, { ...patch, updated_at: now });
+    }
+    this.db.chat_messages.delWhere(r => r.channel.startsWith('dm:') && r.channel.slice(3).split('|').includes(key));
   }
   adminForceLogout(actor, code) {
     if (!this.employee(code)) throw new HttpError(404, `Không có nhân viên ${code}.`);

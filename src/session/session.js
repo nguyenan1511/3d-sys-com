@@ -1,5 +1,6 @@
 // Phiên người dùng trong cảnh 3D: thanh phiên, chọn/nhận chỗ (xem trước 3D), dụng cụ, ngồi/đứng,
 // nhãn chủ chỗ, danh sách online, avatar người khác. Mọi quyết định quyền do server trả về.
+import { WaitRoom } from '../ui/waitRoom.js';
 import * as THREE from 'three';
 import { api } from '../net/api.js';
 import { Realtime } from './realtime.js';
@@ -109,6 +110,7 @@ export class Session {
     this.renderSeatBox();
     sound.unlockOnGesture();
     this.rt.on('hello', m => {
+      this.waitRoom?.hide(); this._vf = undefined;   // (vào được: ẩn màn chờ; báo lại tầng đang xem)
       this.applySeats(m.seats, true);
       // kết nối lại: server không còn nhớ mình đang ngồi -> báo lại (server vẫn kiểm tra quyền)
       if (this.seated && !m.presence.some(p => p.key === this.key && p.seated === this.seated)) api('POST', `/api/seats/${encodeURIComponent(this.seated)}/sit`, {}).then(r => { if (!r.ok) { this.seated = null; this.renderSeatBox(); } });
@@ -126,6 +128,8 @@ export class Session {
     this.rt.on('gone', m => { this.profiles.delete(m.key); this.remote.remove(m.key); });
     this.rt.on('seats', m => this.applySeats(m.list, m.full));
     this.rt.on('kick', m => this.hooks.logout?.(m.reason));
+    // văn phòng đủ người: màn chờ (tự vào khi có chỗ — server gửi hello)
+    this.rt.on('full', m => { (this.waitRoom ||= new WaitRoom(this.rt)).show(m); });
     this.rt.on('employees', () => this.app.dashboard?.refresh());
     this.rt.connect();
     this.firstSteps();
@@ -409,6 +413,8 @@ export class Session {
     this.renderSeatBox();
   }
 
+  /** Tầng đang xem đổi (main.js): báo server — chỉ nhận vị trí người ở tầng đó (null = xem toàn cảnh, nhận hết). */
+  setViewFloor(f) { if (f === this._vf || !this.rt.connected) return; this._vf = f; this.rt.send({ t: 'view', f: f ?? -1 }); }
   focusDesk(deskId) {
     const d = this.app.model.deskById.get(deskId); if (!d) return;
     this.app.showFloor(d.floor, false);

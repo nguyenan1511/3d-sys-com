@@ -21,15 +21,36 @@ import { projectOfRoom, getProject } from './projects.js';
 export const roomKey = v => (typeof v === 'string' && /^p\d{1,9}$/.test(v) ? v : Number(v));
 import { WB_MAX_BYTES, WB_MAX_ELEMENTS, WB_MAX_ELEMENT_BYTES, WB_MAX_FILES_BYTES, WB_ID, byIndex, checkElement, checkFile, newer, parseBoard } from '../src/shared/whiteboard.js';
 
-const SAVE_MS = 2500;
+const SAVE_MS = 2500, BATCH_MS = 100;
 
 export class MeetHub {
   constructor(hub, meetings) {
     this.hub = hub; this.meetings = meetings; this.rooms = new Map();   // id → { members: Map<key, {display}>, els: Map<id, element>, sizes, bytes, files: Map<id, size>, fileBytes, dirty }
     this.reminded = new Set();   // `${id}:soon` / `${id}:start` / `${id}:end`
     this.timer = setInterval(() => this.tick(), 15000); this.timer.unref?.();
+    // nét vẽ + con trỏ gom theo phòng, gửi mỗi 100 ms thành MỘT gói cho mỗi người (thay vì mỗi nét / mỗi lần di chuột một gói
+    // tới từng người — trên 0,1 CPU, lệnh ghi socket chiếm phần lớn thời gian khi 10 người cùng vẽ)
+    this.outT = setInterval(() => this.flushOut(), BATCH_MS); this.outT.unref?.();
   }
-  close() { clearInterval(this.timer); return this.saveAll(); }
+  close() { clearInterval(this.timer); clearInterval(this.outT); return this.saveAll(); }
+  /** Gói gom của một phòng: { els: Map<idHình, { el, from: ws }>, ptrs: Map<key, ptr> }. */
+  out(r) { return r.out || (r.out = { els: new Map(), ptrs: new Map() }); }
+  flushOut() {
+    for (const [id, r] of this.rooms) {
+      const o = r.out; if (!o || (!o.els.size && !o.ptrs.size)) continue;
+      r.out = null;
+      const els = [...o.els.values()], ptrs = [...o.ptrs.values()], cache = new Map();
+      for (const k of r.members.keys()) for (const s of this.hub.sockets.get(k) || []) {
+        // không gửi lại nét của chính kết nối đó / con trỏ của chính người đó
+        const mine = els.some(x => x.from === s), hasPtr = o.ptrs.has(k), ck = mine || hasPtr ? s : 'all';
+        if (!cache.has(ck)) {
+          const e = els.filter(x => x.from !== s).map(x => x.el), p = ptrs.filter(x => x.key !== k);
+          cache.set(ck, e.length || p.length ? Buffer.from(JSON.stringify({ t: 'meet:batch', id, ...(e.length ? { elements: e } : {}), ...(p.length ? { ptrs: p } : {}) })) : null);
+        }
+        const buf = cache.get(ck); if (buf) this.hub.sendBuf(s, buf, !mine && !els.length);   // (gói chỉ có con trỏ: bỏ được khi mạng chậm)
+      }
+    }
+  }
   get store() { return this.hub.store; }
   sendKey(key, msg) { for (const s of this.hub.sockets.get(key) || []) this.hub.send(s, msg); }
   err(ws, msg) { this.hub.send(ws, { t: 'meetErr', msg }); }
@@ -91,7 +112,7 @@ export class MeetHub {
       if (!fits()) { error = 'Bảng vẽ đã đầy — xoá bớt hình để vẽ tiếp.'; continue; }
       this.put(r, el, size); accepted.push(el);
     }
-    if (accepted.length) { r.dirty = true; this.save(id); this.toRoom(id, { t: 'meet:wb', id, elements: accepted }, ws); }
+    if (accepted.length) { r.dirty = true; this.save(id); const o = this.out(r); for (const el of accepted) { o.els.delete(el.id); o.els.set(el.id, { el, from: ws }); } }
     if (error) this.err(ws, error);
   }
   /** Lấy chỗ: quên các hình đã xoá (xoá lâu nhất trước). */
@@ -103,7 +124,7 @@ export class MeetHub {
     if (r.files.has(f.id)) return undefined;
     const json = JSON.stringify(f);
     if (r.fileBytes + json.length > WB_MAX_FILES_BYTES) return `Bảng đã có quá nhiều ảnh (tối đa ${WB_MAX_FILES_BYTES / 1024 / 1024} MB) — xoá bớt ảnh trước.`;
-    await this.store.db.blobs.put(`wbf:${id}:${f.id}`, Buffer.from(json), 'application/json');
+    try { await this.store.db.blobs.put(`wbf:${id}:${f.id}`, Buffer.from(json), 'application/json'); } catch (e) { if (e.code === 'quota') return e.message; throw e; }
     r.files.set(f.id, json.length); r.fileBytes += json.length; r.dirty = true; this.save(id);
     return undefined;
   }
@@ -114,11 +135,11 @@ export class MeetHub {
   /** Con trỏ / vùng chọn của một người (toạ độ trong bản vẽ). */
   ptr(ws, id, m) {
     const r = this.rooms.get(id); if (!r?.members.has(ws.key)) return;
-    const now = Date.now(); if (now - (ws.lastPtr || 0) < 30) return; ws.lastPtr = now;
+    const now = Date.now(); if (now - (ws.lastPtr || 0) < 60) return; ws.lastPtr = now;   // (con trỏ tối đa ~16 lần/giây mỗi người)
     const num = v => typeof v === 'number' && Number.isFinite(v) && Math.abs(v) < 1e7;
     if (!num(m.x) || !num(m.y)) return;
     const selected = Array.isArray(m.selected) ? m.selected.filter(x => typeof x === 'string' && WB_ID.test(x)).slice(0, 200) : undefined;
-    this.toRoom(id, { t: 'meet:ptr', id, key: ws.key, x: m.x, y: m.y, tool: m.tool === 'laser' ? 'laser' : 'pointer', button: m.button === 'down' ? 'down' : 'up', selected }, ws);
+    this.out(r).ptrs.set(ws.key, { key: ws.key, x: m.x, y: m.y, tool: m.tool === 'laser' ? 'laser' : 'pointer', button: m.button === 'down' ? 'down' : 'up', selected });
   }
 
   async onMessage(ws, m) {

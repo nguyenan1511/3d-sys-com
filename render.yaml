@@ -20,3 +20,7 @@ services:
         sync: false          # chuỗi kết nối MongoDB Atlas — nơi lưu dữ liệu (mỗi bảng một collection); gói miễn phí bắt buộc có
       - key: TRUST_PROXY
         value: "true"
+      - key: MAX_ONLINE
+        value: "80"           # số nhân viên online tối đa cùng lúc (người tiếp theo vào hàng chờ) — nâng khi lên gói lớn hơn
+      - key: FILES_QUOTA_MB
+        value: "350"          # dung lượng file tải lên tối đa (Atlas M0: 512 MB cho cả database)

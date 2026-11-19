@@ -20,7 +20,32 @@ import { ProjectHub } from './projectHub.js';
 import * as att from './attendance.js';
 import { audit } from './db.js';
 const ACTS = new Set(['', 'wave', 'smoke', 'drink', 'phone', 'dance', 'quay', 'jump', 'tv', 'meet', ...PROP_ACTS]); // tv: ngồi sofa xem TV; meet: đang ngồi trong phòng họp; còn lại: dùng đồ vật
+// giới hạn cho mỗi kết nối (gói Render free 0,1 CPU: một tab lỗi / cố ý gửi dồn không được làm chậm cả văn phòng)
+const RATE = { perSec: 40, burst: 80, kickAfter: 400 };      // tin/giây; gửi dồn tối đa; bị bỏ quá số này thì ngắt
+const BIG_MSG = 64 * 1024;                                   // tin lớn hơn: chỉ nhận tin bảng vẽ phòng họp (meet:…)
+const MAX_TABS = 4;                                          // số kết nối tối đa của một tài khoản
+const BUF_SKIP = 1 << 20, BUF_KILL = 4 << 20;                // client mạng chậm: bỏ gói vị trí khi tồn > 1 MB, ngắt khi > 4 MB
 const okNum = (v, [a, b]) => typeof v === 'number' && Number.isFinite(v) && v >= a && v <= b;
+
+/**
+ * Cổng giới hạn số người online (MAX_ONLINE, mặc định 80) + hàng chờ công bằng: ai chờ trước vào trước. Người chờ giữ chỗ trong
+ * hàng bằng cách thử lại (~10 giây/lần); quá 45 giây không thử lại thì rời hàng. CEO không bị giới hạn.
+ */
+export class Gate {
+  constructor(hub) { this.hub = hub; this.waiting = new Map(); }   // key -> { since: số thứ tự đến, seen }
+  sweep(now = Date.now()) { for (const [k, w] of this.waiting) if (now - w.seen > 45e3) this.waiting.delete(k); }
+  waitingCount() { this.sweep(); return this.waiting.size; }
+  check(key) {
+    const max = this.hub.config.maxOnline || 80;
+    if (!key.startsWith('employee:') || this.hub.sockets.has(key)) { this.waiting.delete(key); return { ok: true }; }
+    const now = Date.now(); this.sweep(now);
+    let w = this.waiting.get(key); if (!w) this.waiting.set(key, w = { since: this.seq = (this.seq || 0) + 1, seen: now }); w.seen = now;   // (số thứ tự: hai người tới cùng mili-giây vẫn phân biệt trước sau)
+    let ahead = 0; for (const x of this.waiting.values()) if (x.since < w.since) ahead++;
+    const online = this.hub.onlineEmployees();
+    if (online + ahead < max) { this.waiting.delete(key); return { ok: true }; }
+    return { ok: false, pos: ahead + 1, online, max };
+  }
+}
 
 export class Hub {
   constructor(store, config) {
@@ -33,6 +58,7 @@ export class Hub {
     this.pending = new Map();   // code -> hạn "đang vào" sau khi đăng nhập, trước khi mở WS
     this.pendingSeat = new Map(); // key -> chỗ đã được duyệt ngồi trước khi WS kịp kết nối
     this.dirty = new Set();
+    this.gate = new Gate(this);
     this.timer = setInterval(() => this.flush(), 160);   // (≈ nhịp client gửi vị trí: 6 lần/giây)
     this.heartbeat = setInterval(() => this.sweep(), 15000);
     // số nhân viên online mỗi phút, giữ 6 giờ (biểu đồ "Đang online" ở bảng quản trị; mất khi server khởi động lại)
@@ -64,6 +90,8 @@ export class Hub {
       const ticket = new URL(req.url, 'http://x').searchParams.get('ticket');
       const sess = sessionFromCookie(this.store.db, ticket ? redeemWsTicket(ticket) : req.headers.cookie);
       if (!sess) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
+      const key = sess.kind === 'admin' ? `admin:${sess.subject}` : `employee:${sess.subject}`;
+      if ((this.sockets.get(key)?.size || 0) >= MAX_TABS) { socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n'); socket.destroy(); return; }
       this.wss.handleUpgrade(req, socket, head, ws => this.onConnect(ws, sess));
     });
   }
@@ -76,7 +104,10 @@ export class Hub {
 
   onConnect(ws, sess) {
     const id = this.identity(sess);
-    ws.sess = sess; ws.key = id.key; ws.alive = true;
+    // quá số người cho phép: báo vị trí trong hàng chờ rồi đóng (client tự thử lại — src/session/realtime.js)
+    const g = this.gate.check(id.key);
+    if (!g.ok) { ws.send(JSON.stringify({ t: 'full', pos: g.pos, online: g.online, max: g.max, retryMs: 10000 })); setTimeout(() => ws.close(4013, 'full'), 50); return; }
+    ws.sess = sess; ws.key = id.key; ws.alive = true; ws.viewF = -1;
     if (!this.sockets.has(id.key)) this.sockets.set(id.key, new Set());
     const first = this.sockets.get(id.key).size === 0;
     this.sockets.get(id.key).add(ws);
@@ -118,7 +149,14 @@ export class Hub {
   }
 
   onMessage(ws, buf) {
+    // giới hạn tần suất (thùng token) + kích thước; gửi dồn quá lâu thì ngắt kết nối
+    const now = Date.now(), b = ws.rl || (ws.rl = { t: now, n: RATE.burst });
+    b.n = Math.min(RATE.burst, b.n + (now - b.t) * RATE.perSec / 1000); b.t = now;
+    if (b.n < 1) { if ((ws.drops = (ws.drops || 0) + 1) > RATE.kickAfter) ws.close(1008, 'flood'); return; }
+    b.n--; ws.drops = 0;
+    if (buf.length > BIG_MSG && !/^\s*\{\s*"t"\s*:\s*"meet:/.test(String(typeof buf === 'string' ? buf.slice(0, 32) : buf.subarray(0, 32)))) return;
     let m; try { m = JSON.parse(buf); } catch { return; }
+    if (m && m.t === 'view') { const f = Number.isInteger(m.f) && m.f >= 0 && m.f < 16 ? m.f : -1; if (f !== ws.viewF) { ws.viewF = f; if (f >= 0) this.sendFloor(ws, f); } return; }
     if (m && m.t === 'blind') return this.onBlind(ws, m);
     if (m && m.t === 'chat') return this.onChat(ws, m);
     if (m && typeof m.t === 'string' && m.t.startsWith('bil:')) return this.bil.onMessage(ws, m);
@@ -151,7 +189,8 @@ export class Hub {
     const msg = postMessage(this.store, this.actorOf(ws), ws.key, p ? p.display : ws.key, ch, m.body);
     if (!msg) return;
     // chỉ gửi cho người được đọc kênh đó
-    for (const [key, set] of this.sockets) for (const s of set) if (s.readyState === 1 && canUseChannel(this.store, this.actorOf(s), key, ch)) s.send(JSON.stringify({ t: 'chat', msg }));
+    const out = Buffer.from(JSON.stringify({ t: 'chat', msg }));
+    for (const [key, set] of this.sockets) for (const s of set) if (s.readyState === 1 && canUseChannel(this.store, this.actorOf(s), key, ch)) this.sendBuf(s, out);
     if (ch.startsWith('proj:')) this.proj.onChat(msg);   // (@nhắc tên trong chat dự án)
   }
   // ---------- loa: phát/điều khiển qua REST (server/routes/music.js); ở đây chỉ phát trạng thái ----------
@@ -193,13 +232,45 @@ export class Hub {
   // Gói vị trí gửi ~8 lần/giây cho mọi người: chỉ gồm phần thay đổi liên tục (toạ độ làm tròn cm, bỏ trường rỗng). Hồ sơ
   // (tên, nhân vật, phòng ban) chỉ kèm lần đầu người đó có vị trí hoặc khi đổi (p.pv tăng) — người vào sau đã có trong hello.
   // (100 người, 1/3 đang đi lại: từ ~85 KB/s xuống ~15 KB/s mỗi người nhận)
+  // Chỉ gửi vị trí người ở CÙNG TẦNG đang xem (client báo { t: 'view', f }; tầng khác không vẽ): người đổi tầng hoặc đổi hồ sơ
+  // thì gửi cho tất cả; CEO và người xem toàn cảnh (f = -1) nhận hết. Mỗi tầng mã hoá JSON một lần. (băng thông ~1/3 khi chia đều 3 tầng)
   flush() {
-    if (this.onlineDirty) { this.onlineDirty = false; this.broadcast({ t: 'online', list: this.onlineList() }); }
+    // danh sách online: gộp tối đa 1 lần/giây (giờ vào ca 80 người vào trong 10 giây: gửi cả danh sách cho mọi người mỗi nhịp
+    // 160 ms là O(n²) — chiếm gần hết 0,1 CPU của gói free, người vào sau phải chờ 9 giây)
+    const t = Date.now();
+    if (this.onlineDirty && t - (this.onlineAt || 0) >= 1000) { this.onlineDirty = false; this.onlineAt = t; this.broadcast({ t: 'online', list: this.onlineList() }); }
     if (!this.dirty.size) return;
-    const list = [];
-    for (const k of this.dirty) { const p = this.presence.get(k); if (p) list.push(this.wire(p)); }
+    const items = new Map();
+    for (const k of this.dirty) {
+      const p = this.presence.get(k); if (!p) continue;
+      const all = p.wf !== p.f || p.sentPv !== (p.pv || 0); p.wf = p.f;
+      items.set(k, { o: this.wire(p), f: p.f, all });
+    }
     this.dirty.clear();
-    if (list.length) this.broadcast({ t: 'positions', list });
+    if (!items.size) return;
+    const cache = new Map(), payload = vf => {
+      if (!cache.has(vf)) { const list = [...items.values()].filter(i => vf < 0 || i.all || i.f === vf).map(i => i.o); cache.set(vf, list.length ? Buffer.from(JSON.stringify({ t: 'positions', list })) : null); }
+      return cache.get(vf);
+    };
+    for (const set of this.sockets.values()) for (const ws of set) {
+      if (ws.readyState !== 1) continue;
+      const vf = ws.sess.kind === 'admin' ? -1 : ws.viewF ?? -1, buf = payload(vf);
+      if (buf) this.sendBuf(ws, buf, true);
+      const own = vf >= 0 && items.get(ws.key);   // (vị trí của chính mình — ghế do server xếp — luôn gửi, kể cả đang xem tầng khác)
+      if (own && !own.all && own.f !== vf) this.sendBuf(ws, Buffer.from(JSON.stringify({ t: 'positions', list: [own.o] })), true);
+    }
+  }
+  /** Đổi tầng đang xem: gửi ngay vị trí mọi người ở tầng đó (trong lúc xem tầng khác không nhận cập nhật của họ). */
+  sendFloor(ws, f) {
+    const list = [...this.presence.values()].filter(p => p.x !== null && p.f === f && p.key !== ws.key);
+    if (list.length) this.send(ws, { t: 'positions', list });
+  }
+  /** Gửi một gói đã mã hoá; client mạng chậm: bỏ gói có thể bỏ (vị trí) khi tồn đọng, ngắt khi tồn quá nhiều (tự nối lại → hello). */
+  sendBuf(ws, buf, droppable = false) {
+    const q = ws.bufferedAmount;
+    if (q > BUF_KILL) { ws.terminate(); return; }
+    if (droppable && q > BUF_SKIP) return;
+    ws.send(buf, { binary: false });
   }
   wire(p) {
     if (p.sentPv !== (p.pv || 0)) { p.sentPv = p.pv || 0; return p; }
@@ -253,9 +324,9 @@ export class Hub {
   kickSessions(key, reason) { for (const ws of this.sockets.get(key) || []) this.kickSocket(ws, reason); }
   kickSocket(ws, reason) { this.send(ws, { t: 'kick', reason }); setTimeout(() => ws.close(4001, 'kicked'), 50); }
 
-  send(ws, msg) { if (ws.readyState === 1) ws.send(JSON.stringify(msg)); }
+  send(ws, msg) { if (ws.readyState === 1) this.sendBuf(ws, Buffer.from(JSON.stringify(msg))); }
   broadcast(msg, filter) {
     const s = Buffer.from(JSON.stringify(msg));   // (mã hoá một lần cho mọi người nhận, gửi dạng khung văn bản)
-    for (const set of this.sockets.values()) for (const ws of set) if (ws.readyState === 1 && (!filter || filter(ws))) ws.send(s, { binary: false });
+    for (const set of this.sockets.values()) for (const ws of set) if (ws.readyState === 1 && (!filter || filter(ws))) this.sendBuf(ws, s);
   }
 }

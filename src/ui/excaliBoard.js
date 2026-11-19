@@ -12,7 +12,7 @@ import { spaceBase } from './space.js';
 import { api } from '../net/api.js';
 import { newer, WB_MAX_ELEMENT_BYTES } from '../shared/whiteboard.js';
 
-const FLUSH_MS = 50, PTR_MS = 40, BATCH = 900_000;
+const FLUSH_MS = 100, PTR_MS = 66, BATCH = 900_000;   // (gói Render free 0,1 CPU: nét vẽ gửi 10 lần/giây, con trỏ ~15 lần/giây — thử tải 10 người vẽ liên tục)
 let lib = null;
 /** Tải React + Excalidraw (một lần). */
 export function loadExcalidraw() {

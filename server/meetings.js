@@ -18,6 +18,8 @@ export const MAX_INVITEES = 20, PROJECT_INVITEES = 50, FILE_MAX = 5 * 1024 * 102
 const VN = 7 * 3600e3;
 /** Giờ trong ngày (giờ Việt Nam, đơn vị giờ thập phân) của một mốc thời gian. */
 const vnHour = t => (((t + VN) % 86400e3) + 86400e3) % 86400e3 / 3600e3;
+/** Hết hạn mức dung lượng file tổng (server/blobs.js QuotaBlobs). */
+export function quotaErr(db) { const u = db.blobs.usage?.() || { used: 0, max: 0 }, mb = x => Math.round(x / 1048576); return new HttpError(507, `Bộ nhớ lưu file của công ty đã đầy (${mb(u.used)}/${mb(u.max)} MB). Nhờ CEO hoặc trưởng dự án xoá bớt tài liệu cũ rồi thử lại.`, { code: 'quota' }); }
 export const keyOf = a => a.kind === 'admin' ? `admin:${a.username}` : `employee:${a.code}`;
 
 /** Loại file cho phép (tài liệu văn phòng, ảnh, PDF, văn bản). */
@@ -186,9 +188,10 @@ export class Meetings {
     if (buf.length > FILE_MAX) throw new HttpError(413, 'Mỗi file tối đa 5 MB.', { code: 'too_large' });
     const used = this.db.meeting_files.by('meeting_id', m.id).reduce((s, f) => s + f.size, 0);
     if (used + buf.length > MEETING_FILES_MAX) throw new HttpError(413, 'Tài liệu của cuộc họp này đã đủ 30 MB.', { code: 'too_large' });
+    if (this.db.blobs.room && !this.db.blobs.room(buf.length)) throw quotaErr(this.db);
     const fid = this.db.meeting_files.insert({ meeting_id: m.id, name: clean, type: TYPES[ext], size: buf.length, by: key, by_name: this.names(key), ts: Date.now(), kind: kind === 'board' ? 'board' : 'file' });
     try { await this.db.blobs.put(`file:${fid}`, buf, TYPES[ext]); }
-    catch (e) { this.db.meeting_files.del(fid); throw new HttpError(503, 'Chưa lưu được file, thử lại sau.', { code: 'store_failed', detail: e.message }); }
+    catch (e) { this.db.meeting_files.del(fid); if (e.code === 'quota') throw quotaErr(this.db); throw new HttpError(503, 'Chưa lưu được file, thử lại sau.', { code: 'store_failed', detail: e.message }); }
     audit(this.db, key, 'meeting.file.add', String(m.id), { name: clean, size: buf.length });
     return { m, file: this.files(m.id).find(f => f.id === fid) };
   }

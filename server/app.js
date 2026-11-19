@@ -4,6 +4,7 @@ import { compressedStatic } from './static.js';
 import path from 'path';
 import { config as defaultConfig, ROOT } from './config.js';
 import { openData, audit } from './db.js';
+import { QuotaBlobs } from './blobs.js';
 import { Store, HttpError } from './store.js';
 import { Hub } from './realtime.js';
 import { requestLog, securityHeaders, rateLimit } from './http.js';
@@ -32,6 +33,18 @@ const DATA_FILE = /(^|\/)(layout|employees|equipment|appearance)\.json$/;
 
 export async function createApp(config = defaultConfig) {
   const db = await openData(config);   // (MONGODB_URI: nạp các collection từ MongoDB; lần đầu tự chuyển dữ liệu SQLite cũ sang)
+  db.blobs = await new QuotaBlobs(db.blobs, (config.filesQuotaMb || 350) * 1048576).init();   // (hạn mức dung lượng file tổng)
+  // dọn dữ liệu cũ mỗi ngày (và lúc khởi động): chat quá CHAT_KEEP_DAYS, nhật ký quá AUDIT_KEEP_DAYS, phiên hết hạn, lượt đăng nhập sai cũ
+  const prune = () => { try {
+    const now = Date.now();
+    db.tx(() => {
+      db.chat_messages.delWhere(r => r.ts < now - (config.chatKeepDays || 90) * 86400e3);
+      db.audit.delWhere(r => r.ts < now - (config.auditKeepDays || 365) * 86400e3);
+      db.sessions.delWhere(r => r.expires_at < now);
+      db.login_failures.delWhere(r => r.ts < now - 24 * 3600e3);
+    });
+  } catch (e) { console.warn('[dọn dữ liệu]', e.message); } };
+  prune(); const pruneTimer = setInterval(prune, 24 * 3600e3); pruneTimer.unref?.();
   // tình trạng lưu dữ liệu (thẻ Cấu hình ở bảng quản trị, /health)
   const dataStatus = () => { const st = db.status(); return { enabled: db.kind === 'mongo', kind: db.kind, restoredAt: db.loadedAt || null, lastSaveAt: st.lastWriteAt || null, pending: st.pending || 0, error: st.error || null }; };
   const store = new Store(db, config);
@@ -197,7 +210,7 @@ export async function createApp(config = defaultConfig) {
   api.post('/admin/import', needAdmin, (req, res) => res.json({ ok: true, ...store.importCsv(req.actor, req.body?.csv) }));
   // tổng quan cho bảng quản trị: số người online theo phút (6 giờ), tình trạng server và lưu MongoDB
   api.get('/admin/stats', needAdmin, (_req, res) => res.json({ online: hub.hist, now: hub.onlineEmployees(), version: API_VERSION, uptimeSec: Math.round(process.uptime()),
-    mongo: dataStatus() }));
+    mongo: dataStatus(), files: db.blobs.usage?.() || null, maxOnline: config.maxOnline || 80, waiting: hub.gate.waitingCount() }));
   api.get('/admin/audit', needAdmin, (req, res) => res.json({ audit: store.auditLog(+req.query.limit || 200) }));
 
   /** Vé mở WebSocket thẳng tới server (khi giao diện đặt ở tên miền khác, ví dụ Vercel). */

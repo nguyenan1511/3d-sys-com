@@ -128,7 +128,8 @@ describe('phòng họp thời gian thực', () => {
   function fakeHub() {
     const sent = new Map(), sockets = new Map();
     const sock = key => { const ws = { key, readyState: 1 }; sockets.set(key, new Set([ws])); return ws; };
-    return { store, sent, sockets, sock, presence: new Map(), send: (ws, msg) => { if (!sent.has(ws.key)) sent.set(ws.key, []); sent.get(ws.key).push(msg); }, broadcast() {} };
+    const send = (ws, msg) => { if (!sent.has(ws.key)) sent.set(ws.key, []); sent.get(ws.key).push(msg); };
+    return { store, sent, sockets, sock, presence: new Map(), send, sendBuf: (ws, buf) => send(ws, JSON.parse(String(buf))), broadcast() {} };
   }
   it('chỉ người được mời vào phòng (từ 10 phút trước); bảng vẽ Excalidraw ghép theo phiên bản, con trỏ, ảnh; chặn vị trí người ngoài', async () => {
     const m = M.book(emp('1002'), { title: 'Sprint', start: DAY9, end: DAY9 + 2 * SLOT, invitees: ['employee:1003'] });
@@ -144,15 +145,20 @@ describe('phòng họp thời gian thực', () => {
     // bảng vẽ Excalidraw: hình ghép theo phiên bản (mới hơn thì thay, cũ hơn thì bỏ); người khác nhận; sai định dạng bỏ qua
     const el = (id, version, extra = {}) => ({ id, type: 'rectangle', version, versionNonce: 5, index: `a${id.length}`, x: 0, y: 0, width: 10, height: 10, ...extra });
     await mh.onMessage(guest, { t: 'meet:wb', id: m.id, elements: [el('r1', 1), el('bad id!', 1), { id: 'x', type: 'selection', version: 1, versionNonce: 1 }] });
+    mh.flushOut();   // (server gom nét vẽ + con trỏ theo phòng, gửi mỗi 100 ms một gói meet:batch)
     await mh.onMessage(host, { t: 'meet:wb', id: m.id, elements: [el('r1', 3, { x: 50 }), el('t22', 1, { type: 'text', text: 'Chào' })] });
     await mh.onMessage(guest, { t: 'meet:wb', id: m.id, elements: [el('r1', 2, { x: 99 })] });   // (cũ hơn bản máy chủ: bỏ)
+    mh.flushOut();
     const r = mh.rooms.get(m.id);
     expect([...r.els.values()].map(e => [e.id, e.version, e.x])).toEqual([['r1', 3, 50], ['t22', 1, 0]]);
-    expect(hub.sent.get('employee:1002').some(x => x.t === 'meet:wb' && x.elements.some(e => e.id === 'r1' && e.version === 1))).toBe(true);
-    expect(hub.sent.get('employee:1002').some(x => x.t === 'meet:wb' && x.elements.some(e => e.version === 3))).toBe(false);   // (không gửi lại cho chính người vẽ)
+    expect(hub.sent.get('employee:1002').some(x => x.t === 'meet:batch' && x.elements?.some(e => e.id === 'r1' && e.version === 1))).toBe(true);
+    expect(hub.sent.get('employee:1002').some(x => x.t === 'meet:batch' && x.elements?.some(e => e.version === 3))).toBe(false);   // (không gửi lại cho chính người vẽ)
+    expect(hub.sent.get('employee:1003').some(x => x.t === 'meet:batch' && x.elements?.some(e => e.id === 'r1' && e.version === 3))).toBe(true);
     // con trỏ: chuyển cho người khác (không gửi cho người ngoài phòng)
     await mh.onMessage(host, { t: 'meet:ptr', id: m.id, x: 12.5, y: -4, tool: 'pointer', button: 'up', selected: ['r1'] });
-    expect(hub.sent.get('employee:1003').at(-1)).toMatchObject({ t: 'meet:ptr', key: 'employee:1002', x: 12.5, selected: ['r1'] });
+    mh.flushOut();
+    expect(hub.sent.get('employee:1003').at(-1)).toMatchObject({ t: 'meet:batch', ptrs: [{ key: 'employee:1002', x: 12.5, selected: ['r1'] }] });
+    expect(hub.sent.get('employee:1002').some(x => x.ptrs?.some(p => p.key === 'employee:1002'))).toBe(false);   // (không nhận lại con trỏ của chính mình)
     await mh.onMessage(out, { t: 'meet:wb', id: m.id, elements: [el('zz', 1)] }); expect(r.els.has('zz')).toBe(false);
     // ảnh dán lên bảng: chỉ người trong phòng, đúng loại ảnh
     expect(await mh.addFile('employee:1003', m.id, { id: 'f1', mimeType: 'image/svg+xml', dataURL: 'data:image/svg+xml;base64,AA==' })).toMatch('PNG');

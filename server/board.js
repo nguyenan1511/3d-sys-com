@@ -142,7 +142,8 @@ export async function setImage(store, actor, who, id, { data, type } = {}) {
   const buf = Buffer.from(data, 'base64');
   if (!buf.length || !magic.every((b, i) => buf[i] === b) || (type === 'image/webp' && buf.toString('latin1', 8, 12) !== 'WEBP')) throw new HttpError(400, 'File không phải ảnh hợp lệ.', { code: 'bad_type' });
   if (buf.length > IMAGE_MAX) throw new HttpError(413, 'Ảnh tối đa 1,5 MB.', { code: 'too_large' });
-  await store.db.blobs.put(`ann:${id}`, buf, type);
+  try { await store.db.blobs.put(`ann:${id}`, buf, type); }
+  catch (e) { if (e.code === 'quota') throw new HttpError(507, e.message, { code: 'quota' }); throw e; }
   store.db.announcements.update(id, { image_v: Date.now(), updated_at: Date.now() });
   audit(store.db, who.key, 'board.image', String(id), { size: buf.length });
   return view(store.db.announcements.get(id));

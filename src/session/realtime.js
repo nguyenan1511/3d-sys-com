@@ -19,14 +19,18 @@ export class Realtime {
     }
     const ws = this.ws = new WebSocket(url);
     ws.onopen = () => { this.retry = 0; this.emit('open'); };
-    ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } this.emit(m.t, m); };
+    ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.t === 'full') this.full = m; else if (m.t === 'hello') this.full = null; this.emit(m.t, m); };
     ws.onclose = e => {
       this.emit('close', e);
       if (this.closed || e.code === 4001) return;
+      // văn phòng đủ người (server/realtime.js Gate): thử lại sau ~10 giây để giữ chỗ trong hàng chờ (không tăng dần thời gian chờ)
+      if (e.code === 4013 && this.full) { const w = (this.full.retryMs || 10000) * (0.8 + Math.random() * 0.4); this.nextTry = Date.now() + w; this._t = setTimeout(() => this.connect(), w); return; }
       const wait = Math.min(10000, 500 * 2 ** this.retry++);
       setTimeout(() => this.connect(), wait);
     };
   }
+  /** Thử vào lại ngay (nút "Thử lại" trên màn chờ). */
+  retryNow() { if (this.connected || !this.full) return; clearTimeout(this._t); this.connect(); }
   get connected() { return this.ws && this.ws.readyState === 1; }
   /** Gửi một tin bất kỳ (karaoke, bắt tay WebRTC…). */
   send(obj) { if (this.connected) this.ws.send(JSON.stringify(obj)); }

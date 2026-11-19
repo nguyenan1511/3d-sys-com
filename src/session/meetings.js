@@ -31,6 +31,8 @@ export class Meetings {
     rt.on('meet:members', m => this.room?.members(m.members));
     rt.on('meet:wb', m => { if (m.id === this.inRoom) this.room?.wb?.receive(m.elements); });
     rt.on('meet:ptr', m => { if (m.id === this.inRoom) this.room?.wb?.peer(m); });
+    // gói gom 100 ms của server (server/meetHub.js flushOut): các hình vừa đổi + con trỏ của mọi người trong phòng
+    rt.on('meet:batch', m => { if (m.id !== this.inRoom || !this.room?.wb) return; if (m.elements?.length) this.room.wb.receive(m.elements); for (const p of m.ptrs || []) this.room.wb.peer({ ...p, id: m.id }); });
     rt.on('meet:rtc', m => { if (m.id === this.inRoom) this.room?.call?.signal(m.from, m.data); });   // (họp trực tuyến: bắt tay WebRTC)
     rt.on('meet:files', () => this.room?.loadFiles());
     rt.on('meet:left', m => { if (this.inRoom === m.id) this.closeRoom(); });

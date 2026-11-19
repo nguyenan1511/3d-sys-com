@@ -10,7 +10,7 @@
 import { HttpError } from './store.js';
 import { audit } from './db.js';
 import { parseBoard } from '../src/shared/whiteboard.js';
-import { ALLOWED_EXT, FILE_MAX, keyOf } from './meetings.js';
+import { ALLOWED_EXT, FILE_MAX, keyOf, quotaErr } from './meetings.js';
 
 export const PROJECT_COLORS = ['#ef476f', '#ff8a5b', '#ffd166', '#06d6a0', '#118ab2', '#7b61ff', '#2b2d42', '#8d6e63'];
 export const STATUSES = ['todo', 'doing', 'done'];
@@ -348,9 +348,10 @@ export class Projects {
     if (buf.length > FILE_MAX) throw new HttpError(413, 'Mỗi file tối đa 5 MB.', { code: 'too_large' });
     const used = this.db.project_files.by('project_id', p.id).reduce((s, f) => s + f.size, 0);
     if (used + buf.length > PROJECT_FILES_MAX) throw new HttpError(413, 'Tài liệu của dự án đã đủ 200 MB — xoá bớt file cũ.', { code: 'too_large' });
+    if (this.db.blobs.room && !this.db.blobs.room(buf.length)) throw quotaErr(this.db);
     const fid = this.db.project_files.insert({ project_id: p.id, name: nm, type: TYPES[ext], size: buf.length, by: key, by_name: this.names(key), ts: Date.now(), kind: kind === 'board' ? 'board' : 'file' });
     try { await this.db.blobs.put(`pfile:${fid}`, buf, TYPES[ext]); }
-    catch (e) { this.db.project_files.del(fid); throw new HttpError(503, 'Chưa lưu được file, thử lại sau.', { code: 'store_failed', detail: e.message }); }
+    catch (e) { this.db.project_files.del(fid); if (e.code === 'quota') throw quotaErr(this.db); throw new HttpError(503, 'Chưa lưu được file, thử lại sau.', { code: 'store_failed', detail: e.message }); }
     this.touch(p.id);
     audit(this.db, key, 'project.file.add', String(p.id), { name: nm, size: buf.length });
     return { p, file: this.files(p.id).find(f => f.id === fid) };

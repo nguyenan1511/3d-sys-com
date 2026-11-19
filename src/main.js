@@ -736,6 +736,7 @@ export async function startApp(me, hooks = {}) {
     for (const a of sim.agents) if (a.visible) list.push({ key: 'sim:' + a.id, name: a.emp.name, dept: a.emp.department, x: a.x, y: a.y, z: a.z, f: a.onStair ? null : a.f, sit: a.sit });
     const fl = rig.follow ? (rig.follow.onStair ? null : rig.follow.f) : cutFloor;
     tags.update(list, fl, camera.position, model.cs || 1); tags.place(camera);
+    if (!(rig.follow && rig.follow.onStair)) session.setViewFloor?.(fl);   // (đang lên cầu thang: giữ tầng cũ)
   }
   // nút "Về nhân vật": chỉ hiện khi nhân vật của mình không còn ở giữa màn hình (camera đang xem chỗ khác)
   const _pc = new THREE.Vector3();
