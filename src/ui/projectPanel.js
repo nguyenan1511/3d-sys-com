@@ -28,6 +28,44 @@ function dueInfo(t, done) {
   return { label: cls === 'over' ? `Quá hạn · ${label}` : label, cls };
 }
 
+/** Logo dự án (ảnh vuông do Trưởng dự án tải lên) hoặc chữ cái đầu trên nền màu dự án. */
+const logoUrl = p => `/api/projects/${p.id}/logo?v=${p.logoV}`;
+export const projectMark = (p, cls = '') => p?.logoV ? `<span class="pj-mark has-logo ${cls}" style="--pc:${esc(p.color)}"><img src="${logoUrl(p)}" alt="" loading="lazy" decoding="async"></span>`
+  : `<span class="pj-mark ${cls}" style="--pc:${esc(p?.color || '#8a8ca3')}">${esc(String(p?.name || '?').trim().slice(0, 1).toUpperCase())}</span>`;
+// ---- ghi chú kiểu Notes (macOS): dòng đầu là tiêu đề, ☐/☑ danh sách việc, • gạch đầu dòng ----
+const LIST_RE = /^(☐ |☑ |• |- )/;
+const lines = b => String(b || '').split('\n');
+const noteTitle = n => (lines(n.body).find(l => l.trim()) || '').replace(LIST_RE, '').trim().slice(0, 120) || 'Ghi chú mới';
+const notePreview = n => { const ls = lines(n.body).filter(l => l.trim()); return (ls[1] || '').replace(LIST_RE, '').trim().slice(0, 140) || 'Không có thêm nội dung'; };
+const VN = { timeZone: 'Asia/Ho_Chi_Minh' };
+const noteWhen = t => { const d0 = vnDay(Date.now()), d = vnDay(t); return d === d0 ? hm(t) : d === d0 - 86400e3 ? 'Hôm qua' : d0 - d < 7 * 86400e3 ? new Intl.DateTimeFormat('vi-VN', { ...VN, weekday: 'long' }).format(t) : new Intl.DateTimeFormat('vi-VN', { ...VN, day: '2-digit', month: '2-digit', year: '2-digit' }).format(t); };
+const noteGroup = t => { const d0 = vnDay(Date.now()), d = vnDay(t), k = (d0 - d) / 86400e3; return k < 1 ? 'Hôm nay' : k < 2 ? 'Hôm qua' : k < 7 ? '7 ngày qua' : k < 30 ? '30 ngày qua' : new Intl.DateTimeFormat('vi-VN', { ...VN, month: 'long', year: 'numeric' }).format(t).replace(/^./, c => c.toUpperCase()); };
+const noteLong = t => new Intl.DateTimeFormat('vi-VN', { ...VN, day: 'numeric', month: 'long', year: 'numeric' }).format(t) + ' lúc ' + hm(t);
+/** Vị trí con trỏ (số ký tự tính từ đầu) trong ô soạn chữ thuần, và đặt lại. */
+function caretOf(el) { const s = getSelection(); if (!s.rangeCount || !el.contains(s.anchorNode)) return null; const r = s.getRangeAt(0), pre = r.cloneRange(); pre.selectNodeContents(el); pre.setEnd(r.startContainer, r.startOffset); return pre.toString().length; }
+function selectChars(el, a, b) {
+  const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT); let n, pos = 0; const r = document.createRange(); let started = false;
+  while ((n = w.nextNode())) { const len = n.length; if (!started && a <= pos + len) { r.setStart(n, a - pos); started = true; } if (started && b <= pos + len) { r.setEnd(n, b - pos); break; } pos += len; }
+  if (!started) { r.selectNodeContents(el); r.collapse(false); }
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+}
+/** Ảnh người dùng chọn → vuông size×size (cắt giữa), WebP (hoặc PNG nếu trình duyệt không xuất được WebP), base64. */
+async function squareImage(file, size) {
+  const bmp = await createImageBitmap(file), k = Math.min(bmp.width, bmp.height);
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+  g.drawImage(bmp, (bmp.width - k) / 2, (bmp.height - k) / 2, k, k, 0, 0, size, size); bmp.close?.();
+  let blob = await new Promise(r => c.toBlob(r, 'image/webp', 0.9));
+  if (!blob || blob.type !== 'image/webp') blob = await new Promise(r => c.toBlob(r, 'image/png'));
+  const buf = new Uint8Array(await blob.arrayBuffer()); let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return { type: blob.type, data: btoa(bin) };
+}
+/** Chèn chữ thuần tại con trỏ (giữ hoàn tác ⌘Z): xuống dòng bằng insertLineBreak — insertText bỏ mất "\n" trong ô plaintext-only. */
+function insPlain(t) {
+  String(t).split('\n').forEach((part, i) => { if (i) document.execCommand('insertLineBreak'); if (part) document.execCommand('insertText', false, part); });
+}
+const readNote = el => (el.querySelector('*') ? el.innerText : el.textContent).replace(/\u00a0/g, ' ');
+
 export class ProjectPanel {
   constructor(ctl) { this.c = ctl; this.s = ctl.s; this.el = null; this.filter = 'active'; this.cur = null; this.tab = 'tasks'; this.mineOnly = false; this.people = null; this.chat = null; }
   get body() { return this.el?.querySelector('.pj-body'); }
@@ -83,7 +121,7 @@ export class ProjectPanel {
   }
   close() {
     const el = this.el; if (!el) return;
-    this.saveNotesNow(); this.wb?.destroy(); this.wb = null;
+    this.saveNotesNow(); this.dropIfEmpty(); this.wb?.destroy(); this.wb = null;
     this.el = null; this.cur = null; this.view = null; this.taskOpen = null; this.drag = null;
     window.removeEventListener('keydown', this._key, true); overlayOff();
     el.classList.remove('show'); setTimeout(() => el.remove(), 200);
@@ -104,7 +142,7 @@ export class ProjectPanel {
     const box = this.el?.querySelector('.ds-scroll'); if (!box) return;
     const q = this.q || '', match = p => !q || p.name.toLowerCase().includes(q) || (p.description || '').toLowerCase().includes(q);
     const act = this.c.list.filter(p => p.status === 'active' && match(p)), arch = this.c.list.filter(p => p.status === 'archived' && match(p));
-    const item = p => `<button type="button" class="ds-item${p.id === this.pid ? ' on' : ''}" data-p="${p.id}" style="--pc:${esc(p.color)}" title="${esc(p.name)}"><i class="ds-dot"></i><span>${esc(p.name)}</span>${this.c.unread(p) ? '<i class="pj-dot" title="Tin nhắn mới"></i>' : ''}${p.counts.overdue && p.counts.mine ? `<em class="ds-n over" title="Việc của bạn quá hạn">${p.counts.overdue}</em>` : p.counts.mine ? `<em class="ds-n" title="Việc của bạn">${p.counts.mine}</em>` : ''}</button>`;
+    const item = p => `<button type="button" class="ds-item${p.id === this.pid ? ' on' : ''}" data-p="${p.id}" style="--pc:${esc(p.color)}" title="${esc(p.name)}">${p.logoV ? projectMark(p, 'xs') : '<i class="ds-dot"></i>'}<span>${esc(p.name)}</span>${this.c.unread(p) ? '<i class="pj-dot" title="Tin nhắn mới"></i>' : ''}${p.counts.overdue && p.counts.mine ? `<em class="ds-n over" title="Việc của bạn quá hạn">${p.counts.overdue}</em>` : p.counts.mine ? `<em class="ds-n" title="Việc của bạn">${p.counts.mine}</em>` : ''}</button>`;
     this.put(box, `<div class="ds-sec">Đang làm <em>${act.length}</em></div>${act.map(item).join('') || `<p class="ds-none">${q ? 'Không có dự án khớp.' : 'Chưa có dự án nào.'}</p>`}
       ${arch.length ? `<button type="button" class="ds-sec ds-toggle" data-s="arch" aria-expanded="${!!this.showArch || !!q}">${icon('chevDown', 13)} Đã lưu trữ <em>${arch.length}</em></button>${this.showArch || q ? arch.map(item).join('') : ''}` : ''}`);
     this.el.querySelector('.ds-home').classList.toggle('on', this.view === 'list');
@@ -117,7 +155,7 @@ export class ProjectPanel {
     if (this.view === 'project' && this.cur) {
       const p = this.p, open = this.cur.tasks.filter(t => t.status !== 'done').length, here = (this.cur.inRoom || []).length;
       this.put(h, `<button type="button" class="sx-icon pj-hb" data-h="back" aria-label="Tất cả dự án" title="Tất cả dự án">${icon('chevLeft', 18)}</button>
-        <span class="pj-hic" style="--pc:${esc(p.color)}">${esc(p.name.trim().slice(0, 1).toUpperCase())}</span>
+        ${projectMark(p, 'pj-hic')}
         <div><h2 id="pjTitle">${esc(p.name)}${p.status === 'archived' ? ' <em class="pj-tag">Đã lưu trữ</em>' : ''}</h2>
           <p>${p.description ? `${esc(p.description)} · ` : ''}${p.members.length} thành viên · ${open} việc đang mở${here ? ` · <b class="pj-live">${here} người trong phòng</b>` : ''}</p></div>
         <span class="mp-avs pj-havs">${p.members.slice(0, 5).map(m => avatar(m.key, m.name, m.role === 'lead' ? 'host' : '')).join('')}${p.members.length > 5 ? `<span class="mt-av more">+${p.members.length - 5}</span>` : ''}</span>
@@ -137,7 +175,7 @@ export class ProjectPanel {
   // ---------- danh sách ----------
   showList() {
     if (!this.el) return;
-    this.saveNotesNow(); this.wb?.destroy(); this.wb = null; this.cur = null; this.taskOpen = null; this.chat = null;
+    this.saveNotesNow(); this.dropIfEmpty(); this.wb?.destroy(); this.wb = null; this.cur = null; this.taskOpen = null; this.chat = null;
     this.setMode('list'); this.renderList(); this.c.load(); this.loadMine();
   }
   async loadMine() { const r = await api('GET', '/api/projects/tasks/mine'); if (!r.ok || !this.el) return; this.myTasks = r.tasks; this.renderSide(); if (this.view === 'list') this.renderList(); }
@@ -155,7 +193,7 @@ export class ProjectPanel {
     const stat = (ic, n, label, cls = '') => `<div class="ov-stat ${cls}"><span class="ov-ic">${icon(ic, 16)}</span><b>${n}</b><small>${label}</small></div>`;
     const row = t => { const d = dueInfo(t.due, false); return `<button type="button" class="ov-row" data-tp="${t.projectId}" data-tt="${t.id}" style="--pc:${esc(t.projectColor)}">
         <i class="pj-cd ${t.status}" title="${COLS.find(c => c[0] === t.status)[1]}"></i><span class="ov-t">${esc(t.title)}</span>
-        <span class="ov-p"><i class="ds-dot"></i>${esc(t.projectName)}</span>
+        <span class="ov-p">${(pp => pp?.logoV ? projectMark(pp, 'xs') : '<i class="ds-dot"></i>')(this.c.list.find(x => x.id === t.projectId))}${esc(t.projectName)}</span>
         ${t.priority ? `<em class="pj-pr p${t.priority}">${PRIO[t.priority][1]}</em>` : '<span></span>'}
         ${d ? `<em class="pj-due ${d.cls}">${icon('clock', 11)} ${esc(d.label)}</em>` : '<em class="pj-due none">Không hạn</em>'}</button>`; };
     if (!this.put(body, `<div class="ov">
@@ -174,7 +212,7 @@ export class ProjectPanel {
   card(p) {
     const un = this.c.unread(p), c = p.counts, open = c.todo + c.doing, total = open + c.done;
     return `<button type="button" class="pj-pc" data-p="${p.id}" style="--pc:${esc(p.color)}">
-      <span class="pj-pct"><b>${esc(p.name)}</b>${un ? '<i class="pj-dot" title="Có tin nhắn mới"></i>' : ''}</span>
+      <span class="pj-pct">${projectMark(p, 'sm')}<b>${esc(p.name)}</b>${un ? '<i class="pj-dot" title="Có tin nhắn mới"></i>' : ''}</span>
       ${p.description ? `<span class="pj-pcd">${esc(p.description)}</span>` : '<span class="pj-pcd muted">Chưa có mô tả.</span>'}
       <span class="pj-prog" aria-label="${c.done}/${total} việc xong"><i style="width:${total ? Math.round(c.done / total * 100) : 0}%"></i></span>
       <span class="pj-pcf"><span class="mp-avs">${p.leads.slice(0, 3).map(l => avatar(l.key, l.name, 'host')).join('')}</span><small>${p.memberCount} người · ${open} việc mở</small>
@@ -253,7 +291,7 @@ export class ProjectPanel {
   async load(id, { tab = null, task = null } = {}) {
     if (!this.el) { await this.open(id, { tab, task }); return; }
     const same = this.pid === id;
-    if (!same) { this.saveNotesNow(); this.wb?.destroy(); this.wb = null; this.chat = null; this.taskOpen = null; this.tab = tab || 'tasks'; }
+    if (!same) { this.saveNotesNow(); this.dropIfEmpty(); this.wb?.destroy(); this.wb = null; this.chat = null; this.taskOpen = null; this.tab = tab || 'tasks'; }
     else if (tab) this.tab = tab;
     this.setMode('project');
     if (!same) { this.body.innerHTML = '<div class="sx-loading">Đang tải…</div>'; this.body._h = null; }
@@ -289,7 +327,7 @@ export class ProjectPanel {
   }
   showTab(tab) {
     if (tab !== this.tab) this.enter();
-    this.saveNotesNow(); this.wb?.destroy(); this.wb = null;
+    this.saveNotesNow(); this.dropIfEmpty(); this.wb?.destroy(); this.wb = null;
     this.tab = tab;
     this.el.querySelectorAll('.pj-nav [data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
     this.body.scrollTop = 0;
@@ -609,26 +647,162 @@ export class ProjectPanel {
     if (this.tab === 'files') this.renderFiles();
   }
 
-  // ---------- ghi chú ----------
+  // ---------- ghi chú (kiểu Notes của macOS) ----------
+  // Trái: tìm, "Ghi chú mới", danh sách (Đã ghim · Hôm nay · Hôm qua · 7 ngày qua · …), mỗi dòng: tiêu đề (dòng đầu), giờ + dòng kế.
+  // Phải: ngày giờ sửa, ô soạn chữ thuần (dòng đầu to đậm = tiêu đề), ☐ danh sách việc (bấm ô để đánh dấu, Enter tự thêm ô mới),
+  // ghim, xoá; tự lưu sau khi ngừng gõ. Ghi chú mới để trống mà rời đi thì tự bỏ (như Notes). Điện thoại: danh sách ↔ trang soạn.
+  get notes() { return this.p.notes || (this.p.notes = []); }
+  get note() { return this.notes.find(n => n.id === this.noteSel) || null; }
   renderNotes() {
     const pane = this.pane; if (!pane) return;
-    const p = this.p, ed = this.editable;
-    pane.innerHTML = `<div class="pj-notes"><textarea class="pj-nta" maxlength="20000" placeholder="${ed ? 'Ghi chú chung của dự án: quyết định, link, thông tin đăng nhập môi trường test, việc cần nhớ… (tự lưu)' : ''}" ${ed ? '' : 'readonly'}>${esc(p.notes)}</textarea>
-      <small class="pj-nst">${p.notesAt ? `Sửa lần cuối: ${esc(short(p.notesBy))} · ${ago(p.notesAt)}` : ed ? 'Ai trong dự án cũng sửa được — tự lưu sau khi ngừng gõ.' : ''}</small></div>`;
-    const ta = pane.querySelector('.pj-nta');
-    ta.addEventListener('keydown', e => e.stopPropagation());
-    ta.addEventListener('input', () => { this.notesDirty = true; pane.querySelector('.pj-nst').textContent = 'Đang gõ…'; clearTimeout(this.notesT); this.notesT = setTimeout(() => this.saveNotesNow(), 1200); });
-    ta.addEventListener('blur', () => this.saveNotesNow());
+    const ed = this.editable, phone = matchMedia('(max-width: 760px)').matches;
+    if (!this.note) this.noteSel = phone ? null : this.sortedNotes()[0]?.id ?? null;
+    pane.innerHTML = `<div class="pj-nt${this.noteSel ? ' has-sel' : ''}">
+      <aside class="nt-side"><div class="nt-top"><label class="ds-search nt-q">${icon('target', 14)}<input type="search" placeholder="Tìm ghi chú" aria-label="Tìm ghi chú" value="${esc(this.nq || '')}" autocomplete="off"></label>
+        ${ed ? `<button type="button" class="nt-ib" data-nnew title="Ghi chú mới" aria-label="Ghi chú mới">${icon('edit', 16)}</button>` : ''}</div>
+        <div class="nt-list" role="listbox" aria-label="Danh sách ghi chú"></div><p class="nt-count"></p></aside>
+      <section class="nt-main" aria-live="off"></section></div>`;
+    const q = pane.querySelector('.nt-q input');
+    q.addEventListener('input', () => { this.nq = q.value; this.paintNoteList(); });
+    q.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); });
+    pane.querySelector('[data-nnew]')?.addEventListener('click', () => this.newNote());
+    pane.querySelector('.nt-list').addEventListener('click', e => { const b = e.target.closest('[data-n]'); if (b) this.selectNote(+b.dataset.n); });
+    this.paintNoteList(); this.paintNote();
   }
+  sortedNotes() { return [...this.notes].sort((a, b) => (b.pinned - a.pinned) || b.updatedAt - a.updatedAt); }
+  paintNoteList() {
+    const box = this.pane?.querySelector('.nt-list'); if (!box) return;
+    const q = (this.nq || '').trim().toLowerCase().normalize('NFC');
+    const list = this.sortedNotes().filter(n => !q || n.body.toLowerCase().normalize('NFC').includes(q));
+    let html = '', last = '';
+    for (const n of list) {
+      const g = n.pinned ? 'Đã ghim' : noteGroup(n.updatedAt);
+      if (g !== last) { last = g; html += `<div class="nt-g">${n.pinned ? icon('pin', 12) : ''}${esc(g)}</div>`; }
+      html += `<button type="button" class="nt-item${n.id === this.noteSel ? ' on' : ''}" data-n="${n.id}" role="option" aria-selected="${n.id === this.noteSel}"><b>${esc(noteTitle(n))}</b><span><time>${esc(noteWhen(n.updatedAt))}</time>${esc(notePreview(n))}</span></button>`;
+    }
+    this.put(box, html || `<p class="nt-none">${q ? 'Không có ghi chú khớp.' : this.editable ? 'Chưa có ghi chú nào.' : 'Chưa có ghi chú.'}</p>`);
+    this.put(this.pane.querySelector('.nt-count'), `${this.notes.length} ghi chú`);
+  }
+  paintNote() {
+    const main = this.pane?.querySelector('.nt-main'); if (!main) return;
+    const n = this.note, ed = this.editable;
+    this.pane.querySelector('.pj-nt').classList.toggle('has-sel', !!n);
+    if (!n) {
+      main.innerHTML = `<div class="nt-empty">${icon('edit', 30)}<p>${this.notes.length ? 'Chọn một ghi chú để xem.' : 'Ghi lại quyết định, link, thông tin môi trường test, việc cần nhớ… cho cả nhóm.'}</p>${ed ? `<button type="button" class="sx-primary" data-nnew2>${icon('plus', 15)} Ghi chú mới</button>` : ''}</div>`;
+      main.querySelector('[data-nnew2]')?.addEventListener('click', () => this.newNote());
+      return;
+    }
+    main.innerHTML = `<div class="nt-bar"><button type="button" class="nt-back" data-nback>${icon('chevLeft', 16)} Ghi chú</button><span class="nt-st" aria-live="polite"></span>
+        ${ed ? `<div class="nt-tools"><button type="button" class="nt-ib" data-nchk title="Danh sách việc (⇧⌘L)" aria-label="Danh sách việc">${icon('check', 16)}</button>
+          <button type="button" class="nt-ib" data-nbul title="Gạch đầu dòng" aria-label="Gạch đầu dòng"><b aria-hidden="true">•</b></button>
+          <button type="button" class="nt-ib${n.pinned ? ' on' : ''}" data-npin title="${n.pinned ? 'Bỏ ghim' : 'Ghim lên đầu'}" aria-label="${n.pinned ? 'Bỏ ghim' : 'Ghim'}" aria-pressed="${n.pinned}">${icon('pin', 16)}</button>
+          <button type="button" class="nt-ib danger" data-ndel title="Xoá ghi chú" aria-label="Xoá ghi chú">${icon('trash', 16)}</button></div>` : ''}</div>
+      <div class="nt-scroll"><p class="nt-date">${esc(noteLong(n.updatedAt))}</p>
+        <div class="nt-ed" ${ed ? 'contenteditable="plaintext-only"' : ''} role="textbox" aria-multiline="true" aria-label="Nội dung ghi chú" spellcheck="false" data-ph="${ed ? 'Dòng đầu là tiêu đề…' : ''}"></div>
+        <p class="nt-by">${n.byName ? `Sửa lần cuối: ${esc(short(n.byName))}` : ''}</p></div>`;
+    const box = main.querySelector('.nt-ed'); box.textContent = n.body;
+    main.querySelector('[data-nback]').onclick = () => { this.saveNotesNow(); this.dropIfEmpty(); this.noteSel = null; this.paintNote(); this.paintNoteList(); };
+    if (!ed) return;
+    if (box.contentEditable !== 'plaintext-only') box.contentEditable = 'true';   // (trình duyệt cũ: vẫn sửa được, Enter / dán đã tự xử lý thành chữ thuần)
+    const ins = insPlain;
+    box.addEventListener('keydown', e => {
+      e.stopPropagation();   // (phím không tới nhân vật 3D)
+      if (e.key === 'Escape') { box.blur(); return; }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'l') { e.preventDefault(); this.toggleLine('☐ '); return; }
+      if (e.key !== 'Enter' || e.isComposing) return;
+      e.preventDefault();
+      const text = readNote(box), at = caretOf(box) ?? text.length, ls = text.lastIndexOf('\n', at - 1) + 1, line = text.slice(ls, at), m = LIST_RE.exec(line);
+      if (m && line.trim() === m[1].trim()) { selectChars(box, ls, ls + m[1].length); document.execCommand('delete'); return; }   // (dòng chỉ có ô / gạch: thoát danh sách)
+      ins('\n' + (m ? (m[1] === '☑ ' ? '☐ ' : m[1]) : ''));
+    });
+    box.addEventListener('paste', e => { e.preventDefault(); ins((e.clipboardData?.getData('text/plain') || '').replace(/\r\n?/g, '\n')); });
+    box.addEventListener('drop', e => e.preventDefault());
+    box.addEventListener('input', () => this.noteInput());
+    box.addEventListener('blur', () => this.saveNotesNow());
+    box.addEventListener('click', () => {   // bấm vào ô ☐/☑ ở đầu dòng: đánh dấu / bỏ đánh dấu
+      const text = readNote(box), at = caretOf(box); if (at == null) return;
+      const ls = text.lastIndexOf('\n', at - 1) + 1, ch = text[ls];
+      if ((ch === '☐' || ch === '☑') && at - ls <= 1) { selectChars(box, ls, ls + 1); ins(ch === '☐' ? '☑' : '☐'); selectChars(box, at, at); }
+    });
+    main.querySelector('[data-nchk]').onclick = () => this.toggleLine('☐ ');
+    main.querySelector('[data-nbul]').onclick = () => this.toggleLine('• ');
+    main.querySelector('[data-npin]').onclick = async () => {
+      const r = await api('PATCH', `/api/projects/${this.pid}/notes/${n.id}`, { pinned: !n.pinned }); if (!r.ok) { this.s.toast(r.error, true); return; }
+      n.pinned = r.note.pinned; this.paintNote(); this.paintNoteList();
+    };
+    main.querySelector('[data-ndel]').onclick = async () => {
+      if (!(await confirmDanger('Xoá ghi chú?', `"${noteTitle(n)}" sẽ bị xoá với mọi người trong dự án. Không hoàn tác được.`, 'Xoá'))) return;
+      clearTimeout(this.noteT); this.noteDirty = null;
+      const r = await api('DELETE', `/api/projects/${this.pid}/notes/${n.id}`); if (!r.ok) { this.s.toast(r.error, true); return; }
+      this.removeNote(n.id);
+    };
+  }
+  /** Bật / tắt tiền tố (☐ danh sách việc, • gạch đầu dòng) cho các dòng đang chọn. */
+  toggleLine(prefix) {
+    const box = this.pane?.querySelector('.nt-ed'); if (!box) return;
+    box.focus();
+    const text = readNote(box), s = getSelection(), r = s.rangeCount ? s.getRangeAt(0) : null;
+    const a = caretOf(box) ?? text.length, b = r ? a + r.toString().length : a;
+    const ls = text.lastIndexOf('\n', a - 1) + 1, le = (i => i < 0 ? text.length : i)(text.indexOf('\n', b));
+    const block = text.slice(ls, le).split('\n'), on = block.every(l => l.startsWith(prefix) || (prefix === '☐ ' && l.startsWith('☑ ')));
+    const out = block.map(l => on ? l.replace(LIST_RE, '') : prefix + l.replace(LIST_RE, '')).join('\n');
+    selectChars(box, ls, le); insPlain(out);
+  }
+  noteInput() {
+    const n = this.note, box = this.pane?.querySelector('.nt-ed'); if (!n || !box) return;
+    n.body = readNote(box); this.noteDirty = { pid: this.pid, nid: n.id };
+    const st = this.pane.querySelector('.nt-st'); if (st) st.textContent = 'Đang gõ…';
+    clearTimeout(this.noteT); this.noteT = setTimeout(() => this.saveNotesNow(), 700);
+    clearTimeout(this.noteLT); this.noteLT = setTimeout(() => this.paintNoteList(), 250);
+  }
+  /** Lưu ngay ghi chú đang sửa (rời thẻ, đổi ghi chú, đóng bảng, sau khi ngừng gõ). */
   async saveNotesNow() {
-    clearTimeout(this.notesT); if (!this.notesDirty || !this.pid) return;
-    const ta = this.pane?.querySelector('.pj-nta'); if (!ta) { this.notesDirty = false; return; }
-    this.notesDirty = false; const pid = this.pid, v = ta.value;
-    const r = await api('PUT', `/api/projects/${pid}/notes`, { notes: v });
-    const st = this.pid === pid && this.pane?.querySelector('.pj-nst');
-    if (!r.ok) { this.notesDirty = true; if (st) st.textContent = r.error || 'Chưa lưu được — thử lại sau.'; return; }
-    if (this.pid === pid) Object.assign(this.p, { notes: r.notes, notesBy: r.notesBy, notesAt: r.notesAt });
-    if (st) st.textContent = `Đã lưu · ${hm(r.notesAt)}`;
+    clearTimeout(this.noteT); const d = this.noteDirty; if (!d || d.nid < 0) return;   // (ghi chú đang được tạo: lưu khi có mã thật)
+    this.noteDirty = null;
+    const n = this.cur?.project.id === d.pid ? this.notes.find(x => x.id === d.nid) : null; if (!n) return;
+    const sent = n.body, r = await api('PATCH', `/api/projects/${d.pid}/notes/${d.nid}`, { body: sent });
+    const st = this.pid === d.pid && this.noteSel === d.nid && this.pane?.querySelector('.nt-st');
+    if (!r.ok) { if (!this.noteDirty) this.noteDirty = d; if (st) st.textContent = r.error || 'Chưa lưu được — thử lại sau.'; return; }
+    Object.assign(n, { updatedAt: r.note.updatedAt, by: r.note.by, byName: r.note.byName });
+    if (st) { st.textContent = `Đã lưu · ${hm(r.note.updatedAt)}`; const dt = this.pane.querySelector('.nt-date'); if (dt) dt.textContent = noteLong(r.note.updatedAt); }
+    this.paintNoteList();
+  }
+  /** Ghi chú mới: hiện + đặt con trỏ NGAY (bản tạm trên máy), tạo trên server song song — gõ liền không mất chữ. */
+  async newNote() {
+    if (!this.editable || this.creating) return;
+    this.saveNotesNow(); this.dropIfEmpty();
+    const pid = this.pid, now = Date.now(), tmp = { id: -now, body: '', pinned: false, createdAt: now, updatedAt: now, by: this.s.key, byName: '' };
+    this.notes.push(tmp); this.noteSel = tmp.id; this.nq = '';
+    const q = this.pane?.querySelector('.nt-q input'); if (q) q.value = '';
+    this.paintNoteList(); this.paintNote(); this.pane?.querySelector('.nt-ed')?.focus();
+    this.creating = true;
+    const r = await api('POST', `/api/projects/${pid}/notes`, { body: '' }).finally(() => { this.creating = false; });
+    if (this.pid !== pid) return;
+    if (!r.ok) { this.s.toast(r.error, true); this.removeNote(tmp.id); return; }
+    const tid = tmp.id;
+    this.p.notes = this.notes.filter(x => x.id !== r.note.id);   // (tin realtime của chính mình có thể tới trước)
+    Object.assign(tmp, { id: r.note.id, createdAt: r.note.createdAt, updatedAt: r.note.updatedAt, byName: r.note.byName });
+    if (this.noteSel === tid) this.noteSel = tmp.id;
+    if (this.noteDirty?.nid === tid) this.noteDirty.nid = tmp.id;
+    this.mineEmpty = tmp.id;
+    if (tmp.body) { this.noteDirty = { pid, nid: tmp.id }; this.saveNotesNow(); }   // (đã gõ trong lúc chờ: lưu luôn)
+    this.paintNoteList();
+  }
+  async selectNote(id) {
+    if (id === this.noteSel) return;
+    await this.saveNotesNow(); this.dropIfEmpty();
+    this.noteSel = id; this.paintNoteList(); this.paintNote();
+  }
+  /** Ghi chú mới mình vừa tạo mà còn trống: rời đi thì bỏ (như Notes của macOS). */
+  dropIfEmpty() {
+    const id = this.mineEmpty; this.mineEmpty = null;
+    const n = id && this.notes.find(x => x.id === id); if (!n || n.body.trim()) return;
+    this.removeNote(id, true); api('DELETE', `/api/projects/${this.pid}/notes/${id}`);
+  }
+  removeNote(id, quiet = false) {
+    this.p.notes = this.notes.filter(x => x.id !== id);
+    if (this.noteSel === id) this.noteSel = matchMedia('(max-width: 760px)').matches ? null : this.sortedNotes()[0]?.id ?? null;
+    if (this.tab === 'notes' && this.pane?.querySelector('.pj-nt')) { this.paintNoteList(); if (!quiet || !this.note) this.paintNote(); }
   }
 
   // ---------- thành viên ----------
@@ -665,7 +839,10 @@ export class ProjectPanel {
   renderSettings() {
     const pane = this.pane; if (!pane) return;
     const p = this.p; let color = p.color;
-    pane.innerHTML = `<div class="pj-set">${p.status === 'active' ? `<form class="pj-form" novalidate>
+    pane.innerHTML = `<div class="pj-set">${p.status === 'active' ? `<div class="pj-logo-set"><span class="pj-logo-prev">${projectMark(p, 'lg')}</span>
+        <div><b>Logo dự án</b><small>Hiện ở danh sách dự án, đầu trang và thẻ dự án. Ảnh PNG / JPG / WebP, tự cắt vuông và thu nhỏ.</small>
+          <div class="pj-logo-acts"><label class="sx-ghost pj-logo-up">${icon('upload', 14)} ${p.logoV ? 'Đổi logo' : 'Tải logo lên'}<input type="file" accept="image/png,image/jpeg,image/webp" data-logo></label>${p.logoV ? `<button type="button" class="sx-ghost danger" data-nologo>${icon('trash', 14)} Gỡ logo</button>` : ''}</div></div></div>
+      <form class="pj-form" novalidate>
         <label class="sx-field"><span>Tên dự án <i>*</i></span><input name="name" maxlength="80" required value="${esc(p.name)}"></label>
         <label class="sx-field"><span>Mô tả</span><textarea name="description" rows="3" maxlength="1000">${esc(p.description)}</textarea></label>
         <div class="sx-field"><span>Màu</span>${this.colors(color)}</div>
@@ -678,6 +855,21 @@ export class ProjectPanel {
       this.bindColors(f, c => { color = c; });
       f.onsubmit = async e => { e.preventDefault(); const r = await api('PATCH', `/api/projects/${p.id}`, { name: f.name.value, description: f.description.value, color }); if (!r.ok) { f.querySelector('.sx-err').textContent = r.error; return; } this.s.toast('Đã lưu.'); };
     }
+    pane.querySelector('[data-logo]')?.addEventListener('change', async e => {
+      const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+      const lbl = pane.querySelector('.pj-logo-up'); lbl.classList.add('busy');
+      try {
+        const { type, data } = await squareImage(f, 256);
+        const r = await api('PUT', `/api/projects/${p.id}/logo`, { type, data });
+        if (!r.ok) { this.s.toast(r.error, true); return; }
+        p.logoV = r.logoV; this.s.toast('Đã cập nhật logo dự án.'); this.renderHead(); this.renderSettings(); this.c.load();
+      } catch { this.s.toast('Không đọc được ảnh này — thử ảnh PNG hoặc JPG khác.', true); }
+      finally { lbl.classList.remove('busy'); }
+    });
+    pane.querySelector('[data-nologo]')?.addEventListener('click', async () => {
+      const r = await api('DELETE', `/api/projects/${p.id}/logo`); if (!r.ok) { this.s.toast(r.error, true); return; }
+      p.logoV = null; this.s.toast('Đã gỡ logo.'); this.renderHead(); this.renderSettings(); this.c.load();
+    });
     pane.querySelector('[data-arch]').onclick = async () => {
       const arch = p.status === 'active';
       if (arch && !(await confirmDanger('Lưu trữ dự án?', `"${p.name}" chuyển sang "Đã lưu trữ": chỉ xem, không sửa. Khôi phục lại được bất cứ lúc nào.`, 'Lưu trữ'))) return;
@@ -697,10 +889,10 @@ export class ProjectPanel {
     if (this.pid !== id || this.view !== 'project') return;
     const r = await api('GET', `/api/projects/${id}`); if (!this.el || this.pid !== id) return;
     if (!r.ok) { this.onRemoved(id); return; }
-    const notes = this.notesDirty ? this.p.notes : null;
-    this.cur = r; if (notes != null) this.p.notes = notes;
+    const notes = this.p?.notes;   // (ghi chú: giữ bản trên máy — đang gõ dở; ghi chú của người khác tới qua proj:notes)
+    this.cur = r; if (notes) this.p.notes = notes;
     if (this.drag?.active) return;
-    const keepTab = this.tab, typing = document.activeElement && this.el.contains(document.activeElement) && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
+    const keepTab = this.tab, typing = document.activeElement && this.el.contains(document.activeElement) && (/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName) || document.activeElement.isContentEditable);
     if (typing && (keepTab === 'chat' || keepTab === 'notes' || keepTab === 'settings' || this.taskOpen)) return;   // (đang gõ: không vẽ lại — lần sau mở thẻ sẽ có dữ liệu mới)
     this.renderProject();
   }
@@ -739,10 +931,18 @@ export class ProjectPanel {
   onFiles(id) { if (this.pid === id && this.tab === 'files') this.reload(); }
   onNotes(m) {
     if (this.pid !== m.id || !this.cur) return;
-    if (m.by === this.s.key) return;
-    Object.assign(this.p, { notes: m.notes, notesBy: m.notesBy, notesAt: m.notesAt });
-    const ta = this.pane?.querySelector('.pj-nta');
-    if (ta && this.tab === 'notes' && !this.notesDirty && document.activeElement !== ta) { ta.value = m.notes; this.pane.querySelector('.pj-nst').textContent = `${short(m.notesBy)} vừa sửa · ${hm(m.notesAt)}`; }
+    if (m.removed) { if (this.noteDirty?.nid === m.removed) { this.noteDirty = null; clearTimeout(this.noteT); } this.removeNote(m.removed); if (this.noteSel == null && this.tab === 'notes') this.paintNote(); return; }
+    const n = m.note; if (!n) return;
+    const cur = this.notes.find(x => x.id === n.id);
+    if (m.by === this.s.key && (cur || this.creating)) return;   // (của chính mình: đã có trên máy / đang tạo)
+    const editing = this.noteSel === n.id && (this.noteDirty?.nid === n.id || document.activeElement === this.pane?.querySelector('.nt-ed'));
+    if (cur && editing) {   // đang sửa cùng ghi chú: giữ bản đang gõ, báo có bản mới (lưu tiếp sẽ ghi đè)
+      Object.assign(cur, { pinned: n.pinned }); const st = this.pane.querySelector('.nt-st'); if (st) st.textContent = `${short(n.byName)} cũng vừa sửa ghi chú này`;
+    } else if (cur) Object.assign(cur, n); else this.notes.push(n);
+    if (this.tab !== 'notes' || !this.pane?.querySelector('.pj-nt')) return;
+    this.paintNoteList();
+    if (this.noteSel === n.id && !editing) this.paintNote();
+    else if (this.noteSel == null && !matchMedia('(max-width: 760px)').matches) { this.noteSel = n.id; this.paintNote(); }
   }
   onChat(id, msg) {
     if (this.pid !== id || !this.chat) return;

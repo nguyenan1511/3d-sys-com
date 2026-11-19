@@ -14,7 +14,8 @@ import { ALLOWED_EXT, FILE_MAX, keyOf, quotaErr } from './meetings.js';
 
 export const PROJECT_COLORS = ['#ef476f', '#ff8a5b', '#ffd166', '#06d6a0', '#118ab2', '#7b61ff', '#2b2d42', '#8d6e63'];
 export const STATUSES = ['todo', 'doing', 'done'];
-export const MAX_MEMBERS = 50, MAX_ACTIVE = 20, MAX_TASKS = 500, PROJECT_FILES_MAX = 200 * 1024 * 1024;
+export const MAX_MEMBERS = 50, MAX_ACTIVE = 20, MAX_TASKS = 500, PROJECT_FILES_MAX = 200 * 1024 * 1024, MAX_NOTES = 200, NOTE_MAX = 20000, LOGO_MAX = 300 * 1024;
+const LOGO_TYPES = { 'image/jpeg': [0xff, 0xd8, 0xff], 'image/png': [0x89, 0x50, 0x4e, 0x47], 'image/webp': [0x52, 0x49, 0x46, 0x46] };
 export const DUE_SOON = 24 * 3600e3;
 const TYPES = {
   pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif',
@@ -78,13 +79,13 @@ export class Projects {
     const open = tasks.filter(t => t.status !== 'done');
     const now = Date.now();
     return {
-      id: p.id, name: p.name, description: p.description || '', color: p.color, status: p.status, createdAt: p.created_at, updatedAt: p.updated_at,
+      id: p.id, name: p.name, description: p.description || '', color: p.color, status: p.status, createdAt: p.created_at, updatedAt: p.updated_at, logoV: p.logo_v || null,
       role, isLead: role === 'lead' || role === 'admin', isMember: role === 'lead' || role === 'member',
       memberCount: this.db.project_members.by('project_id', p.id).length,
       lastMsg: Math.max(0, ...(this.db.chat_messages.idx.channel.get(`proj:${p.id}`) || [])),   // (đếm tin chưa đọc ở client)
       leads: this.db.project_members.by('project_id', p.id).filter(r => r.role === 'lead').map(r => ({ key: r.key, name: this.names(r.key) })),
       counts: { todo: tasks.filter(t => t.status === 'todo').length, doing: tasks.filter(t => t.status === 'doing').length, done: tasks.filter(t => t.status === 'done').length, mine: open.filter(t => t.assignee === key).length, overdue: open.filter(t => t.due && t.due < now).length },
-      ...(full ? { members: this.members(p.id), notes: p.notes || '', notesBy: p.notes_by ? this.names(p.notes_by) : '', notesAt: p.notes_at || null } : {})
+      ...(full ? { members: this.members(p.id), notes: this.notes(p) } : {})
     };
   }
   /** Dự án của tôi (CEO: mọi dự án). Đang làm trước, mới cập nhật trước. */
@@ -154,20 +155,81 @@ export class Projects {
       this.db.project_tasks.delWhere(r => r.project_id === p.id);
       for (const f of files) this.db.project_files.del(f.id);
       this.db.chat_messages.delWhere(r => r.channel === `proj:${p.id}`);
+      this.db.project_notes.delWhere(r => r.project_id === p.id);
       this.db.meetings.updateWhere(m => m.project_id === p.id, { project_id: null });
-      this.db.projects.update(p.id, { status: 'deleted', description: '', notes: '', updated_at: Date.now() });
+      this.db.projects.update(p.id, { status: 'deleted', description: '', notes: '', logo_v: null, updated_at: Date.now() });
     });
     const room = roomOf(p.id);
     let pics = []; try { const b = await this.db.blobs.get(`board:${room}`); if (b) pics = Object.keys(parseBoard(b.data).files); } catch { /* không có bảng */ }
-    await Promise.all([...files.map(f => this.db.blobs.del(`pfile:${f.id}`)), ...pics.map(x => this.db.blobs.del(`wbf:${room}:${x}`)), this.db.blobs.del(`board:${room}`)].map(x => x.catch(() => {})));
+    await Promise.all([...files.map(f => this.db.blobs.del(`pfile:${f.id}`)), ...pics.map(x => this.db.blobs.del(`wbf:${room}:${x}`)), this.db.blobs.del(`board:${room}`), this.db.blobs.del(`plogo:${p.id}`)].map(x => x.catch(() => {})));
     audit(this.db, key, 'project.delete', String(p.id), { name: p.name, members: keys.length, files: files.length });
     return { p, keys };
   }
-  setNotes(actor, id, text) {
+  // ---------- ghi chú (nhiều tờ, kiểu Notes của macOS: dòng đầu là tiêu đề, ghim, ai trong dự án cũng sửa được) ----------
+  noteView(n) { return { id: n.id, body: n.body || '', pinned: !!n.pinned, createdAt: n.created_at, updatedAt: n.updated_at, by: n.updated_by, byName: this.names(n.updated_by), createdBy: n.created_by }; }
+  /** Ghi chú của dự án: ghim trước, mới sửa trước. Ghi chú một ô kiểu cũ (projects.notes) tự chuyển thành tờ đầu tiên. */
+  notes(p) {
+    if (p.notes && !this.db.project_notes.by('project_id', p.id).length) {
+      const at = p.notes_at || p.updated_at || Date.now(), by = p.notes_by || p.created_by;
+      this.db.tx(() => { this.db.project_notes.insert({ project_id: p.id, body: p.notes, pinned: 0, created_by: by, created_at: at, updated_by: by, updated_at: at }); this.db.projects.update(p.id, { notes: '' }); });
+    }
+    return this.db.project_notes.by('project_id', p.id).sort((a, b) => (b.pinned || 0) - (a.pinned || 0) || b.updated_at - a.updated_at).map(n => this.noteView(n));
+  }
+  noteText(v) {
+    const s = String(v ?? '').normalize('NFC').replace(/\r\n?/g, '\n');   // (không cắt khoảng trắng: đang gõ dở xuống dòng)
+    if (s.length > NOTE_MAX) throw new HttpError(400, `Một ghi chú tối đa ${NOTE_MAX} ký tự.`, { code: 'invalid', field: 'body' });
+    return s;
+  }
+  needNote(actor, id, nid) {
+    const r = this.need(actor, id, { write: true }), n = this.db.project_notes.get(Number(nid));
+    if (!n || n.project_id !== r.p.id) throw new HttpError(404, 'Ghi chú này không còn.', { code: 'not_found' });
+    return { ...r, n };
+  }
+  addNote(actor, id, body = {}) {
     const { p, key } = this.need(actor, id, { write: true });
-    const notes = clean(text, 20000, 'notes', 'ghi chú'), now = Date.now();
-    this.db.projects.update(p.id, { notes, notes_by: key, notes_at: now, updated_at: now });
-    return { notes, notesBy: this.names(key), notesAt: now };
+    if (this.db.project_notes.by('project_id', p.id).length >= MAX_NOTES) throw new HttpError(400, `Một dự án tối đa ${MAX_NOTES} ghi chú — xoá bớt ghi chú cũ.`, { code: 'limit' });
+    const now = Date.now(), nid = this.db.project_notes.insert({ project_id: p.id, body: this.noteText(body.body), pinned: body.pinned ? 1 : 0, created_by: key, created_at: now, updated_by: key, updated_at: now });
+    this.touch(p.id); audit(this.db, key, 'project.note.add', String(p.id));
+    return { p, note: this.noteView(this.db.project_notes.get(nid)) };
+  }
+  editNote(actor, id, nid, body = {}) {
+    const { p, key, n } = this.needNote(actor, id, nid), patch = {};
+    if (body.body !== undefined) { patch.body = this.noteText(body.body); patch.updated_by = key; patch.updated_at = Date.now(); }
+    if (body.pinned !== undefined) patch.pinned = body.pinned ? 1 : 0;   // (ghim không đổi "sửa lần cuối")
+    if (Object.keys(patch).length) this.db.project_notes.update(n.id, patch);
+    if (patch.updated_at) this.touch(p.id);
+    return { p, note: this.noteView(this.db.project_notes.get(n.id)) };
+  }
+  delNote(actor, id, nid) {
+    const { p, key, n } = this.needNote(actor, id, nid);
+    this.db.project_notes.del(n.id); audit(this.db, key, 'project.note.delete', String(p.id), { title: (n.body || '').split('\n')[0].slice(0, 60) });
+    return { p, id: n.id };
+  }
+
+  // ---------- logo dự án (Trưởng dự án; ảnh vuông đã thu nhỏ ở máy người tải) ----------
+  async setLogo(actor, id, { data, type } = {}) {
+    const { p, key } = this.need(actor, id, { lead: true, write: true }), magic = LOGO_TYPES[type];
+    if (!magic || typeof data !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) throw new HttpError(400, 'Logo phải là ảnh PNG, JPG hoặc WebP.', { code: 'bad_type' });
+    const buf = Buffer.from(data, 'base64');
+    if (!buf.length || !magic.every((b, i) => buf[i] === b) || (type === 'image/webp' && buf.toString('latin1', 8, 12) !== 'WEBP')) throw new HttpError(400, 'File không phải ảnh hợp lệ.', { code: 'bad_type' });
+    if (buf.length > LOGO_MAX) throw new HttpError(413, 'Logo tối đa 300 KB.', { code: 'too_large' });
+    try { await this.db.blobs.put(`plogo:${p.id}`, buf, type); }
+    catch (e) { if (e.code === 'quota') throw quotaErr(this.db); throw new HttpError(503, 'Chưa lưu được logo, thử lại sau.', { code: 'store_failed' }); }
+    this.db.projects.update(p.id, { logo_v: Date.now(), updated_at: Date.now() });
+    audit(this.db, key, 'project.logo', String(p.id));
+    return getProject(this.store, p.id);
+  }
+  async dropLogo(actor, id) {
+    const { p, key } = this.need(actor, id, { lead: true, write: true });
+    await this.db.blobs.del(`plogo:${p.id}`).catch(() => {});
+    this.db.projects.update(p.id, { logo_v: null, updated_at: Date.now() });
+    audit(this.db, key, 'project.logo.delete', String(p.id));
+    return getProject(this.store, p.id);
+  }
+  async getLogo(actor, id) {
+    const { p } = this.need(actor, id); if (!p.logo_v) throw notFound();
+    const b = await this.db.blobs.get(`plogo:${p.id}`); if (!b) throw notFound();
+    return b;
   }
 
   // ---------- thành viên ----------

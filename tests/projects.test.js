@@ -202,3 +202,48 @@ describe('dự án: chat, tài liệu, họp, phòng 3D, xoá', () => {
     ph.dueTick(); expect(sent.get(K('1002')).at(-1)).toMatchObject({ t: 'proj:due', kind: 'soon' });
   });
 });
+
+describe('dự án: ghi chú nhiều tờ (kiểu Notes) và logo', () => {
+  it('ghi chú: thành viên thêm / sửa / ghim / xoá; ghim lên đầu, mới sửa trước; giữ nguyên xuống dòng; người ngoài 404; lưu trữ chỉ đọc', async () => {
+    const { p } = P.create(emp('1001'), { name: 'Notes', members: [K('1002')] });
+    const a = P.addNote(emp('1002'), p.id, { body: 'Họp khách\n☐ Gửi báo giá\n' }).note;
+    expect(a).toMatchObject({ body: 'Họp khách\n☐ Gửi báo giá\n', pinned: false, by: K('1002'), byName: '1002-Bình' });
+    vi.setSystemTime(DAY9 - 3000e3); const b = P.addNote(emp('1001'), p.id, { body: 'Link môi trường test' }).note;
+    expect(P.notes(P.need(emp('1001'), p.id).p).map(n => n.id)).toEqual([b.id, a.id]);
+    P.editNote(emp('1001'), p.id, a.id, { pinned: true });
+    expect(P.notes(P.need(emp('1001'), p.id).p).map(n => [n.id, n.pinned])).toEqual([[a.id, true], [b.id, false]]);
+    vi.setSystemTime(DAY9 - 2000e3); const e = P.editNote(emp('1001'), p.id, a.id, { body: 'Họp khách\n☑ Gửi báo giá' }).note;
+    expect(e).toMatchObject({ body: 'Họp khách\n☑ Gửi báo giá', by: K('1001'), updatedAt: DAY9 - 2000e3, pinned: true });
+    expect((await err(() => P.addNote(emp('1003'), p.id, { body: 'x' }))).status).toBe(404);
+    expect((await err(() => P.editNote(emp('1003'), p.id, a.id, { body: 'x' }))).status).toBe(404);
+    expect((await err(() => P.addNote(emp('1001'), p.id, { body: 'x'.repeat(20001) }))).status).toBe(400);
+    const { p: q } = P.create(emp('1001'), { name: 'Khác' }); const other = P.addNote(emp('1001'), q.id, {}).note;
+    expect((await err(() => P.editNote(emp('1001'), p.id, other.id, { body: 'x' }))).status).toBe(404);   // (ghi chú của dự án khác)
+    P.delNote(emp('1002'), p.id, b.id); expect(P.notes(P.need(emp('1001'), p.id).p).map(n => n.id)).toEqual([a.id]);
+    P.setArchived(emp('1001'), p.id, true);
+    expect((await err(() => P.editNote(emp('1002'), p.id, a.id, { body: 'x' }))).extra.code).toBe('archived');
+  });
+  it('ghi chú một ô kiểu cũ tự chuyển thành tờ đầu tiên (một lần)', () => {
+    const { p } = P.create(emp('1001'), { name: 'Cũ' });
+    store.db.projects.update(p.id, { notes: 'Ghi chú cũ\ndòng 2', notes_by: K('1001'), notes_at: DAY9 - 5000e3 });
+    const list = P.view(P.need(emp('1001'), p.id).p, K('1001'), { full: true }).notes;
+    expect(list).toEqual([expect.objectContaining({ body: 'Ghi chú cũ\ndòng 2', updatedAt: DAY9 - 5000e3, by: K('1001') })]);
+    expect(store.db.projects.get(p.id).notes).toBe('');
+    expect(P.notes(P.need(emp('1001'), p.id).p)).toHaveLength(1);
+  });
+  it('logo: chỉ Trưởng dự án; phải là ảnh thật (kiểm tra byte đầu), ≤ 300 KB; thành viên xem được, người ngoài không; xoá dự án xoá logo', async () => {
+    const { p } = P.create(emp('1001'), { name: 'Logo', members: [K('1002')] });
+    const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(100)]).toString('base64');
+    expect((await err(() => P.setLogo(emp('1002'), p.id, { type: 'image/png', data: png }))).status).toBe(403);
+    expect((await err(() => P.setLogo(emp('1001'), p.id, { type: 'image/png', data: Buffer.from('<svg/>').toString('base64') }))).extra.code).toBe('bad_type');
+    expect((await err(() => P.setLogo(emp('1001'), p.id, { type: 'image/svg+xml', data: png }))).extra.code).toBe('bad_type');
+    expect((await err(() => P.setLogo(emp('1001'), p.id, { type: 'image/png', data: Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47]), Buffer.alloc(301 * 1024)]).toString('base64') }))).status).toBe(413);
+    const after = await P.setLogo(emp('1001'), p.id, { type: 'image/png', data: png });
+    expect(P.view(after, K('1002')).logoV).toBe(Date.now());
+    expect((await P.getLogo(emp('1002'), p.id)).type).toBe('image/png');
+    expect((await err(() => P.getLogo(emp('1003'), p.id))).status).toBe(404);
+    await P.dropLogo(emp('1001'), p.id); expect((await err(() => P.getLogo(emp('1001'), p.id))).status).toBe(404);
+    await P.setLogo(emp('1001'), p.id, { type: 'image/png', data: png }); await P.purge(emp('1001'), p.id);
+    expect(await store.db.blobs.get(`plogo:${p.id}`)).toBeNull();
+  });
+});

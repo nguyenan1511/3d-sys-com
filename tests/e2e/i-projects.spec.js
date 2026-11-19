@@ -1,5 +1,5 @@
 // Workspace dự án (docs/design/projects-workspace.md): A tạo dự án qua giao diện, mời B; B được báo; Kanban (thêm việc, kéo sang
-// cột khác, B thấy ngay, giao việc → B được báo); chat dự án + @nhắc tên; người ngoài không thấy dự án; phòng dự án 3D (cả hai
+// cột khác, B thấy ngay, giao việc → B được báo); chat dự án + @nhắc tên; ghi chú kiểu Notes; người ngoài không thấy dự án; phòng dự án 3D (cả hai
 // vào, B được báo khi A vào); đặt họp từ dự án mời cả dự án; hệ nút chung 38px.
 import { test, expect } from '@playwright/test';
 import { uniqueCode, loginEmployeeUI, waitScene, newPage, closeAll, finishAvatar, call } from './helpers.js';
@@ -61,6 +61,14 @@ test('dự án: tạo + mời, Kanban kéo thả, giao việc, chat @nhắc, ri�
   await a.keyboard.press('Enter'); await a.keyboard.type('xem giúp nhé'); await a.keyboard.press('Enter');
   await expect(a.locator('.pj-chat .mt-chat li.me mark')).toHaveText(/@Minh Tú/);
   await expect(b.locator('.notice', { hasText: 'nhắc bạn' })).toBeVisible({ timeout: 15_000 });
+  // ghi chú kiểu Notes: A tạo ghi chú mới (dòng đầu = tiêu đề), tự lưu; B thấy ngay trong danh sách
+  await a.click('.pj-nav [data-tab=notes]');
+  await a.locator('[data-nnew]').first().click();
+  await a.keyboard.type('Quyết định họp'); await a.keyboard.press('Enter'); await a.keyboard.press('Shift+ControlOrMeta+L'); await a.keyboard.type('Chọn màu cam');
+  await expect(a.locator('.nt-st')).toContainText('Đã lưu', { timeout: 10_000 });
+  await expect(a.locator('.nt-ed')).toHaveText('Quyết định họp\n☐ Chọn màu cam');
+  await b.click('.pj-nav [data-tab=notes]');
+  await expect(b.locator('.nt-item b', { hasText: 'Quyết định họp' })).toBeVisible({ timeout: 15_000 });
   // phòng dự án 3D: A vào → B được báo; B vào → 2 người trong phòng, không có nút "Kết thúc họp"
   await a.click('.pj-h [data-h=room]');
   await expect(a.locator('.mt-room.is-proj')).toBeVisible({ timeout: 30_000 });

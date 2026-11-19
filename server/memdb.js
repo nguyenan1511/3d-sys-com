@@ -30,7 +30,8 @@ export const TABLES = {
   project_members: { auto: true, index: ['project_id', 'key'] },          // thành viên dự án: role 'lead' | 'member'
   project_tasks: { auto: true, index: ['project_id'] },                   // công việc (Kanban 3 cột)
   task_comments: { auto: true, index: ['task_id', 'project_id'] },        // bình luận trên công việc
-  project_files: { auto: true, index: ['project_id'] }                    // tài liệu dự án (nội dung file: db.blobs 'pfile:<id>')
+  project_files: { auto: true, index: ['project_id'] },                   // tài liệu dự án (nội dung file: db.blobs 'pfile:<id>')
+  project_notes: { auto: true, index: ['project_id'] }                    // ghi chú dự án (nhiều tờ, kiểu Notes của macOS)
 };
 
 class Table {

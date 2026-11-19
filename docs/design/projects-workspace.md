@@ -70,7 +70,14 @@ Thiết kế đã chốt qua /brainstorming ngày 2026-11-18. Hướng A: tách 
 
 ### Dữ liệu (`server/memdb.js`, `TABLES`)
 
-- **`projects`** `{ id, name, description, notes, notes_by, notes_at, color, status: 'active'|'archived'|'deleted', created_by, created_at, updated_at }`
+- **`projects`** `{ id, name, description, color, logo_v, status: 'active'|'archived'|'deleted', created_by, created_at, updated_at }`
+  - `logo_v`: thời điểm đổi logo (ảnh trong `db.blobs` `plogo:<id>`, ≤ 300 KB, PNG/JPG/WebP kiểm tra byte đầu; Trưởng dự án đổi / gỡ;
+    `GET /api/projects/:id/logo?v=` chỉ thành viên / CEO). Client cắt vuông 256 px trước khi tải.
+  - `notes`, `notes_by`, `notes_at`: ghi chú một ô kiểu cũ — lần đầu mở dự án tự chuyển thành tờ đầu tiên của `project_notes`.
+- **`project_notes`** `{ id, project_id, body, pinned, created_by, created_at, updated_by, updated_at }` — ghi chú nhiều tờ kiểu Notes
+  của macOS (2026-11-19): dòng đầu là tiêu đề, `☐ / ☑` danh sách việc, `•` gạch đầu dòng; ≤ 200 tờ / dự án, ≤ 20.000 ký tự / tờ;
+  thành viên thêm / sửa / ghim / xoá; realtime `proj:notes { note | removed }`; sửa trùng cùng lúc: bản lưu sau thắng, người đang gõ
+  được báo "X cũng vừa sửa".
 - **`project_members`** `{ id, project_id, key, role: 'lead'|'member', added_by, added_at }`, chỉ mục `project_id` và `key`.
 - **`project_tasks`** `{ id, project_id, title, body, status: 'todo'|'doing'|'done', assignee, due, priority: 0|1|2, order, created_by, created_at, updated_at, done_at, reminded }`, chỉ mục `project_id`.
 - **`task_comments`** `{ id, task_id, project_id, by, by_name, body, ts }`, chỉ mục `task_id`.

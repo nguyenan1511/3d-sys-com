@@ -50,10 +50,28 @@ export function projectRoutes(api, { store, hub, guards: { needAuth } }) {
     for (const k of hub.sockets.keys()) if (k.startsWith('admin:') && !keys.includes(k)) H.sendKey(k, { t: 'proj:removed', id: p.id, name: p.name, purged: true, quiet: true });
     res.json({ ok: true });
   });
-  api.put('/projects/:id/notes', needAuth, (req, res) => {
-    const pid = id(req), out = P.setNotes(req.actor, pid, req.body?.notes);
-    H.toProject(pid, { t: 'proj:notes', id: pid, ...out, by: me(req) });
-    res.json({ ok: true, ...out });
+  // ---------- ghi chú (nhiều tờ) ----------
+  api.post('/projects/:id/notes', needAuth, (req, res) => {
+    const { p, note } = P.addNote(req.actor, id(req), req.body || {});
+    H.toProject(p.id, { t: 'proj:notes', id: p.id, note, by: me(req) });
+    res.json({ ok: true, note });
+  });
+  api.patch('/projects/:id/notes/:nid', needAuth, (req, res) => {
+    const { p, note } = P.editNote(req.actor, id(req), sub(req, 'nid'), req.body || {});
+    H.toProject(p.id, { t: 'proj:notes', id: p.id, note, by: me(req) });
+    res.json({ ok: true, note });
+  });
+  api.delete('/projects/:id/notes/:nid', needAuth, (req, res) => {
+    const { p, id: nid } = P.delNote(req.actor, id(req), sub(req, 'nid'));
+    H.toProject(p.id, { t: 'proj:notes', id: p.id, removed: nid, by: me(req) });
+    res.json({ ok: true });
+  });
+  // ---------- logo ----------
+  api.put('/projects/:id/logo', needAuth, async (req, res) => { const p = await P.setLogo(req.actor, id(req), req.body || {}); H.changed(p.id); res.json({ ok: true, logoV: p.logo_v }); });
+  api.delete('/projects/:id/logo', needAuth, async (req, res) => { const p = await P.dropLogo(req.actor, id(req)); H.changed(p.id); res.json({ ok: true }); });
+  api.get('/projects/:id/logo', needAuth, async (req, res) => {
+    const b = await P.getLogo(req.actor, id(req));
+    res.set('Content-Type', b.type).set('X-Content-Type-Options', 'nosniff').set('Cache-Control', 'private, max-age=604800').set('Content-Security-Policy', "default-src 'none'; sandbox").send(b.data);   // (?v= đổi khi thay logo)
   });
 
   // ---------- thành viên ----------
