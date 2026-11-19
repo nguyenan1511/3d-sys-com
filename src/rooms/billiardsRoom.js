@@ -208,7 +208,7 @@ export class BilliardsRoom {
     ui.setAttribute('role', 'dialog'); ui.setAttribute('aria-label', 'Phòng bi-a');
     ui.innerHTML = `<div class="rm-input" aria-hidden="true"></div>
       <header class="rm-top"><button type="button" class="rm-back">${icon('chevLeft', 16)}<span>Rời bàn</span></button>
-        <b class="rm-title">🎱 Bi-a lỗ 8 bi</b>
+        <b class="rm-title">${icon('ball8', 18)} Bi-a lỗ 8 bi</b>
         <div class="rm-tools"><button type="button" class="rm-cam" aria-pressed="false">Nhìn từ trên</button></div></header>
       <div class="b3-score"></div>
       <p class="rm-msg" role="status" aria-live="polite"></p>
@@ -339,7 +339,7 @@ export class BilliardsRoom {
       const g = st.groups[p.key], turn = st.phase === 'aim' && st.turn === i, win = st.winner === p.key;
       const left = g ? [1, 2, 3, 4, 5, 6, 7].map(k => g === 'solid' ? k : k + 8).filter(n => bs[n]?.on) : [];
       const dots = left.map(n => `<i class="b3-ball${n >= 9 ? ' st' : ''}" style="--c:${colOf(n)}"></i>`).join('') + (g && !left.length ? '<i class="b3-ball" style="--c:#15161a" title="Bi 8"></i>' : '');
-      return `<div class="b3-pl${turn ? ' turn' : ''}${win ? ' win' : ''}${i ? ' r' : ''}"><b>${esc(p.display)}${p.key === me ? ' (bạn)' : ''}</b><small>${win ? 'Thắng 🏆' : g ? GROUP_LABEL[g] : 'Chưa chia nhóm'}</small><span class="b3-dots">${dots}</span></div>`;
+      return `<div class="b3-pl${turn ? ' turn' : ''}${win ? ' win' : ''}${i ? ' r' : ''}"><b>${esc(p.display)}${p.key === me ? ' (bạn)' : ''}</b><small>${win ? `Thắng ${icon('trophy', 13)}` : g ? GROUP_LABEL[g] : 'Chưa chia nhóm'}</small><span class="b3-dots">${dots}</span></div>`;
     }).join('<span class="b3-vs">VS</span>') + (st.players.length < 2 ? '<div class="b3-pl r wait"><b>Chờ người chơi…</b><small>Còn 1 chỗ</small></div>' : '');
     q('.rm-msg').textContent = st.msg ? st.msg.charAt(0).toUpperCase() + st.msg.slice(1) : '';
     q('.rm-msg').classList.toggle('show', !!st.msg);
@@ -349,7 +349,7 @@ export class BilliardsRoom {
     let html = '';
     if (st.phase === 'over') {
       const w = st.players.find(p => p.key === st.winner);
-      html = `<b class="rm-big">${w ? `🏆 ${esc(w.display)} thắng!` : 'Ván đã xong'}</b><p>${esc(st.msg || '')}</p><div class="rm-btns">${mine ? '<button type="button" class="rm-pri" data-a="again">Ván mới</button>' : ''}<button type="button" data-a="exit">${mine ? 'Rời bàn' : 'Rời phòng'}</button></div>`;
+      html = `<b class="rm-big">${w ? `${icon('trophy', 20)} ${esc(w.display)} thắng!` : 'Ván đã xong'}</b><p>${esc(st.msg || '')}</p><div class="rm-btns">${mine ? '<button type="button" class="rm-pri" data-a="again">Ván mới</button>' : ''}<button type="button" data-a="exit">${mine ? 'Rời bàn' : 'Rời phòng'}</button></div>`;
     } else if (st.players.length < 2) {
       html = mine ? `<b class="rm-big">Đang chờ người chơi thứ hai…</b><p>Rủ đồng nghiệp tới bàn bi-a ở phòng giải trí và bấm <kbd>E</kbd> — ván bắt đầu ngay khi đủ 2 người.</p><div class="rm-btns"><button type="button" data-a="exit">Rời bàn</button></div>`
         : `<b class="rm-big">Bàn còn 1 chỗ</b><p>${esc(st.players[0]?.display || '')} đang chờ người chơi.</p><div class="rm-btns"><button type="button" class="rm-pri" data-a="join">Vào chơi</button><button type="button" data-a="exit">Rời phòng</button></div>`;

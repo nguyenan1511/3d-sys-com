@@ -159,14 +159,14 @@ export class Guide {
       if (me.f === this.pos.f) { const d = Math.hypot(me.x - this.pos.x, me.z - this.pos.z), k = Math.max(0, (d - 1.1) / Math.max(d, 0.01)); if (d > 1.3) await this.goTo(this.pos.x + (me.x - this.pos.x) * k, this.pos.z + (me.z - this.pos.z) * k); }
       this.face(me); this.push(false);
       // 2. chào và giới thiệu
-      await this.say(`Chào <b>${esc(first)}</b>! Mình là Mai, hướng dẫn viên của <b>SYSONE</b>. Chào mừng bạn đến công ty 👋`, ['Chào chị!']);
+      await this.say(`Chào <b>${esc(first)}</b>! Mình là Mai, hướng dẫn viên của <b>SYSONE</b>. Chào mừng bạn đến công ty!`, ['Chào chị!']);
       await this.say('Toà nhà mình có 3 tầng:<br>• <b>Tầng trệt</b>: sảnh - lễ tân, Hành chính - Nhân sự, Tài chính - Kế toán, Team Fresher, phòng họp, pantry, khu giải trí.<br>• <b>Tầng 2</b>: Phát triển ứng dụng, Mobile App, Data Backbone, Phân tích nghiệp vụ, Triển khai, Hệ thống, Security.<br>• <b>Tầng 3</b>: Ban giám đốc, Team Đối tác, Team Cộng tác viên.<br>Lên tầng thì đi <b>thang máy</b> ở sảnh hoặc cầu thang bộ bên trái nhé.', ['Dạ, em hiểu rồi']);
       // 3. chấm công (mỗi sáng tới công ty)
       const at = this.s.att;
       if (at?.code && !at.checkedIn) {
         await this.say('Mỗi sáng tới công ty, việc đầu tiên là <b>chấm công</b> ở máy cạnh cửa chính (đứng trước máy bấm <b>E</b>). Hôm nay mình chấm giúp bạn nhé!', ['Chấm công']);
         const rec = await at.checkIn();
-        if (rec) await this.say(`Đã chấm công vào ca lúc <b>${new Date(rec.checkIn).toTimeString().slice(0, 5)}</b>${rec.lateMin ? ` (muộn ${rec.lateMin} phút — ca bắt đầu ${esc(rec.shift)})` : ' — đúng giờ 👍'}. Cuối ngày nhớ chấm công ra về nhé.`, ['Dạ']);
+        if (rec) await this.say(`Đã chấm công vào ca lúc <b>${new Date(rec.checkIn).toTimeString().slice(0, 5)}</b>${rec.lateMin ? ` (muộn ${rec.lateMin} phút — ca bắt đầu ${esc(rec.shift)})` : ' — đúng giờ.'}. Cuối ngày nhớ chấm công ra về nhé.`, ['Dạ']);
       }
       // 4. phòng ban
       const mine = this.s.mySeat;

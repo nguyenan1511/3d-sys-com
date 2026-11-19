@@ -329,6 +329,7 @@ export class ProjectPanel {
     if (tab !== this.tab) this.enter();
     this.saveNotesNow(); this.dropIfEmpty(); this.wb?.destroy(); this.wb = null;
     this.tab = tab;
+    this.el.querySelector('.pj-view')?.setAttribute('data-tab', tab);   // (Chat / Ghi chú: khung cao hết phần còn lại của bảng — style.css)
     this.el.querySelectorAll('.pj-nav [data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === tab); b.setAttribute('aria-selected', String(b.dataset.tab === tab)); });
     this.body.scrollTop = 0;
     this.paintTabDots();
@@ -458,7 +459,7 @@ export class ProjectPanel {
     const r = await api('PATCH', `/api/projects/${this.pid}/tasks/${t.id}`, { status, order: o });
     if (!r.ok) { Object.assign(t, before); this.s.toast(r.error || 'Chưa chuyển được.', true); this.renderTasks(); return; }
     this.upsert(r.task);
-    if (status === 'done' && before.status !== 'done') this.s.toast(`Xong: ${t.title} 🎉`);
+    if (status === 'done' && before.status !== 'done') this.s.toast(`Xong: ${t.title}`);
   }
 
   // ---------- chi tiết công việc ----------
@@ -523,7 +524,7 @@ export class ProjectPanel {
     const tb = pane.querySelector('.pj-tbody');
     tb.addEventListener('keydown', e => e.stopPropagation());
     tb.addEventListener('change', () => { if (tb.value !== t.body) patch({ body: tb.value }, true).then(ok => ok && this.s.toast('Đã lưu mô tả.')); });
-    pane.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { if (b.dataset.st !== t.status) patch({ status: b.dataset.st }).then(ok => ok && b.dataset.st === 'done' && this.s.toast(`Xong: ${t.title} 🎉`)); });
+    pane.querySelectorAll('[data-st]').forEach(b => b.onclick = () => { if (b.dataset.st !== t.status) patch({ status: b.dataset.st }).then(ok => ok && b.dataset.st === 'done' && this.s.toast(`Xong: ${t.title}`)); });
     pane.querySelectorAll('[data-pr]').forEach(b => b.onclick = () => { if (+b.dataset.pr !== t.priority) patch({ priority: +b.dataset.pr }); });
     pane.querySelector('.pj-asg').onchange = e => patch({ assignee: e.target.value || null });
     pane.querySelector('.pj-nodue')?.addEventListener('click', () => patch({ due: null }));

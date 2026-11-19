@@ -10,6 +10,7 @@ import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { PRO_FX } from '../vendor/my-office/src/office/world/pro/pieces.js';
 import { moToBuilding } from '../myoffice/building.js';
 import { TikTokPhone } from '../ui/tiktokPhone.js';
+import { icon } from '../ui/icons.js';
 
 // toạ độ trong khung của my-office (world/pro/floor.js: "restrooms")
 // (gương kéo dài xuống so với khung gốc: nhân vật chibi thấp vẫn thấy mặt mình)
@@ -29,7 +30,7 @@ export class Restroom {
     rt.on('hello', m => { if (m.wc) this.apply(m.wc); });
     rt.on('wc', m => this.apply(m.state));
     rt.on('wcAngry', m => this.onAngry(m));
-    rt.on('wcKnock', m => session.toast(`🚪 ${m.by} đang gõ cửa buồng của bạn…`));
+    rt.on('wcKnock', m => session.toast(`${m.by} đang gõ cửa buồng của bạn…`));
     this.onKey = e => {   // (trong buồng: bàn phím di chuyển đã khoá — E / Esc để ra)
       if (this.inside < 0 || this.phone?.open || /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName)) return;
       if (e.key === 'e' || e.key === 'E' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); this.leave(); }
@@ -69,7 +70,7 @@ export class Restroom {
   showCard(on) {
     if (!this.card) {
       const c = this.card = document.createElement('div'); c.className = 'wc-card'; c.setAttribute('role', 'status');
-      c.innerHTML = '<b>🚽 Bạn đang ở trong buồng vệ sinh</b><span>Cửa đã khoá — người khác không vào được.</span><div class="wc-acts"><button type="button" class="sx-primary" data-tt>📱 Lướt TikTok</button><button type="button" class="sx-ghost" data-out>Ra khỏi buồng (E)</button></div>';
+      c.innerHTML = `<b>${icon('door', 16)} Bạn đang ở trong buồng vệ sinh</b><span>Cửa đã khoá — người khác không vào được.</span><div class="wc-acts"><button type="button" class="sx-primary" data-tt>${icon('phone', 15)} Lướt TikTok</button><button type="button" class="sx-ghost" data-out>Ra khỏi buồng (E)</button></div>`;
       c.querySelector('[data-out]').onclick = () => this.leave();
       c.querySelector('[data-tt]').onclick = () => (this.phone ||= new TikTokPhone(this.s)).show();
       document.getElementById('appRoot').appendChild(c);
@@ -81,7 +82,7 @@ export class Restroom {
     const st = this.stalls[m.stall]; if (!st) return;
     st.rattle = 0.7;
     const a = this.s.player?.agent;
-    if (m.knocker === (this.s.isAdmin ? `CEO (${this.s.me.admin.username})` : this.s.me.employee?.display)) this.s.toast(`😡 ${m.by} (trong buồng): «${m.text}»`, true);
+    if (m.knocker === (this.s.isAdmin ? `CEO (${this.s.me.admin.username})` : this.s.me.employee?.display)) this.s.toast(`${m.by} (trong buồng): «${m.text}»`, true);
     if (!a || a.f !== 0 || Math.hypot(a.x - st.out.x, a.z - st.out.z) > 12) return;
     const sp = angrySprite(m.text); sp.position.copy(st.door); sp.position.y += 0.25; this.app.scene.add(sp);
     this.angry.push({ sp, t: 3.5 });
@@ -109,7 +110,7 @@ export class Restroom {
     this.mirror.getReflectionCamera(this.app.camera).layers.enable(MIRROR_LAYER);
     this.hideSelf(true);
     this.app.setCamOverride?.({ eye, look });
-    this.s.toast('🪞 Đang soi gương — bước đi, bấm E hoặc Esc để thôi.');
+    this.s.toast('Đang soi gương — bước đi, bấm E hoặc Esc để thôi.');
   }
   endMirror() { if (!this.looking) return; this.looking = null; this.app.setCamOverride?.(null); this.hideSelf(false); }
   /** Nhân vật của mình: chỉ hiện trong gương (lớp riêng) hoặc trở lại bình thường. */

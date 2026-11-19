@@ -1,6 +1,7 @@
 // Bảng điều khiển: đồng hồ, tốc độ, danh sách nhân viên (lọc/tìm), thẻ thông tin, thống kê, lỗi, CSV.
 import { fmtTime, parseTime } from '../core/util.js';
 import { ST_LABEL } from '../sim/sim.js';
+import { icon } from './icons.js';
 
 export const STATE_COLOR = {
   outside: '#9aa0a6', arriving: '#4f8f4a', walking: '#2a9d8f', working: '#2f6db5', pantry: '#d9822b', meeting: '#6b4aa5',
@@ -39,7 +40,7 @@ export class Panel {
 
   syncSpeed() {
     const app = this.app;
-    $('play').textContent = app.paused ? '▶' : '⏸';
+    $('play').innerHTML = icon(app.paused ? 'play' : 'pause', 16);
     $('play').setAttribute('aria-label', app.paused ? 'Chạy tiếp' : 'Tạm dừng');
     document.querySelectorAll('[data-speed]').forEach(b => b.classList.toggle('on', !app.paused && +b.dataset.speed === app.speed));
   }

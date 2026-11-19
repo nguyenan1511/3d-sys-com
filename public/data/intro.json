@@ -34,7 +34,7 @@
   {
    "id": "move",
    "group": "start",
-   "icon": "🚶",
+   "icon": "walk",
    "color": "#dbeafe",
    "title": "Đi lại",
    "text": "Đi khắp 3 tầng, giữ Shift để chạy. Bấm vào sàn là nhân vật tự đi tới.",
@@ -44,7 +44,7 @@
   {
    "id": "interact",
    "group": "start",
-   "icon": "👆",
+   "icon": "hand",
    "color": "#fde68a",
    "title": "Tương tác",
    "text": "Đứng gần ghế, máy, đồ vật hay cửa phòng sẽ hiện gợi ý — bấm là dùng được.",
@@ -54,7 +54,7 @@
   {
    "id": "chat",
    "group": "start",
-   "icon": "💬",
+   "icon": "chat",
    "color": "#dcfce7",
    "title": "Chat",
    "text": "Nhắn cả công ty, theo phòng ban hoặc nhắn riêng một người.",
@@ -64,7 +64,7 @@
   {
    "id": "camera",
    "group": "start",
-   "icon": "🎥",
+   "icon": "video",
    "color": "#ede9fe",
    "title": "Xoay & zoom",
    "text": "Kéo để xoay camera, cuộn hoặc chụm 2 ngón để phóng to. V đổi sang góc nhìn thứ nhất.",
@@ -75,7 +75,7 @@
    "id": "board",
    "group": "work",
    "new_in": 2,
-   "icon": "📢",
+   "icon": "megaphone",
    "color": "#fff1de",
    "title": "Bảng thông báo",
    "text": "Tin chính và sự kiện sắp tới của công ty trên bảng ở sảnh. Phòng HC-NS đăng tin, có tin mới là bạn được báo.",
@@ -87,7 +87,7 @@
    "id": "meeting",
    "group": "work",
    "new_in": 2,
-   "icon": "📅",
+   "icon": "calendar",
    "color": "#e3f7f1",
    "title": "Đặt phòng họp",
    "text": "Chọn khung giờ, mời đồng nghiệp. Trong phòng: họp video, chia sẻ màn hình, bảng vẽ chung, chat riêng. Người đang họp ngồi ở bàn họp, nhãn \"Đang họp\".",
@@ -99,7 +99,7 @@
    "id": "projects",
    "group": "work",
    "new_in": 4,
-   "icon": "🗂️",
+   "icon": "grid",
    "color": "#f3f0ff",
    "title": "Dự án của nhóm",
    "text": "Tạo dự án, mời đồng đội, chia việc trên bảng Kanban (kéo thả, hạn chót, giao người làm). Mỗi dự án có chat riêng (@tên để nhắc), tài liệu, ghi chú và phòng dự án 3D để họp, vẽ chung.",
@@ -110,7 +110,7 @@
   {
    "id": "desk",
    "group": "work",
-   "icon": "🪑",
+   "icon": "chair",
    "color": "#dbeafe",
    "title": "Bàn làm việc của bạn",
    "text": "Chị Mai xếp chỗ theo phòng ban. Lần sau vào là ngồi ngay vào bàn.",
@@ -121,7 +121,7 @@
   {
    "id": "clock",
    "group": "work",
-   "icon": "⏰",
+   "icon": "clock",
    "color": "#fee2e2",
    "title": "Chấm công",
    "text": "Tự chấm công: online là đã vào ca, đóng hết tab là ra về. Xem bảng công cả tháng ở máy chấm công cạnh cửa chính.",
@@ -133,7 +133,7 @@
   {
    "id": "guide",
    "group": "work",
-   "icon": "🙋‍♀️",
+   "icon": "user",
    "color": "#ffedd5",
    "title": "Chị Mai hướng dẫn",
    "text": "Chị Mai đứng ở sảnh: người mới được xếp bàn và ngồi vào chỗ ngay; cần xem việc tuần đầu cứ tới hỏi chị.",
@@ -143,7 +143,7 @@
   {
    "id": "lift",
    "group": "work",
-   "icon": "🛗",
+   "icon": "lift",
    "color": "#e0f2fe",
    "title": "Thang máy",
    "text": "Lên xuống 3 tầng trong vài giây, bản đồ nhỏ đổi theo tầng.",
@@ -154,7 +154,7 @@
   {
    "id": "travel",
    "group": "work",
-   "icon": "🗺️",
+   "icon": "map",
    "color": "#ecfccb",
    "title": "Đi nhanh tới",
    "text": "Chọn một nơi trong danh sách là có mặt ngay: phòng ban, sảnh, sân thượng…",
@@ -165,7 +165,7 @@
    "id": "tiktok",
    "group": "fun",
    "new_in": 3,
-   "icon": "📱",
+   "icon": "phone",
    "color": "#fde2e4",
    "title": "Lướt TikTok",
    "text": "Vào buồng vệ sinh, bấm \"Lướt TikTok\": vuốt lên/xuống để xem video đồng nghiệp chia sẻ, dán link để thêm video.",
@@ -176,7 +176,7 @@
   {
    "id": "karaoke",
    "group": "fun",
-   "icon": "🎤",
+   "icon": "mic",
    "color": "#fce7f3",
    "title": "Phòng karaoke",
    "text": "Tối đa 10 người: chọn bài hot từ YouTube, ưu tiên bài, hát mic, chat riêng phòng, đèn vũ trường 7 màu và nút Quẩy.",
@@ -187,7 +187,7 @@
   {
    "id": "billiards",
    "group": "fun",
-   "icon": "🎱",
+   "icon": "ball8",
    "color": "#d1fae5",
    "title": "Bi-a 2 người",
    "text": "Kéo thanh lực để đánh; bàn đủ người thì vào xem trận.",
@@ -198,7 +198,7 @@
   {
    "id": "tv",
    "group": "fun",
-   "icon": "📺",
+   "icon": "tv",
    "color": "#e0e7ff",
    "title": "Sofa xem TV",
    "text": "Ngồi sofa là TV bật, đồng nghiệp thấy bạn đang xem.",
@@ -209,7 +209,7 @@
   {
    "id": "music",
    "group": "fun",
-   "icon": "🎵",
+   "icon": "music",
    "color": "#fef3c7",
    "title": "Góc âm nhạc",
    "text": "Phát nhạc YouTube cho cả công ty cùng nghe (người được CEO cấp quyền).",
@@ -220,7 +220,7 @@
   {
    "id": "acts",
    "group": "fun",
-   "icon": "💃",
+   "icon": "dance",
    "color": "#fae8ff",
    "title": "Động tác",
    "text": "Vẫy tay, nhảy múa, gọi điện, uống cà phê, nhảy lên — ai cũng thấy.",
@@ -230,7 +230,7 @@
   {
    "id": "props",
    "group": "fun",
-   "icon": "☕",
+   "icon": "coffee",
    "color": "#ffedd5",
    "title": "Đồ vật dùng được",
    "text": "Pha cà phê, in tài liệu, đọc sách, xoay địa cầu, cho cá ăn, vuốt mèo, chơi game.",
@@ -240,7 +240,7 @@
   {
    "id": "lights",
    "group": "more",
-   "icon": "💡",
+   "icon": "bulb",
    "color": "#fef9c3",
    "title": "Công tắc đèn",
    "text": "Cạnh máy chấm công: tắt/bật đèn chuyển cả công ty sang buổi tối (người được cấp quyền).",
@@ -251,10 +251,10 @@
   {
    "id": "wc",
    "group": "more",
-   "icon": "🚻",
+   "icon": "door",
    "color": "#e2e8f0",
    "title": "Nhà vệ sinh",
-   "text": "Buồng có khoá — có người thì đừng gõ cửa kẻo bị quát 😡. Trong buồng lướt TikTok được; bồn rửa tay có gương soi thật.",
+   "text": "Buồng có khoá — có người thì đừng gõ cửa kẻo bị quát đó. Trong buồng lướt TikTok được; bồn rửa tay có gương soi thật.",
    "pc": "E ở buồng / bồn rửa",
    "mobile": "Tương tác",
    "go": "wc"
@@ -262,7 +262,7 @@
   {
    "id": "blinds",
    "group": "more",
-   "icon": "🪟",
+   "icon": "window",
    "color": "#e0f2fe",
    "title": "Rèm cửa sổ",
    "text": "Kéo hoặc hạ rèm, mọi người đều thấy và rèm giữ nguyên lần sau.",
@@ -272,7 +272,7 @@
   {
    "id": "street",
    "group": "more",
-   "icon": "🚗",
+   "icon": "car",
    "color": "#fee2e2",
    "title": "Ra đường cẩn thận",
    "text": "Xe chạy thật đó: bước xuống lòng đường là xe phanh gấp và bấm còi.",
@@ -283,7 +283,7 @@
   {
    "id": "look",
    "group": "more",
-   "icon": "👕",
+   "icon": "shirt",
    "color": "#dcfce7",
    "title": "Nhân vật của tôi",
    "text": "Đổi màu tóc, da, áo, quần cho nhân vật; dùng chung trên mọi thiết bị.",
@@ -293,7 +293,7 @@
   {
    "id": "smoke",
    "group": "more",
-   "icon": "🚭",
+   "icon": "nosmoke",
    "color": "#f1f5f9",
    "title": "Không hút thuốc trong văn phòng",
    "text": "Muốn hút thì ra ngoài trời nhé — trong nhà động tác này bị tắt.",

@@ -66,7 +66,7 @@ export class Session {
     this.remote = new RemoteAvatars(app.scene, app.model, app.quality); this.profiles = new Map(); // (key → tên, nhân vật, phòng ban của người khác)
     this.remote.setSelf(this.key);
     this.toast = toast;
-    this.fx = new SmokeFX(app.scene);
+    this.fx = new SmokeFX(app.scene); this.fx.camera = app.camera;   // (khói phun: camera sau lưng thì phả chếch sang bên cho thấy)
     this.blinds = new Blinds(app.scene, app.model, app.outerBlinds || [], { big: app.big, real: app.real });
     this.lift = app.big ? new Elevator(app.scene) : null; // thang máy (toà nhà lớn)
     this.tv = app.big ? new LoungeTv(app.model) : null;   // sofa xem TV ở khu giải trí
@@ -499,7 +499,7 @@ export class Session {
     let box = $('onlineBox');
     if (!box) { box = document.createElement('section'); box.className = 'box'; box.id = 'onlineBox'; $('simBox').parentNode.insertBefore(box, $('simBox')); }
     const list = this.online;
-    box.innerHTML = `<h2><span class="ol-lbl">Đang online </span><span class="ol-n">(${list.length})</span></h2><ul class="online-list">${list.map(o => `<li><button data-follow="${esc(o.key)}" title="Bấm để camera bám theo"><span class="dot" style="background:${o.kind === 'admin' ? '#202124' : '#2bb673'}"></span>${esc(o.display)}${o.key === this.key ? ' (bạn)' : ''}<span class="muted small">${o.seated ? ` · ngồi ${esc(o.seated)}` : ''}</span></button>${o.key !== this.key ? `<button class="ol-dm" data-dm="${esc(o.key)}" title="Nhắn riêng" aria-label="Nhắn riêng với ${esc(o.display)}">✉</button>` : ''}</li>`).join('')}</ul>`;
+    box.innerHTML = `<h2><span class="ol-lbl">Đang online </span><span class="ol-n">(${list.length})</span></h2><ul class="online-list">${list.map(o => `<li><button data-follow="${esc(o.key)}" title="Bấm để camera bám theo"><span class="dot" style="background:${o.kind === 'admin' ? '#202124' : '#2bb673'}"></span>${esc(o.display)}${o.key === this.key ? ' (bạn)' : ''}<span class="muted small">${o.seated ? ` · ngồi ${esc(o.seated)}` : ''}</span></button>${o.key !== this.key ? `<button class="ol-dm" data-dm="${esc(o.key)}" title="Nhắn riêng" aria-label="Nhắn riêng với ${esc(o.display)}">${icon('mail', 14)}</button>` : ''}</li>`).join('')}</ul>`;
     box.querySelectorAll('[data-follow]').forEach(b => b.onclick = () => this.follow(b.dataset.follow));
     const ho = document.querySelector('#sessionBar .hdr-online b'); if (ho) ho.textContent = String(list.length);   // (điện thoại: số online trong thẻ logo)
     box.querySelectorAll('[data-dm]').forEach(b => b.onclick = e => { e.stopPropagation(); this.social?.dm(b.dataset.dm); });
@@ -556,7 +556,7 @@ export class Session {
       this.nearProj = pj;
       const pr = free && !ls && !sofa && !tc && !mc && !gd && !kt && !bl && !mt && !nb && !pj && !this.props?.busy && !this.bil?.mine && !this.ktv?.inRoom ? this.props?.near(a.x, a.z, a.f, a.yaw) : null;
       this.nearProp = pr;
-      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : this.wc?.locked ? '' : lt ? this.lights.prompt() : ws ? this.wc.prompt(ws) : wk ? (this.wc.looking ? '<b>E</b> thôi soi gương' : '<b>E</b> soi gương 🪞') : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : kt ? this.ktv.prompt() : bl ? this.bil.prompt() : mt ? this.meet.prompt() : nb ? this.board.prompt() : pj ? this.projects.prompt() : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
+      const prompt = this.player.sofa ? '<b>E</b> đứng dậy (đang xem TV)' : this.wc?.locked ? '' : lt ? this.lights.prompt() : ws ? this.wc.prompt(ws) : wk ? (this.wc.looking ? '<b>E</b> thôi soi gương' : `<b>E</b> soi gương ${icon('mirror', 14)}`) : tc ? this.att.prompt() : mc ? `<b>E</b> ${this.social?.musicState?.on ? 'đổi / tắt nhạc' : 'bật nhạc cho cả công ty'}` : gd ? '<b>E</b> nói chuyện với chị Mai (hướng dẫn)' : ls ? `<b>E</b> đi thang máy (đang ở ${LIFT_FLOORS[ls.f].toLowerCase()})` : sofa ? '<b>E</b> ngồi sofa xem TV' : kt ? this.ktv.prompt() : bl ? this.bil.prompt() : mt ? this.meet.prompt() : nb ? this.board.prompt() : pj ? this.projects.prompt() : pr ? this.props.prompt(pr) : it ? `<b>F</b> ${it.open ? 'hạ' : 'kéo'} ${it.name.toLowerCase()}` : '';
       if (prompt !== this._prompt) { this._prompt = prompt; this.app.setPrompt?.(prompt); }
     }
     if (this.labels.visible) {

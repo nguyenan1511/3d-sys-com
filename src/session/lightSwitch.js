@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { api } from '../net/api.js';
 import { esc } from './ui.js';
+import { icon, drawIcon } from '../ui/icons.js';
 
 export class LightSwitch {
   constructor(session, clock) {
@@ -15,8 +16,8 @@ export class LightSwitch {
     this.build();
     const rt = session.rt;
     rt.on('hello', m => { this.can = !!m.canLights; if (m.lights) this.apply(m.lights, true); });
-    rt.on('lights', m => { const prev = this.state.on; this.apply(m.state); if (prev !== m.state.on && m.state.by) this.s.toast(`${m.state.by} đã ${m.state.on ? 'bật' : 'tắt'} đèn công ty ${m.state.on ? '💡' : '☀️'}`); });
-    rt.on('lightsPerm', m => { this.can = !!m.allow; this.refresh(); this.s.toast(m.allow ? 'CEO đã cấp cho bạn quyền bật/tắt đèn công ty 💡' : 'CEO đã tắt quyền bật/tắt đèn của bạn.'); });
+    rt.on('lights', m => { const prev = this.state.on; this.apply(m.state); if (prev !== m.state.on && m.state.by) this.s.toast(`${m.state.by} đã ${m.state.on ? 'bật' : 'tắt'} đèn công ty.`); });
+    rt.on('lightsPerm', m => { this.can = !!m.allow; this.refresh(); this.s.toast(m.allow ? 'CEO đã cấp cho bạn quyền bật/tắt đèn công ty.' : 'CEO đã tắt quyền bật/tắt đèn của bạn.'); });
   }
   get canControl() { return this.can || this.s.isAdmin; }
 
@@ -32,7 +33,7 @@ export class LightSwitch {
     this.led = new THREE.Mesh(new THREE.CircleGeometry(0.008, 12), new THREE.MeshBasicMaterial({ color: '#3bd15a', toneMapped: false }));
     this.led.position.set(0, 1.39, 0.0215); g.add(this.led);
     const lc = document.createElement('canvas'); lc.width = 192; lc.height = 56; const c = lc.getContext('2d');
-    c.fillStyle = '#2b2d42'; c.beginPath(); c.roundRect(0, 0, 192, 56, 12); c.fill(); c.fillStyle = '#ffd23f'; c.font = 'bold 26px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText('💡 ĐÈN', 96, 30);
+    c.fillStyle = '#2b2d42'; c.beginPath(); c.roundRect(0, 0, 192, 56, 12); c.fill(); c.fillStyle = '#ffd23f'; c.font = 'bold 26px system-ui, sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle'; drawIcon(c, 'bulb', 62, 28, 30, '#ffd23f', 2.6); c.fillText('ĐÈN', 112, 30);
     const lt = new THREE.CanvasTexture(lc); lt.colorSpace = THREE.SRGBColorSpace;
     const lab = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.058), new THREE.MeshBasicMaterial({ map: lt, toneMapped: false })); lab.position.set(0, 1.47, 0.012); g.add(lab);
     this.show();
@@ -53,7 +54,7 @@ export class LightSwitch {
     if (this.pop?.isConnected) return;
     const isAdmin = this.s.isAdmin;
     const pop = this.pop = document.createElement('div'); pop.className = 'speaker-pop light-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Đèn công ty');
-    pop.innerHTML = `<header><b>💡 Đèn công ty</b><button type="button" class="sp-x" aria-label="Đóng">✕</button></header>
+    pop.innerHTML = `<header><b>${icon('bulb', 16)} Đèn công ty</b><button type="button" class="sp-x" aria-label="Đóng">${icon('close', 14)}</button></header>
       <p class="sp-hint">Bật đèn: cả văn phòng chuyển sang buổi tối, đèn các phòng sáng lên. Tắt đèn: trở lại ban ngày.</p>
       <button type="button" class="lp-toggle" role="switch" aria-checked="false"><span class="lp-knob"></span><b></b></button>
       <p class="sp-note lp-by"></p>

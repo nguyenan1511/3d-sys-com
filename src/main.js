@@ -691,14 +691,22 @@ export async function startApp(me, hooks = {}) {
   if (session.player) {
     const hint = document.createElement('div'); hint.className = 'cam-hint'; hint.setAttribute('role', 'status'); canvas.parentElement.appendChild(hint);
     const touch = isTouchUI(); let hideT = 0;
+    // nhãn đặt ngay dưới hàng nút góc trên phải (nút chat, thanh nhạc công ty…) — trước đây nằm cùng hàng nên bị thanh nhạc đè
+    const place = () => {
+      // (và dưới thanh "Bấm ghim để tới nơi đó" khi đang bật ghim "Có gì ở đây?")
+      const wide = matchMedia('(min-width: 641px) and (min-height: 481px)').matches;
+      const bottom = wide ? Math.max(0, ...[...document.querySelectorAll('.social-bar, .ipin-bar:not(.off)')].map(e => e.getBoundingClientRect()).filter(r => r.height).map(r => r.bottom)) : 0;
+      hint.style.top = bottom ? `${Math.round(bottom - canvas.parentElement.getBoundingClientRect().top + 10)}px` : '';
+    };
     const show = (on, nudge = false) => {
+      place();
       if (nudge) { // kéo chuột khi camera đang bám theo: nhắc cách xoay
-        hint.innerHTML = '<kbd>Esc</kbd> <b>để xoay camera bằng chuột</b> · đi tiếp: camera tự theo lại';
+        hint.innerHTML = '<kbd>Esc</kbd> <b>để xoay camera bằng chuột</b> · đi tiếp: camera tự theo';
         hint.classList.remove('look'); hint.classList.add('show', 'nudge'); clearTimeout(hideT);
         hideT = setTimeout(() => hint.classList.remove('show', 'nudge'), 3500); return;
       }
       hint.classList.remove('nudge');
-      hint.innerHTML = on ? (touch ? '<b>Xem xung quanh</b> · đi để camera theo lại' : '<b>Đang xem xung quanh</b> · kéo chuột để xoay · đi tiếp hoặc <kbd>Esc</kbd> để camera theo lại')
+      hint.innerHTML = on ? (touch ? '<b>Xem xung quanh</b> · đi để camera theo lại' : '<b>Đang xem xung quanh</b> · kéo chuột để xoay · <kbd>Esc</kbd> để camera theo lại')
         : (touch ? '<b>Camera theo bạn</b> · vuốt để xem xung quanh' : '<b>Camera theo nhân vật</b> · <kbd>Esc</kbd> để xem xung quanh bằng chuột');
       hint.classList.toggle('look', on); hint.classList.add('show'); clearTimeout(hideT);
       hideT = setTimeout(() => hint.classList.remove('show'), on ? 4000 : 2600);
@@ -729,9 +737,9 @@ export async function startApp(me, hooks = {}) {
     for (const a of session.remote.list) {
       if (!a.visible && a !== session.player?.agent) continue;
       if (a.local && a._mirror) continue;   // (đang soi gương: góc nhìn ngang mắt, không hiện nhãn của mình)
-      if (a.local) list.push({ key: 'me', me: true, name: session.isAdmin ? `CEO (${session.me.admin.username})` : session.me.employee.display, dept: a.act === 'meet' ? '📅 Đang họp' : myDept(), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf('me') });
+      if (a.local) list.push({ key: 'me', me: true, name: session.isAdmin ? `CEO (${session.me.admin.username})` : session.me.employee.display, dept: a.act === 'meet' ? 'Đang họp' : myDept(), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf('me') });
       else if (a.key === 'guide') list.push({ key: 'guide', guide: true, name: 'Chị Mai', dept: '', x: a.x, y: a.y, z: a.z, f: a.f, sit: a.sit });
-      else list.push({ key: a.key, name: a.display, dept: a.target?.act === 'meet' ? '📅 Đang họp' : a.department || deptOfCode(a.key.startsWith('employee:') ? a.key.slice(9) : null), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf(a.key) });
+      else list.push({ key: a.key, name: a.display, dept: a.target?.act === 'meet' ? 'Đang họp' : a.department || deptOfCode(a.key.startsWith('employee:') ? a.key.slice(9) : null), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf(a.key) });
     }
     for (const a of sim.agents) if (a.visible) list.push({ key: 'sim:' + a.id, name: a.emp.name, dept: a.emp.department, x: a.x, y: a.y, z: a.z, f: a.onStair ? null : a.f, sit: a.sit });
     const fl = rig.follow ? (rig.follow.onStair ? null : rig.follow.f) : cutFloor;
@@ -814,7 +822,7 @@ export async function startApp(me, hooks = {}) {
     if (onRoad !== roadShown || (onRoad && now - roadMsgT > 3000 && roadMsg)) {
       roadShown = onRoad; if (now - roadMsgT > 3000) roadMsg = '';
       $('roadWarn').hidden = !onRoad;
-      $('roadWarn').innerHTML = `<b>⚠ Bạn đang đứng dưới lòng đường</b> — xe cộ qua lại, coi chừng!${roadMsg ? `<div class="insult">🚗 Tài xế: «${roadMsg}»</div>` : ''}`;
+      $('roadWarn').innerHTML = `<b>${icon('warning', 15)} Bạn đang đứng dưới lòng đường</b> — xe cộ qua lại, coi chừng!${roadMsg ? `<div class="insult">${icon('car', 14)} Tài xế: «${roadMsg}»</div>` : ''}`;
     }
     // màn hình bàn: sáng khi có người ngồi làm việc
     if (screenVer !== inter.version) { screenVer = inter.version; screenState.clear(); }

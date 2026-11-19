@@ -42,7 +42,7 @@ export class NoticeBoard {
     this.top = []; this.canPost = false; this.list = []; this.hasMore = false; this.filter = 'all'; this.el = null;
     session.rt.on('hello', () => this.refresh());
     session.rt.on('board', () => this.refresh(true));
-    session.rt.on('boardPerm', m => { session.toast(m.allow ? 'CEO đã cấp cho bạn quyền đăng tin lên bảng thông báo 📣' : 'CEO đã thu quyền đăng tin của bạn.'); this.refresh(); });
+    session.rt.on('boardPerm', m => { session.toast(m.allow ? 'CEO đã cấp cho bạn quyền đăng tin lên bảng thông báo.' : 'CEO đã thu quyền đăng tin của bạn.'); this.refresh(); });
   }
 
   // ---------- dữ liệu ----------
@@ -158,8 +158,8 @@ export class NoticeBoard {
     g.restore();
     // nhãn trên ảnh
     let tx = fx + 22;
-    const tag = (text, bg, fg = '#fff') => { g.font = `900 22px ${F}`; const w = g.measureText(text).width + 30; g.fillStyle = bg; rr(g, tx, fy + 20, w, 40, 20); g.fill(); g.fillStyle = fg; g.fillText(text, tx + 15, fy + 48); tx += w + 10; };
-    if (f.pinned) tag('📌 ĐÃ GHIM', '#ffd166', '#2b2d42');
+    const tag = (text, bg, fg = '#fff', ic = null) => { g.font = `900 22px ${F}`; const iw = ic ? 26 : 0, w = g.measureText(text).width + 30 + iw; g.fillStyle = bg; rr(g, tx, fy + 20, w, 40, 20); g.fill(); if (ic) drawIcon(g, ic, tx + 26, fy + 40, 20, fg, 2.4); g.fillStyle = fg; g.fillText(text, tx + 15 + iw, fy + 48); tx += w + 10; };
+    if (f.pinned) tag('ĐÃ GHIM', '#ffd166', '#2b2d42', 'pin');
     tag(f.kind === 'event' ? 'SỰ KIỆN' : 'THÔNG BÁO', f.kind === 'event' ? '#ef476f' : '#1b2a8c');
     if (now - f.createdAt < 2 * 86400e3) tag('MỚI', '#06d6a0');
     // chữ
@@ -187,7 +187,7 @@ export class NoticeBoard {
       else { g.fillStyle = it.pinned ? '#fff1de' : '#eef1fb'; rr(g, bx, by, th * 1.25, th, 12); g.fill(); drawIcon(g, it.pinned ? 'pin' : 'megaphone', bx + th * 0.625, by + th / 2, th * 0.5, it.pinned ? '#c97c00' : '#1b2a8c', 2.2); }
       const tx2 = bx + th * 1.25 + 18, mw = rx + rw - tx2 - 16;
       let mw2 = mw; if (now - it.createdAt < 2 * 86400e3) { g.font = `900 17px ${F}`; const w = g.measureText('MỚI').width + 18; g.fillStyle = '#06d6a0'; rr(g, rx + rw - w - 12, yy + 12, w, 26, 13); g.fill(); g.fillStyle = '#fff'; g.fillText('MỚI', rx + rw - w - 3, yy + 31); mw2 = mw - w - 8; }
-      g.fillStyle = '#2b2d42'; g.font = `900 29px ${F}`; g.fillText(fit(g, (it.pinned ? '📌 ' : '') + it.title, mw2), tx2, yy + rh * 0.47);
+      g.fillStyle = '#2b2d42'; g.font = `900 29px ${F}`; g.fillText(fit(g, it.title, mw2), tx2, yy + rh * 0.47);   // (ghim: đã có biểu tượng ghim ở ô bên trái)
       g.font = `700 21px ${F}`; g.fillStyle = it.kind === 'event' && it.upcoming ? '#d0582b' : '#6b6d85';
       g.fillText(fit(g, it.kind === 'event' && it.eventAt ? `${fmtHM(it.eventAt)} ${fmtDay(it.eventAt)}${it.place ? ' · ' + it.place : ''} · ${until(it.eventAt, now)}` : `${it.byName} · ${ago(it.createdAt, now)}`, mw), tx2, yy + rh * 0.8);
     });

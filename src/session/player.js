@@ -210,6 +210,7 @@ export class Player {
     const a = this.agent, rig = this.app.rig;
     a.animT += dt; a.actT += dt;
     if (a.act === 'wave' && a.actT > 2.6) this.setAct(null);
+    if (a.act === 'smoke' && a.actT > 9) this.setAct(null);   // (một điếu ~9 giây, vài hơi rít: hết thì phà khói "ghê chưa…" — session/fx.js)
     if (this.seq) { this.runSeq(dt); this.send(); return; }
     const K = this.keys, st0 = this.stick, analog = st0 && Math.hypot(st0.x, st0.y) > 0.08;
     // cần điều khiển trên điện thoại: analog (nghiêng ít đi chậm); bàn phím: −1 / 0 / 1

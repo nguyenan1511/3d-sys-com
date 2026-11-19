@@ -20,17 +20,18 @@ import * as CZ_LAMPS from '../vendor/my-office-cozy/src/office/world/furniture/p
 import * as CZ_AQ from '../vendor/my-office-cozy/src/office/world/props/aquarium.js';
 import * as CZ_ARC from '../vendor/my-office-cozy/src/office/world/props/arcade.js';
 import * as CZ_PRN from '../vendor/my-office-cozy/src/office/world/props/printer.js';
+import { icon } from '../ui/icons.js';
 
 /** Loại đồ vật: chữ trên gợi ý, động tác, thời gian (giây; 0 = tới khi đi đi), hiệu ứng nổi trên đồ vật. */
 export const KINDS = {
-  coffee: { verb: 'Pha cà phê', act: 'brew', dur: 5, fx: '☕', done: 'Cà phê nóng đây!', after: 'drink' },
-  printer: { verb: 'In tài liệu', act: 'print', dur: 4, fx: '📄', done: 'Đã in xong.' },
-  shelf: { verb: 'Lấy sách đọc', act: 'read', dur: 0, fx: '📖' },
-  globe: { verb: 'Xoay quả địa cầu', act: 'globe', dur: 3, fx: '🌏' },
-  aquarium: { verb: 'Cho cá ăn', act: 'feed', dur: 4, fx: '🐟', done: 'Đàn cá ăn ngon lành.' },
-  cat: { verb: 'Vuốt ve mèo', act: 'pet', dur: 4, fx: '😺', done: 'Meo~' },
-  lamp: { verb: 'Bật / tắt đèn', act: 'lamp', dur: 1.2, fx: '💡' },
-  arcade: { verb: 'Chơi game', act: 'game', dur: 0, fx: '🕹️' }
+  coffee: { verb: 'Pha cà phê', act: 'brew', dur: 5, fx: 'coffee', done: 'Cà phê nóng đây!', after: 'drink' },
+  printer: { verb: 'In tài liệu', act: 'print', dur: 4, fx: 'file', done: 'Đã in xong.' },
+  shelf: { verb: 'Lấy sách đọc', act: 'read', dur: 0, fx: 'book' },
+  globe: { verb: 'Xoay quả địa cầu', act: 'globe', dur: 3, fx: 'globe' },
+  aquarium: { verb: 'Cho cá ăn', act: 'feed', dur: 4, fx: 'fish', done: 'Đàn cá ăn ngon lành.' },
+  cat: { verb: 'Vuốt ve mèo', act: 'pet', dur: 4, fx: 'cat', done: 'Meo~' },
+  lamp: { verb: 'Bật / tắt đèn', act: 'lamp', dur: 1.2, fx: 'bulb' },
+  arcade: { verb: 'Chơi game', act: 'game', dur: 0, fx: 'gamepad' }
 };
 
 const _v = new THREE.Vector3();
@@ -122,7 +123,7 @@ export class Props {
       it.obj.traverse(o => { for (const mt of [].concat(o.material || [])) if (mt?.emissive) { mt.userData.emi0 ??= mt.emissiveIntensity; mt.emissiveIntensity = it.on ? mt.userData.emi0 : 0; } });
       this.s.toast(it.on ? 'Đã bật đèn.' : 'Đã tắt đèn.');
     }
-    const el = document.createElement('div'); el.className = 'prop-fx'; el.textContent = it.fx;
+    const el = document.createElement('div'); el.className = 'prop-fx'; el.innerHTML = icon(it.fx, 30);   // (biểu tượng nét, không dùng emoji)
     const o = new CSS2DObject(el); o.position.set(it.x, it.y + 1.4, it.z); this.app.scene.add(o);
     setTimeout(() => { this.app.scene.remove(o); el.remove(); }, 2200);
   }

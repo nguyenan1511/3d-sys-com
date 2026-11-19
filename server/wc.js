@@ -3,12 +3,12 @@
 // người gõ cửa nhận thông báo). Ra khỏi buồng / rời mạng → trả buồng. Trạng thái chỉ nằm trong bộ nhớ.
 export const STALLS = 2;
 export const ANGRY = [
-  'Có người rồi!! Gõ gì mà gõ 😡',
-  'Ai đó?! Đang bận mà! 😤',
-  'Đợi chút đi, đừng có giục! 💢',
-  'Có người!!! Ra ngoài chờ đi! 😠',
-  'Gõ nữa là không ra luôn đó! 🤬',
-  'Bên này kín rồi, qua buồng kia đi! 😾'
+  'Có người rồi!! Gõ gì mà gõ',
+  'Ai đó?! Đang bận mà!',
+  'Đợi chút đi, đừng có giục!',
+  'Có người!!! Ra ngoài chờ đi!',
+  'Gõ nữa là không ra luôn đó!',
+  'Bên này kín rồi, qua buồng kia đi!'
 ];
 
 export class Restroom {

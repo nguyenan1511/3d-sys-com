@@ -1734,7 +1734,7 @@ body:has(.social-bar .music-bar.show:not(.collapsed)) .notices { top: 88px; }
 @media (max-width: 760px), (max-height: 500px) and (max-width: 1100px) { #appRoot .social-bar .music-bar:not(.collapsed) { width: calc(100vw - 60px) !important; } }
 
 /* hiệu ứng nổi trên đồ vật khi dùng (src/scene/props.js) */
-.prop-fx { font-size: 26px; line-height: 1; filter: drop-shadow(0 3px 6px rgba(0,0,0,.25)); animation: prop-fx 2.2s cubic-bezier(.2,.8,.2,1) forwards; pointer-events: none; }
+.prop-fx { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 50%; background: #fffaf3; color: #d0582b; border: 2px solid #2b2d42; line-height: 1; filter: drop-shadow(0 3px 6px rgba(0,0,0,.25)); animation: prop-fx 2.2s cubic-bezier(.2,.8,.2,1) forwards; pointer-events: none; }
 @keyframes prop-fx { 0% { opacity: 0; transform: translateY(8px) scale(.6); } 15% { opacity: 1; transform: translateY(0) scale(1.1); } 30% { transform: translateY(-6px) scale(1); } 100% { opacity: 0; transform: translateY(-46px) scale(.9); } }
 @media (prefers-reduced-motion: reduce) { .prop-fx { animation-duration: 1.2s; } }
 
@@ -1838,7 +1838,7 @@ body:has(.ktv-pop.show) .notices { right: calc(12px + min(360px, 100vw - 24px) +
 }
 
 /* nhãn chế độ camera (bám theo / xem xung quanh) — giữa phía trên, hiện rồi mờ dần */
-.cam-hint { position: absolute; left: 50%; top: 14px; transform: translate(-50%, -6px); z-index: 6; pointer-events: none; max-width: min(92vw, 520px);
+.cam-hint { position: absolute; left: 50%; top: 14px; transform: translate(-50%, -6px); z-index: 9; pointer-events: none; max-width: calc(100vw - 32px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-sizing: border-box;
   padding: 7px 14px; border-radius: 999px; background: rgba(28,30,38,.78); color: #fff; font-size: 13px; line-height: 1.35; text-align: center;
   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); box-shadow: 0 4px 16px rgba(0,0,0,.18); opacity: 0; transition: opacity .3s ease, transform .3s ease; }
 .cam-hint.show { opacity: 1; transform: translate(-50%, 0); }
@@ -2096,11 +2096,11 @@ body:has(#dash:not([hidden])) .notices { display: none; }
 /* rê chuột: chỉ đổi bóng (không nhấc thẻ / phóng ảnh — cuộn qua các thẻ không bị giật); thiết bị cảm ứng không có hover */
 @media (hover: hover) and (pointer: fine) { .intro-card:hover { box-shadow: 0 2px 4px rgba(43,45,66,.08), 0 12px 28px rgba(43,45,66,.12); } }
 @keyframes intro-in { from { opacity: 0; transform: translateY(10px); } }
-/* ảnh 3D: khung 16:10, bo góc trên; thiếu ảnh thì hiện emoji trên nền màu */
+/* ảnh 3D: khung 16:10, bo góc trên; thiếu ảnh thì hiện biểu tượng nét trên nền màu */
 .intro-ic { position: relative; aspect-ratio: 16 / 10; background: var(--bg, #eef2f7); overflow: hidden; }
 .intro-ic img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .intro-ic::after { content: ''; position: absolute; inset: auto 0 0 0; height: 30%; background: linear-gradient(transparent, rgba(0,0,0,.08)); pointer-events: none; }
-.intro-ic.noimg { display: grid; place-items: center; } .intro-ic.noimg::before { content: attr(data-emoji); font-size: 44px; }
+.intro-ic.noimg { display: grid; place-items: center; } .intro-fb { display: none; color: #2b2d42; } .intro-ic.noimg .intro-fb { display: block; }
 .intro-tx { min-width: 0; display: flex; flex-direction: column; gap: 6px; padding: 13px 15px 15px; }
 .intro-tx h3 { margin: 0; font-size: 16px; font-weight: 900; }
 .intro-tx p { margin: 0; font-size: 13.5px; line-height: 1.45; color: #4a4c63; }
@@ -2887,7 +2887,7 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
   .tt-phone { height: 100dvh; max-width: 100vw; width: 100vw; aspect-ratio: auto; border-radius: 0; border: 0; box-shadow: none; padding: calc(8px + env(safe-area-inset-top)) 8px calc(8px + env(safe-area-inset-bottom)); }
   .tt-phone::before, .tt-phone::after, .tt-status { display: none; }
   .tt-screen { border-radius: 18px; }
-  .tt-rail { right: 14px; top: auto; bottom: calc(150px + env(safe-area-inset-bottom)); transform: none; z-index: 4; }
+  .tt-rail { left: 14px; right: auto; top: auto; bottom: calc(150px + env(safe-area-inset-bottom)); transform: none; z-index: 4; }   /* (bên trái: không đè cột tim / bình luận của TikTok) */
   .tt-close { top: calc(14px + env(safe-area-inset-top)); right: 14px; z-index: 4; }
 }
 @media (prefers-reduced-motion: reduce) { .tt-phone, .tt-screen { animation: none !important; transition: none !important; } }
@@ -3658,3 +3658,90 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
 .ds-item > .pj-mark { flex: none; }
 .nt-item.on, .nt-item.on b { color: var(--ink) !important; }
 .nt-item.on span { color: #5c5a3a; } .nt-item.on time { color: #3f3d22; }
+
+/* Lướt TikTok: nút "Chia sẻ video" (mở ô dán link — tuỳ chọn) + "Kênh" (CEO / HC-NS), màn đang tải */
+.tt-acts { flex: none; display: flex; justify-content: center; gap: 8px; }
+.tt-act { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px !important; border-radius: 999px !important; border: 1px solid #333 !important; background: #1d1e27 !important; color: rgba(255,255,255,.85) !important; font: 700 12.5px var(--font); cursor: pointer; box-shadow: none !important; }
+.tt-act:hover { color: #fff !important; border-color: #555 !important; }
+.tt-act[hidden], .tt-add[hidden] { display: none !important; }
+.tt-load { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; color: rgba(255,255,255,.75); font: 700 13px var(--font); animation: tt-pulse 1.4s ease-in-out infinite; }
+@keyframes tt-pulse { 50% { opacity: .45; } }
+.tt-empty svg { opacity: .8; }
+
+/* Dự án — thẻ Chat / Ghi chú: khung kéo dài hết chiều cao còn lại của bảng (không còn khoảng trống bên dưới), ô nhập luôn ở đáy */
+.sx.dash .pj-body:has(> .pj-view[data-tab=chat]), .sx.dash .pj-body:has(> .pj-view[data-tab=notes]) { display: flex; flex-direction: column; }
+.pj-view:is([data-tab=chat], [data-tab=notes]) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pj-view:is([data-tab=chat], [data-tab=notes]) > .pj-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pj-view[data-tab=chat] .pj-chat { flex: 1; height: auto; min-height: 320px; }
+.pj-view[data-tab=notes] .pj-nt { flex: 1; height: auto; min-height: 420px; }
+.tag-layer .tag-dept svg { vertical-align: -2px; margin-right: 1px; }
+.tag-layer .b-ico { color: #3ddc84; }
+#roadWarn b svg, #roadWarn .insult svg { vertical-align: -3px; margin-right: 2px; }
+.rm-title svg, .rm-big svg, .b3-pl small svg { vertical-align: -3px; }
+/* (mô tả video của kênh rất dài: không cho dòng tiêu đề kéo rộng khung điện thoại — aspect-ratio mặc định nở theo nội dung) */
+.tt-phone { min-width: 0; }
+.tt-phone > * { min-width: 0; }
+.tt-info { overflow: hidden; }
+/* Chấm "Có gì ở đây?": biểu tượng nét trên nền pastel của từng mục — dùng màu mực đậm (trước kế thừa màu trắng của viên → rất mờ) */
+.ipin i { color: var(--ink); box-shadow: inset 0 0 0 1px rgba(43,45,66,.12); }
+.ipin i svg { stroke-width: 2.2; }
+
+/* =====================================================================================================
+   LƯỚT TIKTOK — GÓC NHÌN THỨ NHẤT (máy tính / máy tính bảng: .tt-back.pov — src/ui/tiktokPhone.js)
+   Cảnh văn phòng phía sau phóng to + mờ + tối (như mắt nhìn xuống tay — chỉ đổi CSS của canvas đã dừng vẽ, không dùng
+   backdrop-filter), điện thoại 3D được nâng lên trong hai bàn tay vẽ nét, khẽ nhấp nhô, nghiêng theo chuột; ngón cái lướt.
+   ===================================================================================================== */
+#c3 { transition: transform .55s cubic-bezier(.2,.8,.2,1), filter .55s ease; transform-origin: 50% 62%; }
+body.tt-pov #c3 { transform: scale(1.14) translateY(3%); filter: blur(7px) brightness(.5) saturate(.85); }
+.tt-back.pov { perspective: 1400px; perspective-origin: 50% 30%; padding: 0; overflow: hidden; }
+.tt-back.pov.show { background: radial-gradient(ellipse 70% 80% at 50% 45%, rgba(20,22,34,.12), rgba(10,11,18,.72)); }
+.tt-back:not(.pov) .tt-stage, .tt-back:not(.pov) .tt-hold, .tt-back:not(.pov) .tt-bob, .tt-back:not(.pov) .tt-tilt { display: contents; }
+.tt-stage { position: relative; transform-style: preserve-3d; margin-top: 2vh; }
+.tt-hold { transform-style: preserve-3d; transform: translateY(68vh) rotateX(64deg) rotateZ(-5deg) scale(.94); transition: transform .72s cubic-bezier(.2,.85,.25,1.03); }   /* (nâng máy: đang nằm ngửa → xoay dựng lên trước mặt) */
+.tt-back.pov.show .tt-hold { transform: translateY(0) rotateX(13deg) rotateZ(-1.5deg); }
+.tt-back.pov.out .tt-hold { transform: translateY(70vh) rotateX(64deg) rotateZ(4deg) scale(.94); transition-duration: .58s; transition-timing-function: cubic-bezier(.5,0,.75,.35); }   /* (hạ máy: ngửa ra như đặt xuống đùi) */
+/* màn hình: tắt lúc đang nâng máy → sáng lên khi tới trước mặt (.awake, như mở khoá); bấm nút nguồn (.off) → tắt đen trước khi hạ máy */
+.tt-black { display: none; }
+.tt-back.pov .tt-black { display: block; position: absolute; inset: 0; z-index: 4; pointer-events: none; border-radius: inherit; background: #000; opacity: 1; transition: opacity .5s cubic-bezier(.3,.7,.3,1); }
+.tt-back.pov.awake .tt-black { opacity: 0; }
+.tt-back.pov.awake .tt-screen { animation: tt-wake .7s ease-out; }
+@keyframes tt-wake { 0% { filter: brightness(1.7) saturate(.7); } 100% { filter: none; } }
+.tt-back.pov.awake.off .tt-black { opacity: 1; transition-duration: .16s; transition-timing-function: ease-in; }
+.tt-back.pov .tt-status { transition: opacity .3s ease; } .tt-back.pov:not(.awake) .tt-status, .tt-back.pov.off .tt-status { opacity: 0; }
+.tt-back.pov .tt-phone::after { transition: transform .1s ease; } .tt-back.pov.off .tt-phone::after { transform: translateX(-2px) scaleY(.96); }   /* (nút nguồn lún vào) */
+.tt-bob { transform-style: preserve-3d; animation: tt-bob 6s ease-in-out .8s infinite; }
+@keyframes tt-bob { 0%, 100% { transform: translate3d(0, 0, 0) rotateZ(0); } 35% { transform: translate3d(1px, -6px, 0) rotateZ(.6deg); } 70% { transform: translate3d(-1px, -2px, 0) rotateZ(-.4deg); } }
+.tt-tilt { position: relative; transform-style: flat; transform: rotateY(var(--ry, 0deg)) rotateX(var(--rx, 0deg)); transition: transform .5s ease-out; }   /* (phẳng bên trong: bóng đổ + điện thoại xếp theo z-index — để trong không gian 3D thì nút vừa nhấn lún 1px bị coi như ngang hàng chiều sâu với form, bấm trượt) */
+.tt-back.pov .tt-phone { height: min(700px, calc(100dvh - 170px)); opacity: 1; transform: none; transition: none; border: 0;
+  /* khung titan: viền kim loại chuyển màu + viền sáng mảnh; thân máy dày: các lớp cạnh lệch xuống dưới (máy nghiêng ra sau) và sang bên
+     theo góc nghiêng (--ex, đổi theo chuột) */
+  background: linear-gradient(#0b0b0f, #0b0b0f) padding-box, linear-gradient(145deg, #c9ccd6 0%, #6d7183 22%, #2e3140 48%, #8a8ea0 74%, #d7dae3 100%) border-box;
+  border: 5px solid transparent;
+  box-shadow: inset 0 0 0 2px #000, inset 0 0 0 3px rgba(255,255,255,.06),
+    var(--ex, 0px) 3px 0 -1px #565a6b, calc(var(--ex, 0px) * 1.5) 6px 0 -1px #3b3e4c, calc(var(--ex, 0px) * 2) 9px 0 -1px #262834, calc(var(--ex, 0px) * 2.4) 11px 0 -1px #15161d,
+    0 34px 60px -24px rgba(0,0,0,.8); transition: box-shadow .5s ease-out; }
+.tt-back.pov .tt-phone::before, .tt-back.pov .tt-phone::after { background: linear-gradient(90deg, #8a8ea0, #d7dae3 50%, #6d7183); }   /* (nút cạnh máy kim loại) */
+.tt-back.pov .tt-screen::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(118deg, rgba(255,255,255,0) calc(var(--gx, 50%) - 22%), rgba(255,255,255,.11) var(--gx, 50%), rgba(255,255,255,0) calc(var(--gx, 50%) + 18%)),
+    radial-gradient(120% 60% at 0% 0%, rgba(255,255,255,.08), rgba(255,255,255,0) 60%); transition: background .5s ease-out; }   /* (mặt kính: vệt sáng chạy theo góc nghiêng + ánh góc) */
+.tt-shadow { position: absolute; left: 8%; right: 8%; bottom: -26px; height: 40px; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.55), rgba(0,0,0,0)); filter: blur(6px); pointer-events: none; }
+.tt-back:not(.pov) .tt-shadow { display: none; }
+.tt-back.pov .tt-rail { right: -70px; }
+.tt-back.pov .tt-close { right: -70px; top: 0; }
+@media (prefers-reduced-motion: reduce) {
+  #c3 { transition: none; }
+  .tt-hold, .tt-tilt { transition: none !important; }
+  .tt-bob { animation: none !important; }
+}
+/* đang lướt (góc nhìn thứ nhất): ẩn các thanh của văn phòng — chỉ còn cảnh mờ phía sau và điện thoại trong tay */
+#appRoot :is(#sessionBar, #panel, #panelToggle, #hud, #ctrlNav, #card, #hudPrompt, .social-bar, .minimap, .cam-hint, .qt-host, .follow-btn, #stage > .tag-layer, .music-bar, .notices) { transition: opacity .35s ease; }
+body.tt-pov #appRoot :is(#sessionBar, #panel, #panelToggle, #hud, #ctrlNav, #card, #hudPrompt, .social-bar, .minimap, .cam-hint, .qt-host, .follow-btn, #stage > .tag-layer, .notices, .touch-ui) { opacity: 0 !important; pointer-events: none !important; }
+.tt-back.still .tt-bob, .tt-back.auto .tt-bob { animation-play-state: paused; }
+.tt-back.auto .tt-bob { animation: none; } .tt-back.auto .tt-tilt { transform: none !important; transition: none; }
+/* (trong khung đã xoay 3D, nút nhích 1px lúc nhấn làm Chrome không còn nhận con trỏ ở trên nút → bấm trượt: bỏ hiệu ứng nhích) */
+.tt-back.pov :is(button, .sx-primary, .sx-ghost, .tt-act, .tt-btn):active { transform: none !important; }
+
+/* Chặn bôi đen chữ trên toàn bộ giao diện (kéo chuột xoay camera / vuốt không làm xanh chữ, giữ lâu trên điện thoại không hiện menu chép).
+   Ô nhập, ô soạn (ghi chú, chat, bảng vẽ) vẫn chọn / sửa / chép dán được bình thường. */
+html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+:is(input, textarea, select, [contenteditable]:not([contenteditable="false"]), [contenteditable]:not([contenteditable="false"]) *) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }

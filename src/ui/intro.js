@@ -1,5 +1,5 @@
 // Modal "Có gì ở văn phòng?": giới thiệu nhanh tính năng làm việc + giải trí, theo nhóm (Bắt đầu, Làm việc, Giải trí, Khám
-// phá thêm). Mỗi mục: ô hình (emoji trên nền màu), tên, 1–2 câu, cách dùng theo thiết bị (máy tính: phím; điện thoại: nút)
+// phá thêm). Mỗi mục: ô hình (ảnh 3D; thiếu ảnh thì biểu tượng nét trên nền màu), tên, 1–2 câu, cách dùng theo thiết bị (máy tính: phím; điện thoại: nút)
 // và nút "Đi tới" (dịch chuyển tới nơi đó). Nội dung nằm trong public/data/intro.json — thêm tính năng: tăng "version" và
 // thêm mục có "new_in"; lần vào sau modal tự mở lại, mục mới hiện đầu tiên với nhãn MỚI.
 // GHIM NỔI (mặc định, 2026-11-17 — người dùng lười đọc hộp chữ): lần đầu vào / có nội dung mới, mỗi nơi có "go" hiện một
@@ -46,7 +46,7 @@ export class Intro {
     const layer = document.createElement('div'); layer.className = 'ipin-layer'; layer.setAttribute('aria-label', 'Các nơi trong văn phòng');
     const bar = document.createElement('div'); bar.className = 'ipin-bar'; bar.setAttribute('role', 'status');   // (thanh riêng, nằm trên các bảng; ghim nằm dưới bảng điều khiển / bản đồ nhỏ)
     bar.innerHTML = `${icon('target', 15)}<span>Bấm <b>ghim</b> để tới nơi đó</span><button type="button" class="sx-ghost" data-all>Danh sách đầy đủ</button><button type="button" class="sx-primary" data-hide>Ẩn ghim</button>`;
-    layer.innerHTML = list.map(({ it, title, fresh }, i) => `<button type="button" class="ipin${fresh ? ' new' : ''}" data-i="${i}" title="${esc(title)}" style="--bg:${esc(it.color || '#fff')};--d:${(i % 7) * 0.35}s"><i aria-hidden="true">${esc(it.icon || '📍')}</i><span>${esc(title)}</span></button>`).join('');
+    layer.innerHTML = list.map(({ it, title, fresh }, i) => `<button type="button" class="ipin${fresh ? ' new' : ''}" data-i="${i}" title="${esc(title)}" style="--bg:${esc(it.color || '#fff')};--d:${(i % 7) * 0.35}s"><i aria-hidden="true">${ICONS[it.icon] ? icon(it.icon, 16) : esc(it.icon || '')}</i><span>${esc(title)}</span></button>`).join('');
     document.getElementById('appRoot').append(layer, bar);
     bar.querySelector('[data-hide]').onclick = () => this.hidePins();
     bar.querySelector('[data-all]').onclick = () => { this.hidePins(); this.open(); };
@@ -124,7 +124,7 @@ export class Intro {
     body.className = `intro-body${id === 'start' ? ' is-start' : ''}`;
     body.innerHTML = `<div class="intro-grid">${items.map((it, n) => this.card(it, n)).join('')}</div>`;
     body.scrollTop = 0;
-    body.querySelectorAll('.intro-ic img').forEach(img => img.addEventListener('error', () => { img.parentNode.classList.add('noimg'); img.remove(); }, { once: true }));   // (chưa có ảnh: hiện emoji)
+    body.querySelectorAll('.intro-ic img').forEach(img => img.addEventListener('error', () => { img.parentNode.classList.add('noimg'); img.remove(); }, { once: true }));   // (chưa có ảnh: hiện biểu tượng nét)
     body.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const it = d.items.find(x => x.id === b.dataset.go); this.close(); this.go(it); });
     const i = this.tabs.findIndex(t => t.id === id), last = i === this.tabs.length - 1;
     el.querySelector('.intro-dots').innerHTML = this.tabs.map((t, k) => `<i class="${k === i ? 'on' : ''}"></i>`).join('');
@@ -137,7 +137,7 @@ export class Intro {
     const canGo = it.go && this.target(it.go);
     const isNew = (it.new_in || 0) > this.since && this.since > 0;
     return `<article class="intro-card" style="--d:${n * 40}ms">
-      <div class="intro-ic" style="--bg:${esc(it.color || '#eef2f7')}" data-emoji="${esc(it.icon || '')}" aria-hidden="true"><img src="${esc(it.image || `intro/${it.id}.webp`)}" alt="" loading="lazy" decoding="async"></div>
+      <div class="intro-ic" style="--bg:${esc(it.color || '#eef2f7')}" aria-hidden="true">${ICONS[it.icon] ? `<span class="intro-fb">${icon(it.icon, 44)}</span>` : ''}<img src="${esc(it.image || `intro/${it.id}.webp`)}" alt="" loading="lazy" decoding="async"></div>
       <div class="intro-tx">
         <h3>${esc(it.title)}${isNew ? ' <b class="intro-new">MỚI</b>' : ''}</h3>
         <p>${esc(it.text)}</p>

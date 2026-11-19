@@ -43,7 +43,7 @@ function yearHtml(data) {
 function shell(title, cls = '') {
   document.querySelector('.ts-pop')?.remove();
   const pop = document.createElement('div'); pop.className = `ts-pop ${cls}`; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', title);
-  pop.innerHTML = `<header><b>${icon('clipboard', 16)} ${esc(title)}</b><button type="button" class="ts-x" aria-label="Đóng">✕</button></header><div class="ts-body"><div class="ts-tabs" role="tablist"></div><div class="ts-nav"><button type="button" data-step="-1" aria-label="Trước">‹</button><b class="ts-label"></b><button type="button" data-step="1" aria-label="Sau">›</button></div><button type="button" class="ts-back" hidden>‹ Tất cả nhân viên</button><div class="ts-content"></div></div>`;
+  pop.innerHTML = `<header><b>${icon('clipboard', 16)} ${esc(title)}</b><button type="button" class="ts-x" aria-label="Đóng">${icon('close', 14)}</button></header><div class="ts-body"><div class="ts-tabs" role="tablist"></div><div class="ts-nav"><button type="button" data-step="-1" aria-label="Trước">‹</button><b class="ts-label"></b><button type="button" data-step="1" aria-label="Sau">›</button></div><button type="button" class="ts-back" hidden>‹ Tất cả nhân viên</button><div class="ts-content"></div></div>`;
   document.getElementById('appRoot').appendChild(pop);
   requestAnimationFrame(() => pop.classList.add('show'));
   const close = () => { window.removeEventListener('keydown', onEsc, true); pop.classList.remove('show'); setTimeout(() => pop.remove(), 220); };

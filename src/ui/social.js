@@ -26,7 +26,7 @@ export class Social {
     this.rt.on('hello', m => { this.canMusic = !!m.canMusic; if (m.music) this.applyMusic(m.music); this.loadChannels(); });
     this.rt.on('chat', m => this.onChat(m.msg));
     this.rt.on('music', m => this.applyMusic(m.state));
-    this.rt.on('musicPerm', m => { this.canMusic = !!m.allow; this.renderBar(); this.refreshMusicPop(); this.s.toast(m.allow ? 'CEO đã cấp cho bạn quyền mở nhạc cho công ty 🎵' : 'CEO đã tắt quyền mở nhạc của bạn.'); });
+    this.rt.on('musicPerm', m => { this.canMusic = !!m.allow; this.renderBar(); this.refreshMusicPop(); this.s.toast(m.allow ? 'CEO đã cấp cho bạn quyền mở nhạc cho công ty.' : 'CEO đã tắt quyền mở nhạc của bạn.'); });
   }
 
   // ---------- giao diện ----------
@@ -39,7 +39,7 @@ export class Social {
     // (điện thoại: thẻ tên / logo góc trái không lấn sang các nút tròn góc phải — số nút đổi theo người: CEO thêm Chấm công)
     if (typeof ResizeObserver === 'function') new ResizeObserver(() => document.documentElement.style.setProperty('--soc-w', `${Math.ceil(bar.offsetWidth)}px`)).observe(bar);
     const panel = document.createElement('aside'); panel.className = 'chat-panel'; panel.id = 'chatPanel'; panel.hidden = true; panel.setAttribute('aria-label', 'Chat nội bộ');
-    panel.innerHTML = `<header class="cp-head"><b>Chat nội bộ</b><button type="button" class="cp-x" aria-label="Đóng chat">✕</button></header>
+    panel.innerHTML = `<header class="cp-head"><b>Chat nội bộ</b><button type="button" class="cp-x" aria-label="Đóng chat">${icon('close', 14)}</button></header>
       <div class="cp-body"><nav class="cp-chans" aria-label="Kênh chat"></nav>
         <section class="cp-main"><div class="cp-title"></div><ol class="cp-msgs" aria-live="polite"></ol>
           <form class="cp-form"><input class="cp-input" maxlength="500" autocomplete="off" placeholder="Nhập tin nhắn…" aria-label="Tin nhắn"><button type="submit" class="cp-send" aria-label="Gửi">${icon('send', 16)}</button></form></section></div>`;
@@ -113,7 +113,7 @@ export class Social {
   renderMsgs() {
     const ol = this.panel.querySelector('.cp-msgs'), list = this.msgs.get(this.cur) || [];
     ol.innerHTML = list.length ? list.map(m => `<li class="${m.from === this.me ? 'me' : ''}"><div class="cp-meta"><b>${esc(m.name)}</b><time>${fmtTime(m.ts)}</time></div><p>${esc(m.body)}</p></li>`).join('')
-      : '<li class="cp-empty">Chưa có tin nhắn nào. Gửi lời chào đầu tiên nhé 👋</li>';
+      : '<li class="cp-empty">Chưa có tin nhắn nào. Gửi lời chào đầu tiên nhé!</li>';
     ol.scrollTop = ol.scrollHeight;
   }
   send(text) {
@@ -223,7 +223,7 @@ export class Social {
     if (document.querySelector('.music-pop')) return;
     const isAdmin = this.s.isAdmin;
     const pop = this.mpop = document.createElement('div'); pop.className = 'speaker-pop music-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', 'Góc âm nhạc');
-    pop.innerHTML = `<header><b>${icon('music', 16)} Góc âm nhạc</b><button type="button" class="sp-x" aria-label="Đóng">✕</button></header>
+    pop.innerHTML = `<header><b>${icon('music', 16)} Góc âm nhạc</b><button type="button" class="sp-x" aria-label="Đóng">${icon('close', 14)}</button></header>
       <p class="sp-hint">Dán link YouTube: cả công ty cùng nghe, video chiếu trên TV phòng giải trí.</p>
       <form class="mu-form"><input class="mu-url" type="url" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" aria-label="Link YouTube"><button type="submit" class="mu-go">Phát</button></form>
       <p class="sp-note mu-deny">Chỉ CEO và người được CEO cấp quyền mới mở nhạc. Bạn vẫn chỉnh âm lượng trên máy mình ở thanh nhạc phía trên.</p>

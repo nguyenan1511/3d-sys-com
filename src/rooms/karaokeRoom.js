@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { CSS3DRenderer, CSS3DObject } from 'three/examples/jsm/renderers/CSS3DRenderer.js';
 import { esc } from '../session/ui.js';
-import { icon } from '../ui/icons.js';
+import { icon, drawIcon } from '../ui/icons.js';
 import { OrbitCam, Cast, bindGestures, roomBox, neonSign, canvasTex, std, yawFacing, logoSign } from './kit.js';
 
 const W = 3.0, D = 3.5, H = 2.6;                 // nửa rộng, nửa sâu, cao
@@ -162,8 +162,8 @@ export class KaraokeRoom {
     ui.setAttribute('role', 'dialog'); ui.setAttribute('aria-label', 'Phòng karaoke');
     ui.innerHTML = `<div class="rm-input" aria-hidden="true"></div>
       <header class="rm-top"><button type="button" class="rm-back">${icon('chevLeft', 16)}<span>Rời phòng</span></button>
-        <b class="rm-title">🎤 Phòng karaoke</b>
-        <div class="rm-tools"><button type="button" class="k3-disco" role="switch" aria-checked="false" title="Đèn chóp xoay bảy màu — ai trong phòng cũng bật/tắt được">🪩<span>Đèn vũ trường</span></button><button type="button" class="rm-cam" aria-pressed="false">Xem màn hình</button><button type="button" class="k3-list" aria-expanded="false">${icon('music', 15)}<span>Bài hát</span><i class="k3-badge" hidden></i></button></div></header>
+        <b class="rm-title">${icon('mic', 18)} Phòng karaoke</b>
+        <div class="rm-tools"><button type="button" class="k3-disco" role="switch" aria-checked="false" title="Đèn chóp xoay bảy màu — ai trong phòng cũng bật/tắt được">${icon('disco', 18)}<span>Đèn vũ trường</span></button><button type="button" class="rm-cam" aria-pressed="false">Xem màn hình</button><button type="button" class="k3-list" aria-expanded="false">${icon('music', 15)}<span>Bài hát</span><i class="k3-badge" hidden></i></button></div></header>
       <div class="k3-now" aria-live="polite"></div>
       <button type="button" class="k3-unblock" hidden>${icon('volume', 15)} Bấm để nghe</button>
       <aside class="k3-side" aria-label="Bài hát, hàng chờ, chat">
@@ -196,7 +196,7 @@ export class KaraokeRoom {
       <div class="k3-ctrl">
         <button type="button" class="ktv-pp" aria-label="Tạm dừng">${icon('pause', 18)}</button>
         <button type="button" class="ktv-mic">${icon('volume', 18)}<span>Bật mic hát</span></button>
-        <button type="button" class="k3-dance" aria-pressed="false">💃<span>Quẩy</span></button>
+        <button type="button" class="k3-dance" aria-pressed="false">${icon('dance', 18)}<span>Quẩy</span></button>
         <button type="button" class="ktv-next" aria-label="Bài tiếp">${icon('play', 18)}<span>Bài tiếp</span></button>
         <button type="button" class="k3-seat" hidden title="Về chỗ ngồi">${icon('user', 18)}<span>Về ghế</span></button>
       </div>
@@ -395,7 +395,7 @@ export class KaraokeRoom {
     const c = this.idleCanvas, g = c.getContext('2d'), w = c.width, h = c.height;
     const gr = g.createLinearGradient(0, 0, w, h); gr.addColorStop(0, '#2b1055'); gr.addColorStop(1, '#0b4f7a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
     g.fillStyle = 'rgba(255,255,255,.06)'; for (let i = 0; i < 9; i++) { g.beginPath(); g.arc(w * (i / 8), h * (0.2 + (i % 3) * 0.3), 60 + i * 9, 0, Math.PI * 2); g.fill(); }
-    g.textAlign = 'center'; g.fillStyle = '#fff'; g.font = '700 64px system-ui, sans-serif'; g.fillText('🎤', w / 2, h * 0.36);
+    g.textAlign = 'center'; g.fillStyle = '#fff'; drawIcon(g, 'mic', w / 2, h * 0.3, 84, '#fff', 2);
     g.font = '700 46px system-ui, sans-serif'; g.fillText(title, w / 2, h * 0.56, w - 80);
     g.fillStyle = 'rgba(255,255,255,.75)'; g.font = '500 30px system-ui, sans-serif'; g.fillText(sub, w / 2, h * 0.68, w - 80);
     this.idleTex.needsUpdate = true;
@@ -405,9 +405,9 @@ export class KaraokeRoom {
     const k = this.ktv, st = k.state, q = this.q; if (!st) return;
     const me = this.app.session.key, enough = st.members.length >= st.min, s = st.song, yt = k.yt;
     this.cast.sync(st.members.map(m => ({ key: m.key, display: m.display, me: m.key === me })));
-    q('.ktv-members').innerHTML = st.members.map(m => `<li class="${m.mic ? 'on' : ''}"><i aria-hidden="true">${m.mic ? '🎤' : '🎧'}</i>${esc(m.display)}${m.key === me ? ' (bạn)' : ''}</li>`).join('');
-    q('.ktv-queue').innerHTML = st.queue.map((x, i) => `<li><span class="k3-i">${i + 1}</span><div><b title="${esc(x.title)}">${esc(x.title)}</b><small>${esc(x.by)} chọn${x.prio ? ` · ⭐ ${esc(x.prio)} ưu tiên` : ''}</small></div>
-      ${i ? `<button type="button" data-qa="top" data-i="${i}" title="Ưu tiên: đưa lên hát tiếp theo" aria-label="Ưu tiên bài ${esc(x.title)}">⭐ Ưu tiên</button>` : '<em>Tiếp theo</em>'}${x.byKey === me ? `<button type="button" class="k3-x" data-qa="rm" data-i="${i}" aria-label="Xoá bài ${esc(x.title)}">${icon('close', 12)}</button>` : ''}</li>`).join('');
+    q('.ktv-members').innerHTML = st.members.map(m => `<li class="${m.mic ? 'on' : ''}"><i aria-hidden="true">${icon(m.mic ? 'mic' : 'headphones', 14)}</i>${esc(m.display)}${m.key === me ? ' (bạn)' : ''}</li>`).join('');
+    q('.ktv-queue').innerHTML = st.queue.map((x, i) => `<li><span class="k3-i">${i + 1}</span><div><b title="${esc(x.title)}">${esc(x.title)}</b><small>${esc(x.by)} chọn${x.prio ? ` · ${icon('star', 12)} ${esc(x.prio)} ưu tiên` : ''}</small></div>
+      ${i ? `<button type="button" data-qa="top" data-i="${i}" title="Ưu tiên: đưa lên hát tiếp theo" aria-label="Ưu tiên bài ${esc(x.title)}">${icon('star', 13)} Ưu tiên</button>` : '<em>Tiếp theo</em>'}${x.byKey === me ? `<button type="button" class="k3-x" data-qa="rm" data-i="${i}" aria-label="Xoá bài ${esc(x.title)}">${icon('close', 12)}</button>` : ''}</li>`).join('');
     q('.k3-pane[data-pane="queue"] .k3-empty').hidden = !!st.queue.length;
     q('[data-n="queue"]').textContent = st.queue.length || ''; q('[data-n="people"]').textContent = `${st.members.length}/${st.max || 10}`;
     if (k.dancing && this.free) this.backToSeat();   // (quẩy: ra sàn nhảy như cũ)

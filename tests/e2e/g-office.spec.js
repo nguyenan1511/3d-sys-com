@@ -43,7 +43,7 @@ test('nhà vệ sinh: buồng có người thì người khác bị quát, khôn
   await goTo(b, 'stall');
   await expect.poll(() => prompt(b), { timeout: 15_000 }).toContain('gõ cửa');
   await pressE(b);
-  await expect(b.locator('#toast')).toContainText('😡', { timeout: 10_000 });
+  await expect(b.locator('#toast')).toContainText('(trong buồng)', { timeout: 10_000 });
   expect(await b.evaluate(() => window.__app.session.wc.inside)).toBe(-1);
   await a.click('.wc-card [data-out]');
   await expect.poll(() => b.evaluate(() => window.__app.session.wc.state.stalls[0]), { timeout: 20_000 }).toBe(null);
@@ -70,27 +70,33 @@ test('lướt TikTok trong buồng vệ sinh: khung điện thoại, dán link t
   await expect(phone).toBeVisible();
   await expect(a.locator('.tt-empty')).toBeVisible();
   expect(await a.evaluate(() => window.__app.session.player.agent.act)).toBe('phone');   // (nhân vật cầm điện thoại)
+  // video có sẵn từ các kênh cố định (kiểm thử: không gọi TikTok → trống); "Chia sẻ video" mở ô dán link
+  await a.click('.tt-acts [data-share]');
   // link không phải TikTok: báo lỗi
   await a.fill('.tt-add input', 'https://example.com/video/1');
   await a.click('.tt-add button');
   await expect(a.locator('#toast')).toContainText('TikTok');
-  // dán 2 link → video mới nhất phát trước, trình phát nhúng chính thức
-  for (const id of ['7300000000000000001', '7300000000000000002']) { await a.fill('.tt-add input', `https://www.tiktok.com/@sysone/video/${id}?lang=vi`); await a.click('.tt-add button'); await expect(a.locator('.tt-add input')).toHaveValue(''); }
-  await expect(a.locator('.tt-pos')).toHaveText('1/2');
+  // chia sẻ 2 link → video vừa chia sẻ phát ngay (chen ngay sau video đang xem), trình phát nhúng chính thức
+  for (const [k, id] of ['7300000000000000001', '7300000000000000002'].entries()) {
+    if (k) await a.click('.tt-acts [data-share]');
+    await a.fill('.tt-add input', `https://www.tiktok.com/@sysone/video/${id}?lang=vi`); await a.click('.tt-add button'); await expect(a.locator('.tt-add')).toBeHidden();
+  }
+  await expect(a.locator('.tt-pos')).toHaveText('2/2');
   await expect(a.locator('.tt-frame')).toHaveAttribute('src', /tiktok\.com\/player\/v1\/7300000000000000002/);
   // trùng link: báo đã có
+  await a.click('.tt-acts [data-share]');
   await a.fill('.tt-add input', 'https://www.tiktok.com/@sysone/video/7300000000000000001'); await a.click('.tt-add button');
   await expect(a.locator('#toast')).toContainText('đã có');
   await a.fill('.tt-add input', '');
-  // phím ↓ / vuốt lên: video kế
+  // phím ↑ / vuốt lên: video trước / kế
   await a.evaluate(() => document.activeElement?.blur());   // (đang gõ trong ô link thì phím mũi tên dành cho ô nhập)
-  await a.keyboard.press('ArrowDown');
-  await expect(a.locator('.tt-pos')).toHaveText('2/2');
+  await a.keyboard.press('ArrowUp');
+  await expect(a.locator('.tt-pos')).toHaveText('1/2');
   await expect(a.locator('.tt-frame')).toHaveAttribute('src', /7300000000000000001/);
   const box = await a.locator('.tt-swipe').boundingBox();
-  await a.mouse.move(box.x + box.width / 2, box.y + box.height * 0.3); await a.mouse.down(); await a.mouse.move(box.x + box.width / 2, box.y + box.height * 0.75, { steps: 4 }); await a.mouse.up();   // (vuốt xuống: video trước)
-  await expect(a.locator('.tt-pos')).toHaveText('1/2');
-  // người dán xoá được
+  await a.mouse.move(box.x + box.width / 2, box.y + box.height * 0.75); await a.mouse.down(); await a.mouse.move(box.x + box.width / 2, box.y + box.height * 0.3, { steps: 4 }); await a.mouse.up();   // (vuốt lên: video kế)
+  await expect(a.locator('.tt-pos')).toHaveText('2/2');
+  // người chia sẻ xoá được
   await a.click('.tt-rail [data-del]'); await a.click('#mOk');
   await expect(a.locator('.tt-pos')).toHaveText('1/1');
   // cất điện thoại, ra khỏi buồng

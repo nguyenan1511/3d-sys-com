@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 import { CSS2DRenderer, CSS2DObject } from 'three/examples/jsm/renderers/CSS2DRenderer.js';
 import { findDepartment } from '../shared/departments.js';
+import { icon } from './icons.js';
 
 // Đông người (100 người online): chỉ hiện nhãn của ~N người gần nhất (mình và chị hướng dẫn luôn hiện) — mỗi nhãn là một
 // phần tử HTML di chuyển mỗi khung hình và 2 tia kiểm tra tường che; 100 nhãn làm điện thoại tụt còn ~20 khung hình/giây.
@@ -29,7 +30,7 @@ export class NameTags {
     const tag = el('div', 'tag'), dot = el('i'), name = document.createTextNode(e.name), chip = el('span', 'tag-dept');
     tag.append(dot, name, chip);
     const obj = new CSS2DObject(tag); obj.center.set(0.5, 1); this.group.add(obj);
-    const bw = el('div', 'bubble-wrap'), bub = el('div', 'bubble'), ico = el('span', 'b-ico', '💬'), txt = el('span', 'b-txt'); bub.append(ico, txt); bw.append(bub);
+    const bw = el('div', 'bubble-wrap'), bub = el('div', 'bubble'), ico = el('span', 'b-ico'), txt = el('span', 'b-txt'); ico.innerHTML = icon('chat', 12); bub.append(ico, txt); bw.append(bub);
     const bobj = new CSS2DObject(bw); bobj.visible = false; this.group.add(bobj);
     return { obj, tag, dot, name, chip, bobj, txt, sig: '', hid: false, t: 0 };
   }
@@ -61,7 +62,8 @@ export class NameTags {
         it.sig = sig; it.name.data = e.name;
         const d = findDepartment(e.dept), col = e.guide ? '#ff8a5b' : (d?.color || '#8b93a1');
         it.dot.style.background = col;
-        it.chip.textContent = e.guide ? 'Hướng dẫn viên' : d ? d.name.replace(/^(Phòng|Team) /, '') : (e.dept || '');
+        const label = e.guide ? 'Hướng dẫn viên' : d ? d.name.replace(/^(Phòng|Team) /, '') : (e.dept || '');
+        if (e.dept === 'Đang họp') it.chip.innerHTML = `${icon('calendar', 11)} Đang họp`; else it.chip.textContent = label;   // (biểu tượng nét thay emoji 📅)
         it.chip.hidden = !it.chip.textContent; it.chip.style.setProperty('--c', col);
         it.tag.classList.toggle('tag--me', !!e.me); it.tag.classList.toggle('tag--guide', !!e.guide);
       }
