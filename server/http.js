@@ -33,7 +33,7 @@ export function securityHeaders({ production = false, secure = false } = {}) {
     if (secure) res.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     // CSP chỉ bật khi chạy bản build (dev: Vite chèn script nội tuyến để nạp lại nóng)
     // (YouTube: trình phát nhúng cho loa công ty — script API, iframe, ảnh thu nhỏ)
-    if (production) res.set('Content-Security-Policy', "default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://www.tiktok.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com; connect-src 'self' ws: wss:; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'");
+    if (production) res.set('Content-Security-Policy', "default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com https://www.tiktok.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://i.ytimg.com; connect-src 'self' ws: wss: blob: data:; font-src 'self' data:; media-src 'self' blob:; object-src 'none'; base-uri 'self'; frame-ancestors 'self'; form-action 'self'");
     next();
   };
 }
