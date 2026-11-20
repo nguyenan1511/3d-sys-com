@@ -40,7 +40,7 @@ test('được xếp chỗ thì tự thiết lập bàn làm việc (dụng cụ
   expect((await call(a, 'POST', `/api/seats/${desk}/sit`, {})).status).toBe(200);
 });
 
-test('CEO không ngồi chỗ của nhân viên khi ADMIN_CAN_SIT_ANYWHERE=false; nhân viên không gọi được API quản trị', async ({ browser }) => {
+test('Admin không ngồi chỗ của nhân viên khi ADMIN_CAN_SIT_ANYWHERE=false; nhân viên không gọi được API quản trị', async ({ browser }) => {
   const e = await newPage(browser);
   await loginEmployeeAPI(e, `${uniqueCode()}-Cường`);
   const desk = await freeDesk(e);
@@ -140,13 +140,13 @@ test('nhân viên chọn nhân vật; người khác thấy đúng nhân vật; 
   await expect(a2.locator('#seatBox')).toContainText(desk);
 });
 
-test('CEO thêm nhân viên; người đó đăng nhập đúng mã-tên thì vào được', async ({ browser }) => {
+test('Admin thêm nhân viên; người đó đăng nhập đúng mã-tên thì vào được', async ({ browser }) => {
   test.setTimeout(240_000); // hai trang 3D trên GPU giả lập
   const code = uniqueCode();
   const ceo = await newPage(browser);
   await loginAdminAPI(ceo);
   await ceo.goto('/'); await ceo.waitForFunction(() => window.__app?.ready, null, { timeout: 60_000 });
-  await ceo.click('#btnDash'); await ceo.click('[data-tab="emp"]');   // (bảng quản trị mở ở trang Tổng quan)
+  await ceo.click('#hudMe'); await ceo.click('#btnDash'); await ceo.click('[data-tab="emp"]');   // (bảng quản trị mở ở trang Tổng quan)
   await ceo.click('#dAdd');
   await ceo.fill('#nCode', `${code}-Ngô Thị Mai`); await ceo.fill('#nDept', 'Kế toán');
   await ceo.click('#mOk');

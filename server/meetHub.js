@@ -11,7 +11,7 @@
 //    phòng karaoke). Máy chủ chỉ chuyển tin bắt tay (meet:rtc, chỉ giữa hai người cùng phòng) và giữ ai đang bật gì
 //    (meet:media {mic, cam, screen} → có trong danh sách người trong phòng). Không ghi âm, không lưu hình.
 //  • Phòng dự án (server/projects.js): mã phòng "p<id>" — cùng bảng vẽ / họp trực tuyến / người trong phòng; thành viên dự án
-//    (và CEO) vào lúc nào cũng được, không nhắc giờ, không chặn vị trí trong toà nhà. Bản vẽ: db.blobs 'board:p<id>'.
+//    (và Admin) vào lúc nào cũng được, không nhắc giờ, không chặn vị trí trong toà nhà. Bản vẽ: db.blobs 'board:p<id>'.
 //  • Chặn người ngoài: trong giờ họp, vị trí của người không có trong danh sách mà nằm trong phòng họp sẽ bị bỏ qua
 //    (client cũng tự đẩy nhân vật ra cửa).
 import { getMeeting, isParticipant, isOpen, ROOMS, EARLY } from './meetings.js';
@@ -169,7 +169,7 @@ export class MeetHub {
   }
   /** Bỏ trạng thái phòng (dự án vừa bị xoá: không lưu lại bản vẽ). */
   forget(id) { const r = this.rooms.get(id); if (r) { clearTimeout(r.saveT); r.dirty = false; this.rooms.delete(id); } }
-  /** Vào phòng dự án: thành viên / CEO, lúc nào cũng được. */
+  /** Vào phòng dự án: thành viên / Admin, lúc nào cũng được. */
   async joinProject(ws, id) {
     const pid = projectOfRoom(id), P = this.projects, p = pid && getProject(this.store, pid);
     if (!p || !P?.canJoin(pid, ws.key)) return this.err(ws, 'Không tìm thấy dự án (hoặc bạn không còn trong dự án này).');

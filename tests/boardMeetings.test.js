@@ -33,7 +33,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('bảng thông báo', () => {
-  it('CEO cấp quyền đăng tin: người được cấp đăng tin, chỉ sửa / gỡ tin của mình, không ghim; thu quyền thì thôi', async () => {
+  it('Admin cấp quyền đăng tin: người được cấp đăng tin, chỉ sửa / gỡ tin của mình, không ghim; thu quyền thì thôi', async () => {
     const it0 = board.create(store, emp('1001'), who(emp('1001')), { title: 'Tin của HC-NS' });
     expect(board.canPost(store, emp('1002'))).toBe(false);
     board.setPostPermission(store, '1002', true);
@@ -47,7 +47,7 @@ describe('bảng thông báo', () => {
     expect(pg.items.find(x => x.id === mine.id).canEdit).toBe(true); expect(pg.items.find(x => x.id === it0.id).canEdit).toBe(false);
     expect(board.page(store, { actor: emp('1001') }).items.every(x => x.canEdit)).toBe(true);   // (HC-NS quản lý mọi tin)
     board.setPostPermission(store, '1002', false);
-    expect((await err(() => board.create(store, emp('1002'), who(emp('1002')), { title: 'x' }))).message).toMatch('chưa được CEO cấp quyền');
+    expect((await err(() => board.create(store, emp('1002'), who(emp('1002')), { title: 'x' }))).message).toMatch('chưa được Admin cấp quyền');
     expect((await err(() => board.remove(store, emp('1002'), who(emp('1002')), mine.id))).status).toBe(403);
     board.remove(store, emp('1001'), who(emp('1001')), mine.id);
   });
@@ -93,7 +93,7 @@ describe('đặt phòng họp', () => {
     expect((await err(() => book(emp('1001'), { start: DAY9 - 4 * 3600e3, end: DAY9 - 3 * 3600e3 }))).status).toBe(400);
     expect((await err(() => book(emp('1001'), { start: DAY9 + 5 * 3600e3, end: DAY9 + 6 * 3600e3, invitees: ['employee:9999'] }))).message).toMatch('9999');
   });
-  it('chỉ host sửa được; CEO huỷ được mọi lịch; người được mời thấy chi tiết, người ngoài chỉ thấy phòng đã đặt', async () => {
+  it('chỉ host sửa được; Admin huỷ được mọi lịch; người được mời thấy chi tiết, người ngoài chỉ thấy phòng đã đặt', async () => {
     const m = book(emp('1002'), { invitees: ['employee:1003'], agenda: 'Bí mật' });
     expect((await err(() => M.edit(emp('1003'), m.id, { title: 'đổi' }))).status).toBe(403);
     const r = M.edit(emp('1002'), m.id, { invitees: ['employee:1001'] });

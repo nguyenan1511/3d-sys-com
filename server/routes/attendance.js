@@ -1,5 +1,5 @@
 // API chấm công. Nhân viên tự chấm vào/ra cho chính mình; ai đăng nhập cũng xem được bảng trong ngày (bảng thông tin trên
-// bàn làm việc); CEO xem bảng chấm công theo ngày (kèm danh sách chưa đến) và lịch sử của từng người.
+// bàn làm việc); Admin xem bảng chấm công theo ngày (kèm danh sách chưa đến) và lịch sử của từng người.
 import * as att from '../attendance.js';
 import { audit } from '../db.js';
 import { check, v, rateLimit } from '../http.js';
@@ -39,33 +39,33 @@ export function attendanceRoutes(api, { db, store, hub, guards: { needAuth, need
     const { year } = check(req.query, { year: v.str({ pattern: YEAR, optional: true }) }, 'truy vấn');
     res.json(att.personYear(db, req.actor.code, year || thisYm().slice(0, 4)));
   });
-  /** CEO: bảng công tháng của mọi nhân viên (ma trận nhân viên × ngày) + tổng hợp. */
+  /** Admin: bảng công tháng của mọi nhân viên (ma trận nhân viên × ngày) + tổng hợp. */
   api.get('/admin/attendance/month', needAdmin, (req, res) => {
     const { ym } = check(req.query, { ym: v.str({ pattern: YM, optional: true }) }, 'truy vấn');
     const m = ym || thisYm(), days = att.monthDays(m), recs = att.recordsBetween(db, days[0].day, days[days.length - 1].day);
     const emps = store.listEmployees(() => false).filter(e => e.status === 'active' || recs.some(r => r.code === e.code));
     res.json({ ym: m, days, employees: emps.map(e => { const mine = recs.filter(r => r.code === e.code); const since = att.sinceOf(db, e.code); return { code: e.code, display: e.display, department: e.department, since, records: mine, summary: att.summarize(mine, days, since) }; }) });
   });
-  /** CEO: bảng công năm của mọi nhân viên (nhân viên × 12 tháng). */
+  /** Admin: bảng công năm của mọi nhân viên (nhân viên × 12 tháng). */
   api.get('/admin/attendance/year', needAdmin, (req, res) => {
     const { year } = check(req.query, { year: v.str({ pattern: YEAR, optional: true }) }, 'truy vấn');
     const y = year || thisYm().slice(0, 4);
     res.json({ year: y, employees: store.listEmployees(() => false).map(e => ({ code: e.code, display: e.display, department: e.department, ...att.personYear(db, e.code, y) })) });
   });
-  /** CEO: bảng công tháng của một nhân viên. */
+  /** Admin: bảng công tháng của một nhân viên. */
   api.get('/admin/attendance/:code/month', needAdmin, (req, res) => {
     const { code, ym } = check({ ...req.params, ...req.query }, { code: v.str({ pattern: /^\d{4}$/ }), ym: v.str({ pattern: YM, optional: true }) }, 'yêu cầu');
     if (!empOf(code)) throw new HttpError(404, `Không có nhân viên ${code}.`, { code: 'not_found' });
     res.json({ code, display: `${code}-${empOf(code).name}`, ...att.personMonth(db, code, ym || thisYm()) });
   });
-  /** CEO: bảng chấm công một ngày (mặc định hôm nay) + ai chưa đến. */
+  /** Admin: bảng chấm công một ngày (mặc định hôm nay) + ai chưa đến. */
   api.get('/admin/attendance', needAdmin, (req, res) => {
     const { day } = check(req.query, { day: v.str({ pattern: DAY, optional: true }) }, 'truy vấn');
     const d = day || att.vnDay().day, list = att.listDay(db, d), present = new Set(list.map(r => r.code));
     const absent = store.listEmployees(() => false).filter(e => e.status === 'active' && !present.has(e.code)).map(e => ({ code: e.code, display: e.display, department: e.department }));
     res.json({ day: d, shift: process.env.SHIFT_START || '08:00', list, absent });
   });
-  /** CEO: lịch sử chấm công của một nhân viên. */
+  /** Admin: lịch sử chấm công của một nhân viên. */
   api.get('/admin/attendance/:code', needAdmin, (req, res) => {
     const { code } = check(req.params, { code: v.str({ pattern: /^\d{4}$/ }) }, 'đường dẫn');
     if (!empOf(code)) throw new HttpError(404, `Không có nhân viên ${code}.`, { code: 'not_found' });

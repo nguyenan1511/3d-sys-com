@@ -52,22 +52,25 @@ export class MongoBlobs {
  * (trạng thái đang vẽ) nhưng vẫn tính vào tổng. Quá hạn mức: lỗi { code: 'quota' } — các API báo 507 kèm lời nhắn rõ ràng.
  */
 export class QuotaBlobs {
-  constructor(inner, maxBytes) { this.inner = inner; this.max = maxBytes; this.sizes = new Map(); this.used = 0; }
+  constructor(inner, maxBytes) { this.inner = inner; this.max = maxBytes; this.sizes = new Map(); this.ids = new Map(); this.used = 0; }
   /** Nạp kích thước các file đang có (lúc khởi động). */
   async init() {
     try { for (const [id, n] of await this.inner.sizes?.() ?? []) this.track(id, n); }
     catch (e) { console.warn('[file] Không đọc được dung lượng đang dùng:', e.message); }
     return this;
   }
-  track(id, n) { this.used += n - (this.sizes.get(id) || 0); if (n) this.sizes.set(id, n); else this.sizes.delete(id); }
+  // khoá đếm chuẩn hoá theo tên file trên đĩa (FileBlobs đổi ':' → '_') — cùng một file không bị đếm hai lần; ids: khoá → mã để xoá
+  track(id, n) { id = String(id); const k = safe(id); this.used += n - (this.sizes.get(k) || 0); if (n) { this.sizes.set(k, n); this.ids.set(k, id); } else { this.sizes.delete(k); this.ids.delete(k); } }
   usage() { return { used: this.used, max: this.max, files: this.sizes.size }; }
+  /** Danh sách file: [{ id (mã để xoá), key (chuẩn hoá), size }]. */
+  list() { return [...this.sizes].map(([key, size]) => ({ id: this.ids.get(key) || key, key, size })); }
   /** Còn chỗ cho `n` byte mới không (để API báo lỗi trước khi nhận file). */
   room(n) { return this.used + n <= this.max; }
   async put(id, data, type) {
-    id = String(id); const n = data.length, after = this.used - (this.sizes.get(id) || 0) + n;
+    id = String(id); const n = data.length, after = this.used - (this.sizes.get(safe(id)) || 0) + n;
     if (after > this.max && !id.startsWith('board:')) {
       const mb = x => Math.round(x / 1048576);
-      throw Object.assign(new Error(`Bộ nhớ lưu file của công ty đã đầy (${mb(this.used)}/${mb(this.max)} MB). Nhờ CEO hoặc trưởng dự án xoá bớt tài liệu cũ rồi thử lại.`), { code: 'quota' });
+      throw Object.assign(new Error(`Bộ nhớ lưu file của công ty đã đầy (${mb(this.used)}/${mb(this.max)} MB). Nhờ Admin hoặc trưởng dự án xoá bớt tài liệu cũ rồi thử lại.`), { code: 'quota' });
     }
     await this.inner.put(id, data, type); this.track(id, n);
   }

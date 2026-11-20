@@ -1,11 +1,11 @@
 // Lướt TikTok trong buồng vệ sinh. Nguồn video:
-//  1. Kênh cố định (TikTokChannels): video mới nhất của vài kênh TikTok do CEO / HC-NS chọn, đọc từ trang nhúng hồ sơ CHÍNH THỨC
+//  1. Kênh cố định (TikTokChannels): video mới nhất của vài kênh TikTok do Admin / HC-NS chọn, đọc từ trang nhúng hồ sơ CHÍNH THỨC
 //     của TikTok (https://www.tiktok.com/embed/@kênh — trang TikTok làm sẵn để web khác nhúng), làm mới mỗi 30 phút. Nhân viên mở
 //     điện thoại là có video, không cần dán link. (Bảng tin "Dành cho bạn" của TikTok thì không nhúng được — TikTok chặn.)
 //  2. Video đồng nghiệp chia sẻ (TikTokList): dán link, kiểm tra bằng oEmbed chính thức (tiêu đề, tác giả); link rút gọn
 //     vt./vm.tiktok.com được mở để lấy link gốc.
 // Phát bằng trình phát nhúng chính thức (https://www.tiktok.com/player/v1/<mã>) phía trình duyệt — src/ui/tiktokPhone.js.
-// Lưu ở db.blobs 'tiktok:list' (mới nhất trước, tối đa MAX). Người dán, CEO hoặc HC-NS xoá được.
+// Lưu ở db.blobs 'tiktok:list' (mới nhất trước, tối đa MAX). Người dán, Admin hoặc HC-NS xoá được.
 import { HttpError } from './store.js';
 
 const KEY = 'tiktok:list';
@@ -62,7 +62,7 @@ export class TikTokList {
   async remove(actorKey, id, manage) {
     const list = await this.load(), i = list.findIndex(x => x.id === id);
     if (i < 0) throw new HttpError(404, 'Không còn video này.', { code: 'not_found' });
-    if (!manage && list[i].by !== actorKey) throw new HttpError(403, 'Chỉ người dán, CEO hoặc Hành chính - Nhân sự được xoá video này.', { code: 'forbidden' });
+    if (!manage && list[i].by !== actorKey) throw new HttpError(403, 'Chỉ người dán, Admin hoặc Hành chính - Nhân sự được xoá video này.', { code: 'forbidden' });
     const [it] = list.splice(i, 1); await this.save();
     return it;
   }

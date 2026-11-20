@@ -2645,7 +2645,7 @@ select.cs-native { position: absolute !important; width: 1px !important; height:
 /* thẻ cuộc họp: chưa tới giờ mở phòng */
 .chip.wait { gap: 4px; align-items: center; background: #f1f2f6; color: #4a4c63; }
 .sx-primary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; filter: saturate(.6); }
-/* bảng thông báo: CEO cấp quyền đăng tin (src/session/noticeBoard.js permView) */
+/* bảng thông báo: Admin cấp quyền đăng tin (src/session/noticeBoard.js permView) */
 .nb-perm-v h3 { display: flex; align-items: center; gap: 8px; margin: 2px 0 6px; font: 900 18px var(--font); }
 .nb-perm-note { margin: 0 0 14px; font-size: 13px; line-height: 1.5; color: #6b6d85; }
 .nb-perm-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 10px; }
@@ -3409,7 +3409,7 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
 @media (prefers-reduced-motion: reduce) { .sx.dash .sx-body.enter { animation: none; } }
 
 /* =====================================================================================================
-   BẢNG QUẢN TRỊ CEO (src/admin/dashboard.js) — cùng khung dashboard với Dự án / Phòng họp (.sx.dash):
+   BẢNG QUẢN TRỊ Admin (src/admin/dashboard.js) — cùng khung dashboard với Dự án / Phòng họp (.sx.dash):
    thanh bên giấy ấm (mục + số nhanh + tình trạng server), đầu trang có nút theo mục, thẻ số, bảng trắng viền mảnh.
    ===================================================================================================== */
 #dash[hidden] { display: none !important; }
@@ -3659,7 +3659,7 @@ body.in-room-karaoke .touch-ui .joy { position: fixed; z-index: 62; bottom: calc
 .nt-item.on, .nt-item.on b { color: var(--ink) !important; }
 .nt-item.on span { color: #5c5a3a; } .nt-item.on time { color: #3f3d22; }
 
-/* Lướt TikTok: nút "Chia sẻ video" (mở ô dán link — tuỳ chọn) + "Kênh" (CEO / HC-NS), màn đang tải */
+/* Lướt TikTok: nút "Chia sẻ video" (mở ô dán link — tuỳ chọn) + "Kênh" (Admin / HC-NS), màn đang tải */
 .tt-acts { flex: none; display: flex; justify-content: center; gap: 8px; }
 .tt-act { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px !important; border-radius: 999px !important; border: 1px solid #333 !important; background: #1d1e27 !important; color: rgba(255,255,255,.85) !important; font: 700 12.5px var(--font); cursor: pointer; box-shadow: none !important; }
 .tt-act:hover { color: #fff !important; border-color: #555 !important; }
@@ -3745,3 +3745,123 @@ body.tt-pov #appRoot :is(#sessionBar, #panel, #panelToggle, #hud, #ctrlNav, #car
    Ô nhập, ô soạn (ghi chú, chat, bảng vẽ) vẫn chọn / sửa / chép dán được bình thường. */
 html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 :is(input, textarea, select, [contenteditable]:not([contenteditable="false"]), [contenteditable]:not([contenteditable="false"]) *) { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+.adm-files .adm-bar { height: 8px; margin: 2px 0 0; }
+.adm-files > header { flex-wrap: wrap; }
+
+/* ===== Góp ý & báo lỗi (src/ui/feedback.js): khung chat với Admin — 2 cột ở máy tính, 1 cột ở điện thoại ===== */
+.soc-btn .fb-n { position: absolute; top: -7px; right: -7px; min-width: 19px; height: 19px; padding: 0 5px; box-sizing: border-box; border-radius: 999px; background: var(--bad); color: #fff; border: 2px solid #fff; font: 900 10.5px/15px var(--font); text-align: center; pointer-events: none; animation: fbPop .3s cubic-bezier(.2,.9,.3,1.4); }
+.soc-btn .fb-n[hidden] { display: none; }
+@media (max-width: 760px) { #appRoot .social-bar .fb-n { top: 0; right: 0; } }
+@keyframes fbPop { from { transform: scale(.4); } to { transform: none; } }
+.fb-pop { position: absolute; left: 50%; top: 50%; z-index: 32; width: min(900px, calc(100vw - 24px)); height: min(640px, calc(100vh - 110px)); display: flex; flex-direction: column; background: var(--paper); border: 1.5px solid var(--ink); border-radius: 18px; box-shadow: 0 18px 50px rgba(43,45,66,.32); font-family: var(--font); color: var(--ink); overflow: hidden;
+  opacity: 0; transform: translate(-50%, calc(-50% + 10px)) scale(.98); transition: opacity .22s ease, transform .22s cubic-bezier(.2,.8,.2,1); }
+.fb-pop.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+.fb-top { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 10px 16px; border-bottom: 1px solid rgba(43,45,66,.12); }
+.fb-top b { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 900; }
+.fb-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 300px 1fr; }
+.fb-side { min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 12px; border-right: 1px solid rgba(43,45,66,.12); background: rgba(255,241,222,.45); }
+.fb-side .fb-new { align-self: stretch; }
+.fb-filter { display: flex; flex-wrap: wrap; gap: 6px; }
+.fb-filter button { flex: 1 1 auto; }
+.fb-list { list-style: none; margin: 0 -4px; padding: 0 4px; overflow: auto; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.fb-row { all: unset; box-sizing: border-box; width: 100%; display: flex; gap: 10px; padding: 9px 10px; border-radius: 12px; cursor: pointer; transition: background .15s; }
+.fb-row:hover { background: rgba(43,45,66,.06); }
+.fb-row.on { background: #fff; box-shadow: inset 0 0 0 1.5px var(--ink); }
+.fb-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.fb-ic { flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; }
+.fb-ic.idea { background: #fff1c7; color: #8a5a00; } .fb-ic.bug { background: #ffe0e6; color: #b3123f; }
+.fb-ic.sm { width: 22px; height: 22px; border-radius: 7px; display: inline-grid; vertical-align: -5px; margin-right: 6px; }
+.fb-rt { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fb-r1 { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.fb-r1 b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 800; }
+.fb-r1 time { flex: none; font-size: 11px; color: #6b6f80; }
+.fb-r2 { font-size: 12.5px; color: #4a4e60; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-r2 em { font-style: normal; font-weight: 800; color: var(--ink); }
+.fb-row.unread .fb-r1 b, .fb-row.unread .fb-r2 { color: var(--ink); font-weight: 900; }
+.fb-r3 { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.fb-chip, .fb-st { font-style: normal; font-size: 10.5px; font-weight: 800; padding: 1px 7px; border-radius: 999px; line-height: 16px; }
+.fb-chip.idea { background: #fff1c7; color: #8a5a00; } .fb-chip.bug { background: #ffe0e6; color: #b3123f; }
+.fb-st.open { background: rgba(43,45,66,.08); color: #4a4e60; } .fb-st.done { background: #d5f7ec; color: #08724f; }
+.fb-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--bad); margin-left: auto; }
+.fb-empty { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 30px 12px; color: #6b6f80; text-align: center; font-size: 13px; }
+.fb-main { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: #fff; }
+.fb-main.drop::after { content: 'Thả ảnh vào đây'; position: absolute; inset: 8px; display: grid; place-items: center; border: 2px dashed var(--accent); border-radius: 14px; background: rgba(255,138,91,.08); font-weight: 900; color: var(--accent); pointer-events: none; }
+.fb-head { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid rgba(43,45,66,.1); min-height: 58px; box-sizing: border-box; }
+.fb-head > div { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.fb-head b { font-size: 14.5px; font-weight: 900; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fb-head small { font-size: 12px; color: #6b6f80; }
+.fb-acts { display: flex; align-items: center; gap: 6px; }
+.fb-back { display: none !important; }
+.fb-msgs { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px 8px; display: flex; flex-direction: column; gap: 3px; scroll-behavior: auto; }
+.fb-load { margin: auto; color: #6b6f80; font-size: 13px; }
+.fb-day { display: flex; justify-content: center; margin: 10px 0 6px; } .fb-day span { font-size: 11px; font-weight: 800; color: #6b6f80; background: rgba(43,45,66,.06); padding: 2px 10px; border-radius: 999px; }
+.fb-msg { display: flex; flex-direction: column; align-items: flex-start; max-width: 78%; margin-top: 6px; }
+.fb-msg.cont { margin-top: 0; }
+.fb-msg.me { align-self: flex-end; align-items: flex-end; }
+.fb-msg.new { animation: fbIn .28s cubic-bezier(.2,.8,.2,1); }
+@keyframes fbIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.fb-who { font-size: 11.5px; font-weight: 800; color: #6b6f80; margin: 0 0 3px 10px; }
+.fb-bub { position: relative; background: #f1f2f5; border-radius: 16px; padding: 8px 12px 6px; display: flex; flex-direction: column; gap: 6px; min-width: 64px; }
+.fb-msg.me .fb-bub { background: var(--ink); color: #fff; }
+.fb-msg:not(.me) .fb-bub { border-bottom-left-radius: 6px; } .fb-msg.me .fb-bub { border-bottom-right-radius: 6px; }
+.fb-msg.cont:not(.me) .fb-bub { border-top-left-radius: 6px; } .fb-msg.cont.me .fb-bub { border-top-right-radius: 6px; }
+.fb-bub p { margin: 0; font-size: 13.5px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: text; user-select: text; }
+.fb-bub time { align-self: flex-end; font-size: 10.5px; opacity: .6; }
+.fb-img { all: unset; cursor: zoom-in; display: block; align-self: flex-start; border-radius: 10px; overflow: hidden; margin: -2px -6px 0; }
+.fb-msg.me .fb-img { align-self: flex-end; }
+.fb-img img { display: block; max-width: min(320px, 100%); max-height: 260px; object-fit: cover; }
+.fb-img:focus-visible { outline: 2px solid var(--accent); }
+.fb-done { align-self: center; display: inline-flex; align-items: center; gap: 6px; margin: 12px 0 4px; padding: 6px 12px; border-radius: 999px; background: #d5f7ec; color: #08724f; font-size: 12px; font-weight: 800; text-align: center; }
+.fb-blank { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; color: #6b6f80; text-align: center; padding: 20px; }
+.fb-blank b { color: var(--ink); font-size: 15px; }
+.fb-pick { justify-content: center; align-items: center; gap: 14px; }
+.fb-ask { margin: 0; font-size: 16px; font-weight: 900; }
+.fb-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: min(460px, 100%); }
+.fb-kind { all: unset; box-sizing: border-box; cursor: pointer; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 14px; border-radius: 16px; border: 1.5px solid rgba(43,45,66,.16); background: #fff; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.fb-kind:hover { border-color: var(--ink); }
+#appRoot .fb-kind.on { background: var(--paper); color: var(--ink); border-color: var(--ink); box-shadow: 0 3px 0 var(--ink); transform: translateY(-1px); }   /* (#appRoot: thắng luật chung button.on nền xanh) */
+.fb-kind:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.fb-kind .fb-ic { width: 42px; height: 42px; border-radius: 12px; }
+.fb-kind b { font-size: 15px; font-weight: 900; } .fb-kind small { font-size: 12px; color: #6b6f80; line-height: 1.35; }
+.fb-form { border-top: 1px solid rgba(43,45,66,.1); padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; background: #fff; }
+.fb-form.off { opacity: .5; } .fb-form.busy { opacity: .7; pointer-events: none; }
+.fb-row2 { display: flex; align-items: flex-end; gap: 8px; }
+.fb-form textarea { flex: 1; min-width: 0; box-sizing: border-box; min-height: var(--btn-h); max-height: 140px; resize: none; padding: 9px 14px; border: 1px solid rgba(43,45,66,.2); border-radius: 19px; font: 500 14px/1.4 var(--font); color: var(--ink); background: #fff; outline: none; }
+.fb-form textarea:focus { border-color: var(--ink); }
+.fb-attach { cursor: pointer; border: 1px solid rgba(43,45,66,.2); background: #fff; color: var(--ink); }
+.fb-attach:hover { border-color: var(--ink); }
+.fb-draft { display: flex; align-items: center; gap: 10px; padding: 6px; border-radius: 12px; background: rgba(43,45,66,.05); animation: fbIn .2s ease; }
+.fb-draft[hidden] { display: none; }
+.fb-draft img { width: 52px; height: 52px; object-fit: cover; border-radius: 9px; }
+.fb-draft span { flex: 1; font-size: 12.5px; font-weight: 800; }
+.fb-draft .sx-icon { width: 32px !important; height: 32px !important; min-width: 32px; background: #fff; border: 1px solid rgba(43,45,66,.2); }
+.fb-zoom { position: absolute; inset: 0; z-index: 3; display: grid; place-items: center; background: rgba(20,21,32,.82); cursor: zoom-out; animation: fbFade .18s ease; }
+.fb-zoom img { max-width: calc(100% - 40px); max-height: calc(100% - 40px); border-radius: 10px; }
+.fb-zoom .sx-x { position: absolute; top: 12px; right: 12px; background: #fff; }
+@keyframes fbFade { from { opacity: 0; } }
+@media (max-width: 760px) {
+  .fb-pop { width: calc(100vw - 12px); height: calc(100dvh - 24px); border-radius: 16px; }
+  .fb-body { grid-template-columns: 1fr; }
+  .fb-side { border-right: 0; }
+  .fb-pop:not(.in-chat) .fb-main, .fb-pop.in-chat .fb-side { display: none; }
+  .fb-back { display: inline-grid !important; background: #fff; border: 1px solid rgba(43,45,66,.2); }
+  .fb-head { padding: 8px 10px; }
+  .fb-acts .sx-ghost span { display: none; }
+  .fb-acts .sx-ghost { padding: 0 12px !important; }
+  .fb-msg { max-width: 86%; }
+  .fb-kinds { grid-template-columns: 1fr; }
+  .fb-form textarea { font-size: 16px; }   /* (iOS: không tự phóng to khi gõ) */
+  .fb-send span { display: none; }
+  .fb-send { padding: 0 14px !important; }
+}
+@media (prefers-reduced-motion: reduce) { .fb-pop, .fb-msg.new, .fb-draft, .soc-btn .fb-n { transition: none; animation: none; } }
+/* điện thoại: Admin có 6 nút tròn (thêm Chấm công + Góp ý) → nút nhỏ hơn một chút để không đè khung logo;
+   màn rất hẹp (320px): nút Chấm công ẩn khỏi hàng (vẫn có ở Bảng quản trị → Chấm công) */
+@media (max-width: 760px) {
+  #appRoot .social-bar:has(> #btnAttendance) { gap: 4px; }
+  #appRoot .social-bar:has(> #btnAttendance) > .soc-btn { width: 34px !important; height: 34px !important; }
+}
+@media (max-width: 359px) {
+  #appRoot .social-bar > #btnAttendance { display: none !important; }
+  #appRoot .social-bar:has(> #btnAttendance) > .soc-btn { width: 32px !important; height: 32px !important; }
+}

@@ -12,7 +12,7 @@ const goTo = (p, where) => p.evaluate(w => {
 }, where);
 const prompt = p => p.evaluate(() => document.getElementById('hudPrompt')?.textContent || '');
 
-test('đèn công ty: chỉ người được CEO cấp quyền mới bật được; bật đèn thì cả công ty chuyển sang buổi tối', async ({ browser }) => {
+test('đèn công ty: chỉ người được Admin cấp quyền mới bật được; bật đèn thì cả công ty chuyển sang buổi tối', async ({ browser }) => {
   const ca = uniqueCode();
   const a = await newPage(browser); await loginEmployeeUI(a, `${ca}-Lan`); await waitScene(a); await finishAvatar(a);
   const b = await newPage(browser); await loginEmployeeUI(b, `${uniqueCode()}-Hoa`); await waitScene(b); await finishAvatar(b);
@@ -21,7 +21,7 @@ test('đèn công ty: chỉ người được CEO cấp quyền mới bật đư
   await pressE(a);
   await expect(a.locator('.light-pop .lp-toggle')).toBeDisabled();
   await expect(a.locator('.light-pop .lp-deny')).toBeVisible();
-  // CEO cấp quyền → nút bật được ngay (không cần tải lại)
+  // Admin cấp quyền → nút bật được ngay (không cần tải lại)
   const ceo = await newPage(browser); await loginAdminAPI(ceo);
   expect((await call(ceo, 'POST', `/api/admin/lights/${ca}`, { allow: true })).status).toBe(200);
   await expect(a.locator('.light-pop .lp-toggle')).toBeEnabled({ timeout: 15_000 });

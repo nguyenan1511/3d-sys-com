@@ -1,4 +1,4 @@
-// Sao lưu dữ liệu: file JSON chứa mọi bảng, đọc lại được, giữ đúng số bản, tên file hợp lệ; API chỉ CEO dùng được.
+// Sao lưu dữ liệu: file JSON chứa mọi bảng, đọc lại được, giữ đúng số bản, tên file hợp lệ; API chỉ Admin dùng được.
 import { describe, it, expect, afterAll } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';

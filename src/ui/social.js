@@ -1,9 +1,9 @@
 // Giao diện chat nội bộ + loa công ty.
-// Chat: nút "Chat" mở ngăn bên phải: kênh Toàn công ty, kênh phòng ban của mình (CEO thấy mọi phòng), nhắn riêng (bấm tên
+// Chat: nút "Chat" mở ngăn bên phải: kênh Toàn công ty, kênh phòng ban của mình (Admin thấy mọi phòng), nhắn riêng (bấm tên
 //   người trong danh sách online hoặc nút ✉ trên thẻ). Tin mới ở kênh khác hiện chấm đỏ; tin hiện thêm bong bóng trên đầu
 //   người gửi trong cảnh 3D vài giây. Enter để gửi, Esc để đóng.
-// Loa: nút loa hiện kênh đang phát; ai cũng tắt tiếng/chỉnh âm lượng trên máy mình; chỉ CEO và người được cấp quyền mới
-//   bật/đổi kênh/tắt loa cho cả công ty. CEO cấp quyền trong cửa sổ loa.
+// Loa: nút loa hiện kênh đang phát; ai cũng tắt tiếng/chỉnh âm lượng trên máy mình; chỉ Admin và người được cấp quyền mới
+//   bật/đổi kênh/tắt loa cho cả công ty. Admin cấp quyền trong cửa sổ loa.
 import { api } from '../net/api.js';
 import { esc } from '../session/ui.js';
 import { icon } from './icons.js';
@@ -26,17 +26,17 @@ export class Social {
     this.rt.on('hello', m => { this.canMusic = !!m.canMusic; if (m.music) this.applyMusic(m.music); this.loadChannels(); });
     this.rt.on('chat', m => this.onChat(m.msg));
     this.rt.on('music', m => this.applyMusic(m.state));
-    this.rt.on('musicPerm', m => { this.canMusic = !!m.allow; this.renderBar(); this.refreshMusicPop(); this.s.toast(m.allow ? 'CEO đã cấp cho bạn quyền mở nhạc cho công ty.' : 'CEO đã tắt quyền mở nhạc của bạn.'); });
+    this.rt.on('musicPerm', m => { this.canMusic = !!m.allow; this.renderBar(); this.refreshMusicPop(); this.s.toast(m.allow ? 'Admin đã cấp cho bạn quyền mở nhạc cho công ty.' : 'Admin đã tắt quyền mở nhạc của bạn.'); });
   }
 
   // ---------- giao diện ----------
   build() {
     const root = document.getElementById('appRoot');
     const bar = document.createElement('div'); bar.className = 'social-bar';
-    bar.innerHTML = `<button type="button" class="soc-btn" id="btnChat" title="Chat nội bộ (phím T)">${icon('chat', 17)}<span>Chat</span><i class="soc-dot" hidden></i></button>
-      ${this.s.isAdmin ? `<button type="button" class="soc-btn" id="btnAttendance" title="Bảng chấm công: hôm nay / tháng / năm">${icon('clipboard', 17)}<span>Chấm công</span></button>` : ''}`;
-    root.appendChild(bar); this.bar = bar;
-    // (điện thoại: thẻ tên / logo góc trái không lấn sang các nút tròn góc phải — số nút đổi theo người: CEO thêm Chấm công)
+    bar.innerHTML = `<nav class="app-nav" aria-label="Ứng dụng"><button type="button" class="soc-btn" id="btnChat" title="Chat nội bộ (phím T)">${icon('chat', 17)}<span>Chat</span><i class="soc-dot" hidden></i></button>
+      ${this.s.isAdmin ? `<button type="button" class="soc-btn" id="btnAttendance" title="Bảng chấm công: hôm nay / tháng / năm">${icon('clipboard', 17)}<span>Chấm công</span></button>` : ''}</nav>`;
+    root.appendChild(bar); this.bar = bar; this.nav = bar.querySelector('.app-nav');
+    // (điện thoại: thẻ tên / logo góc trái không lấn sang các nút tròn góc phải — số nút đổi theo người: Admin thêm Chấm công)
     if (typeof ResizeObserver === 'function') new ResizeObserver(() => document.documentElement.style.setProperty('--soc-w', `${Math.ceil(bar.offsetWidth)}px`)).observe(bar);
     const panel = document.createElement('aside'); panel.className = 'chat-panel'; panel.id = 'chatPanel'; panel.hidden = true; panel.setAttribute('aria-label', 'Chat nội bộ');
     panel.innerHTML = `<header class="cp-head"><b>Chat nội bộ</b><button type="button" class="cp-x" aria-label="Đóng chat">${icon('close', 14)}</button></header>
@@ -59,14 +59,17 @@ export class Social {
   /** Nút Bảng tin + Phòng họp cạnh nút Chat (có chấm đỏ khi có tin mới / cuộc họp đang mở). */
   addFeatureButtons() {
     if (this.bar.querySelector('#btnBoard')) return;
-    const add = (id, ic, label, title, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'soc-btn'; b.id = id; b.title = title; b.innerHTML = `${icon(ic, 17)}<span>${label}</span><i class="soc-dot" hidden></i>`; b.onclick = fn; this.bar.insertBefore(b, this.bar.firstChild); return b; };
+    const add = (id, ic, label, title, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = 'soc-btn'; b.id = id; b.title = title; b.innerHTML = `${icon(ic, 17)}<span>${label}</span><i class="soc-dot" hidden></i>`; b.onclick = fn; this.nav.insertBefore(b, this.nav.firstChild); return b; };
     if (this.s.projects) add('btnProj', 'grid', 'Dự án', 'Dự án: công việc, chat, tài liệu, phòng làm việc của nhóm', () => this.s.projects.panel.open());
     if (this.s.meet) add('btnMeet', 'calendar', 'Họp', 'Phòng họp: lịch, đặt phòng, cuộc họp của tôi, folder tài liệu', () => this.s.meet.panel.open());
     if (this.s.board) add('btnBoard', 'megaphone', 'Bảng tin', 'Bảng thông báo công ty', () => this.s.board.open());
+    if (this.s.feedback) { const b = add('btnFb', this.s.isAdmin ? 'inbox' : 'bug', 'Góp ý', this.s.isAdmin ? 'Hộp thư góp ý & báo lỗi của nhân viên' : 'Góp ý & báo lỗi: nhắn trực tiếp cho Admin (chữ + ảnh)', () => this.s.feedback.toggle()); this.nav.appendChild(b); b.querySelector('.soc-dot').insertAdjacentHTML('afterend', '<b class="fb-n" hidden>0</b>'); this.s.feedback.badge(); }
   }
-  setBoardDot(on) { const d = this.bar.querySelector('#btnBoard .soc-dot'); if (d) d.hidden = !on; }
-  setProjDot(on) { const d = this.bar.querySelector('#btnProj .soc-dot'); if (d) d.hidden = !on; }
-  setMeetDot(on) { const d = this.bar.querySelector('#btnMeet .soc-dot'); if (d) d.hidden = !on; }
+  /** Chấm đỏ / số chưa đọc trên nút (n: true/false hoặc số — máy tính hiện số, điện thoại hiện chấm). */
+  setDot(id, n) { const d = this.bar.querySelector(`#${id} .soc-dot`); if (!d) return; d.hidden = !n; d.textContent = typeof n === 'number' && n > 0 ? (n > 9 ? '9+' : String(n)) : ''; }
+  setBoardDot(on) { this.setDot('btnBoard', on); }
+  setProjDot(on) { this.setDot('btnProj', on); }
+  setMeetDot(on) { this.setDot('btnMeet', on); }
   toggle(open = this.panel.hidden) {
     this.panel.hidden = !open;
     this.bar.querySelector('#btnChat').classList.toggle('on', open);
@@ -83,7 +86,7 @@ export class Social {
     const [a, b] = ch.slice(3).split('|'), other = a === this.me ? b : a;
     const on = this.s.online.find(o => o.key === other); if (on) return on.display;
     for (const m of this.msgs.get(ch) || []) if (m.from === other) return m.name;
-    return other.replace(/^employee:/, '').replace(/^admin:/, 'CEO ');
+    return other.replace(/^employee:/, '').replace(/^admin:/, 'Admin ');
   }
   renderChannels() {
     const nav = this.panel.querySelector('.cp-chans');
@@ -91,7 +94,7 @@ export class Social {
     nav.innerHTML = `<div class="cp-sec">Kênh</div>${this.channels.map(c => item(c.id, c.id === 'all' ? '# Toàn công ty' : c.name.replace(/^(Phòng|Team) /, '# '), c.color)).join('')}
       <div class="cp-sec">Nhắn riêng</div>${this.dms.map(d => item(d, this.dmName(d))).join('') || '<p class="cp-hint">Bấm tên một người trong danh sách online để nhắn riêng.</p>'}`;
     nav.querySelectorAll('[data-ch]').forEach(b => b.onclick = () => this.open(b.dataset.ch));
-    const any = [...this.unread.values()].some(n => n > 0); this.bar.querySelector('.soc-dot').hidden = !any;
+    const n = [...this.unread.values()].reduce((a, b) => a + (b > 0 ? b : 0), 0); this.setDot('btnChat', n);
   }
   async open(ch) {
     this.cur = ch; this.unread.delete(ch); this.renderChannels();
@@ -200,9 +203,9 @@ export class Social {
     if (!on) return;
     const q = c => el.querySelector(c);
     const thumb = `https://i.ytimg.com/vi/${st.videoId}/mqdefault.jpg`; if (q('.mb-thumb').getAttribute('src') !== thumb) q('.mb-thumb').src = thumb;
-    q('.mb-title b').textContent = st.title || 'Video YouTube'; q('.mb-title small').textContent = st.by ? `mở bởi ${st.by}` : '';
+    q('.mb-title b').textContent = st.title || 'Video YouTube'; q('.mb-title small').textContent = st.by ? `mở bởi ${st.by}` : ''; q('.mb-title').title = `${st.title || 'Video YouTube'}${st.by ? ` · mở bởi ${st.by}` : ''}`;
     q('.mb-play').innerHTML = icon(st.paused ? 'play' : 'pause', 14); q('.mb-play').title = st.paused ? 'Phát tiếp' : 'Tạm dừng';
-    for (const c of ['.mb-play', '.mb-stop', '.mb-seek']) { q(c).disabled = !can; q(c).title = can ? q(c).title : 'Chỉ người được CEO cấp quyền mới điều khiển'; }
+    for (const c of ['.mb-play', '.mb-stop', '.mb-seek']) { q(c).disabled = !can; q(c).title = can ? q(c).title : 'Chỉ người được Admin cấp quyền mới điều khiển'; }
     q('.mb-mute').innerHTML = icon(this.music.muted || this.music.vol === 0 ? 'mute' : 'volume', 15); q('.mb-mute').title = this.music.muted ? 'Bật tiếng trên máy bạn' : 'Tắt tiếng trên máy bạn';
     q('.mb-unblock').hidden = !this.music.blocked;
     el.classList.toggle('playing', !st.paused && !this.music.blocked);
@@ -218,7 +221,7 @@ export class Social {
     seek.style.setProperty('--p', dur ? `${(cur / dur) * 100}%` : '0%');
   }
 
-  /** Bảng của góc âm nhạc (đứng trước máy hát bấm E): dán link YouTube, đang phát, bài gần đây; CEO cấp quyền. */
+  /** Bảng của góc âm nhạc (đứng trước máy hát bấm E): dán link YouTube, đang phát, bài gần đây; Admin cấp quyền. */
   async openMusic() {
     if (document.querySelector('.music-pop')) return;
     const isAdmin = this.s.isAdmin;
@@ -226,7 +229,7 @@ export class Social {
     pop.innerHTML = `<header><b>${icon('music', 16)} Góc âm nhạc</b><button type="button" class="sp-x" aria-label="Đóng">${icon('close', 14)}</button></header>
       <p class="sp-hint">Dán link YouTube: cả công ty cùng nghe, video chiếu trên TV phòng giải trí.</p>
       <form class="mu-form"><input class="mu-url" type="url" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…" aria-label="Link YouTube"><button type="submit" class="mu-go">Phát</button></form>
-      <p class="sp-note mu-deny">Chỉ CEO và người được CEO cấp quyền mới mở nhạc. Bạn vẫn chỉnh âm lượng trên máy mình ở thanh nhạc phía trên.</p>
+      <p class="sp-note mu-deny">Chỉ Admin và người được Admin cấp quyền mới mở nhạc. Bạn vẫn chỉnh âm lượng trên máy mình ở thanh nhạc phía trên.</p>
       <div class="mu-now"></div>
       <div class="mu-recent"><div class="sp-sec">Phát gần đây</div><ul></ul></div>
       ${isAdmin ? '<div class="sp-perm"><div class="sp-sec">Cấp quyền mở nhạc</div><ul class="sp-list"><li class="sp-load">Đang tải…</li></ul></div>' : ''}`;

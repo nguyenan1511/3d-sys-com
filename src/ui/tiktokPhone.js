@@ -1,6 +1,6 @@
 // Lướt TikTok trong buồng vệ sinh (src/session/restroom.js → nút "Lướt TikTok"): khung điện thoại dọc, phát video bằng trình
 // phát nhúng chính thức của TikTok (https://www.tiktok.com/player/v1/<mã>, điều khiển qua postMessage). Video có sẵn từ các
-// kênh TikTok cố định (CEO / HC-NS chọn — nút "Kênh") + video đồng nghiệp chia sẻ (nút "Chia sẻ" — tuỳ chọn), server/tiktok.js.
+// kênh TikTok cố định (Admin / HC-NS chọn — nút "Kênh") + video đồng nghiệp chia sẻ (nút "Chia sẻ" — tuỳ chọn), server/tiktok.js.
 // Thao tác như TikTok: vuốt lên / xuống (hoặc lăn chuột, phím ↑ ↓) để chuyển video, chạm để dừng / phát, hết video tự sang
 // video kế, hết danh sách thì quay lại đầu. Đang lướt: nhân vật cầm điện thoại.
 import { api } from '../net/api.js';
@@ -96,7 +96,7 @@ export class TikTokPhone {
     this.render();
     if (!r.ok) this.s.toast(r.error || 'Chưa tải được danh sách video.', true);
   }
-  /** CEO / HC-NS: chọn các kênh TikTok cố định (mỗi dòng một @kênh). */
+  /** Admin / HC-NS: chọn các kênh TikTok cố định (mỗi dòng một @kênh). */
   async editChannels() {
     const r = await modal({
       title: 'Kênh TikTok để lướt',

@@ -1,5 +1,5 @@
 // Đèn công ty (công tắc cạnh máy chấm công ở sảnh): bật đèn = văn phòng chuyển sang buổi tối, đèn các phòng sáng lên;
-// tắt = ban ngày. Giống loa công ty: CEO luôn bật/tắt được và cấp/thu quyền cho từng nhân viên (employees.can_lights);
+// tắt = ban ngày. Giống loa công ty: Admin luôn bật/tắt được và cấp/thu quyền cho từng nhân viên (employees.can_lights);
 // trạng thái lưu ở world_state('lights') nên khởi động lại server vẫn giữ.
 import { worldGet, worldSet } from './db.js';
 export function canLights(store, actor) {

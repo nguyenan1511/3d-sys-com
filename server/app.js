@@ -5,6 +5,7 @@ import path from 'path';
 import { config as defaultConfig, ROOT } from './config.js';
 import { openData, audit } from './db.js';
 import { QuotaBlobs } from './blobs.js';
+import { fileReport, pruneFiles } from './files.js';
 import { Store, HttpError } from './store.js';
 import { Hub } from './realtime.js';
 import { requestLog, securityHeaders, rateLimit } from './http.js';
@@ -20,6 +21,7 @@ import { seedBoard } from './board.js';
 import { meetingRoutes } from './routes/meetings.js';
 import { tiktokRoutes } from './routes/tiktok.js';
 import { projectRoutes } from './routes/projects.js';
+import { feedbackRoutes } from './routes/feedback.js';
 import {
   hashPassword, verifyPassword, dummyVerify, createSession, sessionFromCookie, setSessionCookie, clearSessionCookie,
   failureCount, recordFailure, clearFailures, originAllowed, issueWsTicket
@@ -56,9 +58,10 @@ export async function createApp(config = defaultConfig) {
   app.disable('x-powered-by');
   app.set('trust proxy', config.trustProxy ?? 'loopback');
   app.use(securityHeaders({ production: config.production, secure: config.cookieSecure }));
-  // JSON: 1 MB; riêng tải tài liệu cuộc họp (base64, file ≤ 5 MB) được 7 MB
+  // JSON: 1 MB; riêng tải tài liệu / ảnh bảng vẽ của cuộc họp + dự án, logo, ảnh bảng tin, ảnh góp ý (base64) được 7 MB
+  // (lỗi cũ: dự án bị giới hạn 1 MB → ảnh chụp thật dán lên bảng dự án bị từ chối, người khác không thấy)
   const json = express.json({ limit: '1mb' }), bigJson = express.json({ limit: '7mb' });
-  app.use((req, res, next) => ((req.method === 'POST' && /^\/api(\/v1)?\/meetings\/\d+\/(files|wbfile)$/.test(req.path)) || (req.method === 'PUT' && /^\/api(\/v1)?\/board\/\d+\/image$/.test(req.path)) ? bigJson : json)(req, res, next));
+  app.use((req, res, next) => ((req.method === 'POST' && /^\/api(\/v1)?\/(meetings|projects)\/\d+\/(files|wbfile)$/.test(req.path)) || (req.method === 'POST' && /^\/api(\/v1)?\/(feedback(\/\d+\/messages)?|board\/img)$/.test(req.path)) || (req.method === 'PUT' && /^\/api(\/v1)?\/(board\/\d+\/image|projects\/\d+\/logo)$/.test(req.path)) ? bigJson : json)(req, res, next));
 
   // phiên
   app.use((req, _res, next) => {
@@ -85,7 +88,7 @@ export async function createApp(config = defaultConfig) {
   });
 
   const needAuth = (req, res, next) => req.actor ? next() : res.status(401).json({ error: 'Cần đăng nhập.' });
-  const needAdmin = (req, res, next) => req.actor?.kind === 'admin' ? next() : res.status(req.actor ? 403 : 401).json({ error: req.actor ? 'Chỉ CEO được thực hiện thao tác này.' : 'Cần đăng nhập.' });
+  const needAdmin = (req, res, next) => req.actor?.kind === 'admin' ? next() : res.status(req.actor ? 403 : 401).json({ error: req.actor ? 'Chỉ Admin được thực hiện thao tác này.' : 'Cần đăng nhập.' });
   const needEmployee = (req, res, next) => req.actor?.kind === 'employee' ? next() : res.status(req.actor ? 403 : 401).json({ error: req.actor ? 'Chỉ dành cho nhân viên.' : 'Cần đăng nhập.' });
   const ip = req => req.ip || req.socket.remoteAddress || '?';
   // Mọi API nằm trên một router, gắn ở /api/v1 (bản chính thức) và /api (giữ tương thích): thêm API mới chỉ cần thêm route vào đây
@@ -211,6 +214,13 @@ export async function createApp(config = defaultConfig) {
   // tổng quan cho bảng quản trị: số người online theo phút (6 giờ), tình trạng server và lưu MongoDB
   api.get('/admin/stats', needAdmin, (_req, res) => res.json({ online: hub.hist, now: hub.onlineEmployees(), version: API_VERSION, uptimeSec: Math.round(process.uptime()),
     mongo: dataStatus(), files: db.blobs.usage?.() || null, maxOnline: config.maxOnline || 80, waiting: hub.gate.waitingCount() }));
+  // dung lượng file theo loại + dọn file thừa (không còn chủ) — bảng Quản trị → Sao lưu (server/files.js)
+  api.get('/admin/files', needAdmin, (_req, res) => res.json(fileReport(db)));
+  api.post('/admin/files/prune', needAdmin, async (req, res) => {
+    const out = await pruneFiles(db);
+    audit(db, req.actor.key, 'admin.files.prune', '', out);
+    res.json({ ok: true, ...out, report: fileReport(db) });
+  });
   api.get('/admin/audit', needAdmin, (req, res) => res.json({ audit: store.auditLog(+req.query.limit || 200) }));
 
   /** Vé mở WebSocket thẳng tới server (khi giao diện đặt ở tên miền khác, ví dụ Vercel). */
@@ -223,6 +233,7 @@ export async function createApp(config = defaultConfig) {
   boardRoutes(api, ctx);
   meetingRoutes(api, ctx);
   tiktokRoutes(api, ctx);
+  feedbackRoutes(api, ctx);
   projectRoutes(api, ctx);
   backupRoutes(api, ctx);
   app.use(['/api/v1', '/api'], api);
@@ -254,12 +265,12 @@ async function seedAdmin(db, config) {
   const n = db.admins.count();
   if (n) return;
   if (!config.adminInitialPassword) {
-    console.warn('[cảnh báo] Chưa có tài khoản CEO. Đặt ADMIN_INITIAL_PASSWORD trong .env rồi khởi động lại để tạo tài khoản "admin".');
+    console.warn('[cảnh báo] Chưa có tài khoản Admin. Đặt ADMIN_INITIAL_PASSWORD trong .env rồi khởi động lại để tạo tài khoản "admin".');
     return;
   }
   db.admins.insert({ username: 'admin', pass_hash: await hashPassword(config.adminInitialPassword), is_initial: 1, updated_at: Date.now() });
   audit(db, 'system', 'admin.seed', 'admin');
-  console.log('Đã tạo tài khoản CEO "admin" từ ADMIN_INITIAL_PASSWORD. Hãy đổi mật khẩu sau lần đăng nhập đầu.');
+  console.log('Đã tạo tài khoản Admin "admin" từ ADMIN_INITIAL_PASSWORD. Hãy đổi mật khẩu sau lần đăng nhập đầu.');
 }
 
 export { displayOf };

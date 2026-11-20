@@ -146,7 +146,7 @@ export class Intro {
       </div></article>`;
   }
 
-  /** Nơi tới được cho "go" (null nếu không có — vd. CEO không có nhân vật, chưa có chỗ ngồi). */
+  /** Nơi tới được cho "go" (null nếu không có — vd. Admin không có nhân vật, chưa có chỗ ngồi). */
   target(go) {
     const qt = this.app.quickTravel, s = this.s; if (!qt || !s.player) return null;
     if (go === 'desk') return s.mySeat ? { desk: true } : null;

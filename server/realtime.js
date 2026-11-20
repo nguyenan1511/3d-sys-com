@@ -29,7 +29,7 @@ const okNum = (v, [a, b]) => typeof v === 'number' && Number.isFinite(v) && v >=
 
 /**
  * Cổng giới hạn số người online (MAX_ONLINE, mặc định 80) + hàng chờ công bằng: ai chờ trước vào trước. Người chờ giữ chỗ trong
- * hàng bằng cách thử lại (~10 giây/lần); quá 45 giây không thử lại thì rời hàng. CEO không bị giới hạn.
+ * hàng bằng cách thử lại (~10 giây/lần); quá 45 giây không thử lại thì rời hàng. Admin không bị giới hạn.
  */
 export class Gate {
   constructor(hub) { this.hub = hub; this.waiting = new Map(); }   // key -> { since: số thứ tự đến, seen }
@@ -69,7 +69,7 @@ export class Hub {
   /** Tên hiển thị theo khoá phiên (đang online: theo presence; không thì theo hồ sơ). */
   nameOf(key) {
     const p = this.presence.get(key); if (p) return p.display;
-    if (key.startsWith('admin:')) return `CEO (${key.slice(6)})`;
+    if (key.startsWith('admin:')) return `Admin (${key.slice(6)})`;
     const e = this.store.employee(key.replace(/^employee:/, '')); return e ? displayOf(e.code, e.name) : key.replace(/^employee:/, '');
   }
   onlineEmployees() { let n = 0; for (const k of this.sockets.keys()) if (k.startsWith('employee:')) n++; return n; }
@@ -97,7 +97,7 @@ export class Hub {
   }
 
   identity(sess) {
-    if (sess.kind === 'admin') return { key: `admin:${sess.subject}`, kind: 'admin', code: null, display: `CEO (${sess.subject})`, department: 'Ban giám đốc' };
+    if (sess.kind === 'admin') return { key: `admin:${sess.subject}`, kind: 'admin', code: null, display: `Admin (${sess.subject})`, department: 'Ban giám đốc' };
     const e = this.store.employee(sess.subject);
     return { key: `employee:${sess.subject}`, kind: 'employee', code: sess.subject, display: e ? displayOf(e.code, e.name) : sess.subject, look: e?.look ? JSON.parse(e.look) : null, department: e?.department || '' };
   }
@@ -195,10 +195,10 @@ export class Hub {
   }
   // ---------- loa: phát/điều khiển qua REST (server/routes/music.js); ở đây chỉ phát trạng thái ----------
   /** Tên hiển thị của người thao tác (theo phiên đang online). */
-  displayOf(actor) { const k = actor.kind === 'admin' ? `admin:${actor.username}` : `employee:${actor.code}`; return this.presence.get(k)?.display || (actor.kind === 'admin' ? `CEO (${actor.username})` : actor.code); }
+  displayOf(actor) { const k = actor.kind === 'admin' ? `admin:${actor.username}` : `employee:${actor.code}`; return this.presence.get(k)?.display || (actor.kind === 'admin' ? `Admin (${actor.username})` : actor.code); }
   /** Chấm công vào/ra: báo cho mọi người (bảng thông tin trên bàn cập nhật). */
   attendance(rec) { this.broadcast({ t: 'attendance', rec }); }
-  /** CEO đổi quyền bật nhạc của một người: báo cho người đó. */
+  /** Admin đổi quyền bật nhạc của một người: báo cho người đó. */
   musicPermission(code, allow) { for (const ws of this.sockets.get(`employee:${code}`) || []) this.send(ws, { t: 'musicPerm', allow }); }
 
   /** Rèm cửa sổ: trạng thái chung của văn phòng, lưu trong DB, ai cũng kéo được. */
@@ -233,7 +233,7 @@ export class Hub {
   // (tên, nhân vật, phòng ban) chỉ kèm lần đầu người đó có vị trí hoặc khi đổi (p.pv tăng) — người vào sau đã có trong hello.
   // (100 người, 1/3 đang đi lại: từ ~85 KB/s xuống ~15 KB/s mỗi người nhận)
   // Chỉ gửi vị trí người ở CÙNG TẦNG đang xem (client báo { t: 'view', f }; tầng khác không vẽ): người đổi tầng hoặc đổi hồ sơ
-  // thì gửi cho tất cả; CEO và người xem toàn cảnh (f = -1) nhận hết. Mỗi tầng mã hoá JSON một lần. (băng thông ~1/3 khi chia đều 3 tầng)
+  // thì gửi cho tất cả; Admin và người xem toàn cảnh (f = -1) nhận hết. Mỗi tầng mã hoá JSON một lần. (băng thông ~1/3 khi chia đều 3 tầng)
   flush() {
     // danh sách online: gộp tối đa 1 lần/giây (giờ vào ca 80 người vào trong 10 giây: gửi cả danh sách cho mọi người mỗi nhịp
     // 160 ms là O(n²) — chiếm gần hết 0,1 CPU của gói free, người vào sau phải chờ 9 giây)
@@ -305,7 +305,7 @@ export class Hub {
       this.broadcast({ t: 'seats', list: this.store.listSeats(), full: true });
     } else if (ev.type === 'employees') {
       this.broadcast({ t: 'employees' }, ws => ws.sess.kind === 'admin');
-      // cập nhật tên hiển thị / phòng ban trong presence (vào / ra chỉ cần xem một người; CEO sửa danh sách thì xem hết)
+      // cập nhật tên hiển thị / phòng ban trong presence (vào / ra chỉ cần xem một người; Admin sửa danh sách thì xem hết)
       const list = ev.code ? [this.presence.get(`employee:${ev.code}`)].filter(Boolean) : [...this.presence.values()];
       for (const p of list) if (p.code) {
         const e = this.store.employee(p.code); if (!e) continue;

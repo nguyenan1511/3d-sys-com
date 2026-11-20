@@ -76,7 +76,25 @@ test('dự án: tạo + mời, Kanban kéo thả, giao việc, chat @nhắc, ri�
   await expect(b.locator('.notice', { hasText: 'vừa vào phòng dự án' })).toBeVisible({ timeout: 15_000 });
   await b.evaluate(id => window.__app.session.projects.join(id), pid);
   await expect(a.locator('.mt-here .mt-av')).toHaveCount(2, { timeout: 20_000 });
+  // bảng vẽ của phòng dự án: A dán ảnh → B thấy ảnh; ra khỏi phòng rồi vào lại vẫn thấy ảnh (lỗi cũ: ảnh tải từ bộ nhớ đệm về
+  // trước khi bảng dựng xong → bảng bỏ qua, không hiện ảnh)
+  await a.locator('.mt-open').click(); await b.locator('.mt-open').click();
+  await a.waitForFunction(() => !!window.__app.session.meet.room?.wb?.xapi, null, { timeout: 30_000 });
+  const fid = await a.evaluate(() => {
+    const w = window.__app.session.meet.room.wb, X = w.L.X, c = document.createElement('canvas'); c.width = 120; c.height = 80; c.getContext('2d').fillStyle = '#06d6a0'; c.getContext('2d').fillRect(0, 0, 120, 80);
+    const id = 'img' + Date.now().toString(36); w.xapi.addFiles([{ id, mimeType: 'image/png', dataURL: c.toDataURL('image/png'), created: Date.now() }]);
+    const [el] = X.convertToExcalidrawElements([{ type: 'image', fileId: id, x: 0, y: 0, width: 120, height: 80 }]);
+    w.xapi.updateScene({ elements: [...w.xapi.getSceneElementsIncludingDeleted(), el], captureUpdate: X.CaptureUpdateAction.IMMEDIATELY }); return id;
+  });
+  const shown = (p, f) => p.evaluate(f => !!window.__app.session.meet.room?.wb?.xapi?.getFiles()[f], f);
+  await expect.poll(() => shown(b, fid), { timeout: 20_000 }).toBe(true);
   await a.locator('.mt-leave').click(); await b.locator('.mt-leave').click();
+  await expect(a.locator('.mt-room')).toHaveCount(0);
+  await a.evaluate(id => window.__app.session.projects.join(id), pid);
+  await expect(a.locator('.mt-room.is-proj')).toBeVisible({ timeout: 30_000 });
+  await a.locator('.mt-open').click();
+  await expect.poll(() => shown(a, fid), { timeout: 20_000 }).toBe(true);
+  await a.locator('.mt-leave').click();
   await expect(a.locator('.mt-room')).toHaveCount(0);
   // đặt họp cho dự án: mời cả dự án, tài liệu họp hiện trong dự án
   const slot = Math.floor(Date.now() / 1800e3) * 1800e3 + 1800e3;

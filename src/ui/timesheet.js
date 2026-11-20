@@ -1,6 +1,6 @@
 // Bảng công theo tháng / năm.
 //  - Nhân viên: lịch tháng của mình (mỗi ngày: giờ vào – ra, đúng giờ / muộn / vắng / cuối tuần), tổng hợp; bảng năm 12 tháng.
-//  - CEO: tab Hôm nay / Tháng (ma trận nhân viên × ngày, bấm tên xem lịch tháng của người đó) / Năm (nhân viên × 12 tháng).
+//  - Admin: tab Hôm nay / Tháng (ma trận nhân viên × ngày, bấm tên xem lịch tháng của người đó) / Năm (nhân viên × 12 tháng).
 import { api } from '../net/api.js';
 import { esc } from '../session/ui.js';
 import { icon } from './icons.js';
@@ -93,7 +93,7 @@ export function openMyTimesheet() {
   render();
 }
 
-/** CEO: bảng chấm công (hôm nay / tháng / năm). */
+/** Admin: bảng chấm công (hôm nay / tháng / năm). */
 export function openAdminTimesheet() {
   cache.clear(); const ui = shell('Bảng chấm công', 'ts-admin');
   let tab = 'month', ym = ymNow(), year = ymNow().slice(0, 4), person = null;

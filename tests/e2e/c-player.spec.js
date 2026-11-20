@@ -20,7 +20,7 @@ test('di chuyển bằng phím, nhảy, động tác được người khác th�
   const mine = await freeDesk(a);
   expect((await call(a, 'POST', `/api/seats/${mine}/claim`, {})).status).toBe(200);
   await a.evaluate(() => window.__app.session.player.follow());
-  await a.locator('#ctrlNav .keys-btn').waitFor();
+  await a.locator('#ctrlNav .keys-btn').first().waitFor();   // (nút ? trên thanh gợi ý + viên "Phím tắt" khi ẩn gợi ý)
 
   // đi về phía trước 1 giây: vị trí phải đổi
   // (giữ W tới khi đi được: vừa đóng "Chọn chỗ" bản đồ còn đang chuyển cảnh, máy test chạy 12 khung/giây)

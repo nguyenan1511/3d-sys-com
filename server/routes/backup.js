@@ -1,4 +1,4 @@
-// API sao lưu database (chỉ CEO): xem danh sách, sao lưu ngay, tải một bản về máy.
+// API sao lưu database (chỉ Admin): xem danh sách, sao lưu ngay, tải một bản về máy.
 import path from 'node:path';
 import { audit } from '../db.js';
 import { rateLimit } from '../http.js';

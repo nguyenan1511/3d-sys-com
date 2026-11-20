@@ -2,7 +2,7 @@
 // kênh chat riêng "proj:<id>", tài liệu, ghi chú, Kanban 3 cột, phòng dự án 3D (bảng vẽ + họp trực tuyến — server/meetHub.js,
 // mã phòng "p<id>").
 //  • Ai cũng tạo được dự án (người tạo = Trưởng dự án). Vai trò: lead (sửa thông tin, mời / xoá người, đổi vai trò, lưu trữ /
-//    xoá dự án — có thể nhiều người) · member. CEO (admin) xem và quản lý được mọi dự án.
+//    xoá dự án — có thể nhiều người) · member. Admin (admin) xem và quản lý được mọi dự án.
 //  • Riêng tư: người ngoài không thấy cả tên dự án — API trả 404 (không phải 403) để không lộ dự án có tồn tại.
 //  • Lưu trữ: chỉ đọc (khôi phục được). Xoá hẳn: xoá task, bình luận, chat, file, bảng vẽ (ghi nhật ký quản trị).
 //  • Nhân viên bị vô hiệu hoá: tự rời mọi dự án; mất Trưởng dự án cuối cùng thì người vào sớm nhất lên làm Trưởng.
@@ -29,7 +29,7 @@ const TYPES = {
 export const roomOf = id => `p${id}`;
 export const projectOfRoom = r => { const m = /^p(\d{1,9})$/.exec(String(r)); return m ? Number(m[1]) : null; };
 export const getProject = (store, id) => { const p = store.db.projects.get(Number(id)); return p && p.status !== 'deleted' ? p : null; };
-/** Vai trò của một người trong dự án: 'lead' | 'member' | 'admin' (CEO, không phải thành viên) | null. */
+/** Vai trò của một người trong dự án: 'lead' | 'member' | 'admin' (Admin, không phải thành viên) | null. */
 export function roleIn(store, p, key) {
   if (!p) return null;
   const m = store.db.project_members.by('project_id', p.id).find(r => r.key === key);
@@ -49,7 +49,7 @@ export class Projects {
   constructor(store, names) { this.store = store; this.names = names; }   // names(key) → tên hiển thị
   get db() { return this.store.db; }
 
-  /** Người hợp lệ để mời: nhân viên đang làm việc hoặc tài khoản CEO. */
+  /** Người hợp lệ để mời: nhân viên đang làm việc hoặc tài khoản Admin. */
   personOk(k) {
     if (typeof k !== 'string') return false;
     if (/^employee:\d{4}$/.test(k)) return this.db.employees.get(k.slice(9))?.status === 'active';
@@ -62,16 +62,16 @@ export class Projects {
   /** Dự án đang hoạt động mà người này là thành viên. */
   activeCount(key) { return this.db.project_members.by('key', key).filter(r => this.db.projects.get(r.project_id)?.status === 'active').length; }
 
-  /** Kiểm tra quyền: lead — chỉ Trưởng dự án / CEO; write — dự án chưa lưu trữ. Trả về { p, role }. */
+  /** Kiểm tra quyền: lead — chỉ Trưởng dự án / Admin; write — dự án chưa lưu trữ. Trả về { p, role }. */
   need(actor, id, { lead = false, write = false } = {}) {
     const key = keyOf(actor), p = getProject(this.store, id);
     const role = p ? roleIn(this.store, p, key) : null;
     if (!role) throw notFound();
-    if (lead && role === 'member') throw new HttpError(403, 'Chỉ Trưởng dự án (hoặc CEO) làm được việc này.', { code: 'forbidden' });
+    if (lead && role === 'member') throw new HttpError(403, 'Chỉ Trưởng dự án (hoặc Admin) làm được việc này.', { code: 'forbidden' });
     if (write && p.status === 'archived') throw new HttpError(400, 'Dự án đã lưu trữ — Trưởng dự án khôi phục lại để sửa tiếp.', { code: 'archived' });
     return { p, role, key };
   }
-  /** Vào phòng dự án được không (thành viên / CEO, dự án đang làm). */
+  /** Vào phòng dự án được không (thành viên / Admin, dự án đang làm). */
   canJoin(id, key) { const p = getProject(this.store, id); return !!p && p.status === 'active' && !!roleIn(this.store, p, key); }   // (lưu trữ: chỉ đọc — không vào phòng)
 
   view(p, key, { full = false } = {}) {
@@ -88,7 +88,7 @@ export class Projects {
       ...(full ? { members: this.members(p.id), notes: this.notes(p) } : {})
     };
   }
-  /** Dự án của tôi (CEO: mọi dự án). Đang làm trước, mới cập nhật trước. */
+  /** Dự án của tôi (Admin: mọi dự án). Đang làm trước, mới cập nhật trước. */
   list(actor) {
     const key = keyOf(actor), mine = new Set(this.db.project_members.by('key', key).map(r => r.project_id));
     return this.db.projects.where(p => p.status !== 'deleted' && (mine.has(p.id) || actor.kind === 'admin'))
@@ -257,10 +257,10 @@ export class Projects {
     audit(this.db, key, 'project.role', String(p.id), { who, role });
     return p;
   }
-  /** Xoá người khỏi dự án (Trưởng dự án / CEO), hoặc tự rời. Trả về { p, promoted: khoá người vừa lên làm Trưởng | null }. */
+  /** Xoá người khỏi dự án (Trưởng dự án / Admin), hoặc tự rời. Trả về { p, promoted: khoá người vừa lên làm Trưởng | null }. */
   removeMember(actor, id, who) {
     const { p, key, role } = this.need(actor, id);
-    if (who !== key && role === 'member') throw new HttpError(403, 'Chỉ Trưởng dự án (hoặc CEO) được xoá người khỏi dự án.', { code: 'forbidden' });
+    if (who !== key && role === 'member') throw new HttpError(403, 'Chỉ Trưởng dự án (hoặc Admin) được xoá người khỏi dự án.', { code: 'forbidden' });
     const out = this.drop(p, who);
     audit(this.db, key, who === key ? 'project.leave' : 'project.members.remove', String(p.id), { who });
     return out;

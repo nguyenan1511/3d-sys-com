@@ -1,4 +1,4 @@
-// Dự án — phần thời gian thực (WebSocket): báo cho thành viên (và CEO đang online) khi dự án / thành viên / công việc đổi,
+// Dự án — phần thời gian thực (WebSocket): báo cho thành viên (và Admin đang online) khi dự án / thành viên / công việc đổi,
 // được mời / bị xoá khỏi dự án, được giao việc, việc sắp tới hạn / quá hạn, bị @nhắc tên trong chat, có người vào phòng dự án.
 // Tin gửi đi (client: src/session/projects.js):
 //  proj:changed {id}                       — thông tin / thành viên / ghi chú / tài liệu đổi: tải lại khi đang xem
@@ -21,7 +21,7 @@ export class ProjectHub {
   close() { clearInterval(this.timer); }
   get store() { return this.hub.store; }
   sendKey(key, msg) { for (const s of this.hub.sockets.get(key) || []) this.hub.send(s, msg); }
-  /** Người nhận tin của dự án: thành viên + CEO đang online (CEO xem được mọi dự án). */
+  /** Người nhận tin của dự án: thành viên + Admin đang online (Admin xem được mọi dự án). */
   audience(id) { const keys = new Set(memberKeys(this.store, id)); for (const k of this.hub.sockets.keys()) if (k.startsWith('admin:')) keys.add(k); return [...keys]; }
   toProject(id, msg, except = null) { for (const k of this.audience(id)) if (k !== except) this.sendKey(k, msg); }
 

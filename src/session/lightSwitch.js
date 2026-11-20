@@ -1,6 +1,6 @@
 // Công tắc đèn công ty: trên tường sảnh, cạnh máy chấm công. Đứng trước công tắc bấm E → bảng "Đèn công ty": bật đèn thì
 // cả văn phòng chuyển sang buổi tối (trời tối, đèn các phòng sáng — main.js app.setLights), tắt là ban ngày. Giống góc âm
-// nhạc: CEO luôn bật/tắt được và cấp/thu quyền cho từng nhân viên ngay trong bảng; người được cấp quyền bật/tắt được.
+// nhạc: Admin luôn bật/tắt được và cấp/thu quyền cho từng nhân viên ngay trong bảng; người được cấp quyền bật/tắt được.
 // Trạng thái chung cho cả công ty (server/lights.js), đồng bộ thời gian thực.
 import * as THREE from 'three';
 import { api } from '../net/api.js';
@@ -17,7 +17,7 @@ export class LightSwitch {
     const rt = session.rt;
     rt.on('hello', m => { this.can = !!m.canLights; if (m.lights) this.apply(m.lights, true); });
     rt.on('lights', m => { const prev = this.state.on; this.apply(m.state); if (prev !== m.state.on && m.state.by) this.s.toast(`${m.state.by} đã ${m.state.on ? 'bật' : 'tắt'} đèn công ty.`); });
-    rt.on('lightsPerm', m => { this.can = !!m.allow; this.refresh(); this.s.toast(m.allow ? 'CEO đã cấp cho bạn quyền bật/tắt đèn công ty.' : 'CEO đã tắt quyền bật/tắt đèn của bạn.'); });
+    rt.on('lightsPerm', m => { this.can = !!m.allow; this.refresh(); this.s.toast(m.allow ? 'Admin đã cấp cho bạn quyền bật/tắt đèn công ty.' : 'Admin đã tắt quyền bật/tắt đèn của bạn.'); });
   }
   get canControl() { return this.can || this.s.isAdmin; }
 
@@ -44,7 +44,7 @@ export class LightSwitch {
 
   apply(st, instant = false) { this.state = { on: !!st.on, by: st.by || '' }; this.show(); this.app.setLights?.(this.state.on, instant); this.refresh(); }
   async toggle() {
-    if (!this.canControl) { this.s.toast('Chỉ CEO và người được CEO cấp quyền mới bật/tắt đèn công ty.', true); return; }
+    if (!this.canControl) { this.s.toast('Chỉ Admin và người được Admin cấp quyền mới bật/tắt đèn công ty.', true); return; }
     const r = await api('POST', '/api/v1/lights', { on: !this.state.on });
     if (!r.ok) this.s.toast(r.error || 'Chưa bật/tắt được đèn.', true);
   }
@@ -58,7 +58,7 @@ export class LightSwitch {
       <p class="sp-hint">Bật đèn: cả văn phòng chuyển sang buổi tối, đèn các phòng sáng lên. Tắt đèn: trở lại ban ngày.</p>
       <button type="button" class="lp-toggle" role="switch" aria-checked="false"><span class="lp-knob"></span><b></b></button>
       <p class="sp-note lp-by"></p>
-      <p class="sp-note lp-deny">Chỉ CEO và người được CEO cấp quyền mới bật/tắt đèn.</p>
+      <p class="sp-note lp-deny">Chỉ Admin và người được Admin cấp quyền mới bật/tắt đèn.</p>
       ${isAdmin ? '<div class="sp-perm"><div class="sp-sec">Cấp quyền bật/tắt đèn</div><ul class="sp-list"><li class="sp-load">Đang tải…</li></ul></div>' : ''}`;
     document.getElementById('appRoot').appendChild(pop);
     const close = () => { window.removeEventListener('keydown', escK, true); pop.classList.add('closing'); setTimeout(() => pop.remove(), 180); this.pop = null; };

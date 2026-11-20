@@ -39,7 +39,7 @@ export const config = {
   allowedOrigins: String(env.ALLOWED_ORIGINS || '').split(',').map(x => x.trim().replace(/\/+$/, '')).filter(Boolean),
   // đứng sau proxy (Render, Vercel): 'loopback' (mặc định), true, số lớp proxy, hoặc danh sách IP — xem Express "trust proxy"
   trustProxy: env.TRUST_PROXY === undefined || env.TRUST_PROXY === '' ? 'loopback' : /^\d+$/.test(env.TRUST_PROXY) ? +env.TRUST_PROXY : /^(true|false)$/i.test(env.TRUST_PROXY) ? /^true$/i.test(env.TRUST_PROXY) : env.TRUST_PROXY,
-  // giới hạn tải cho gói Render free (0,1 CPU): tối đa số nhân viên online cùng lúc — người tiếp theo vào hàng chờ (CEO không tính)
+  // giới hạn tải cho gói Render free (0,1 CPU): tối đa số nhân viên online cùng lúc — người tiếp theo vào hàng chờ (Admin không tính)
   maxOnline: Math.max(1, +(env.MAX_ONLINE || 80)),
   // dung lượng tối đa cho mọi file tải lên (Atlas M0 = 512 MB cho cả database)
   filesQuotaMb: Math.max(10, +(env.FILES_QUOTA_MB || 350)),

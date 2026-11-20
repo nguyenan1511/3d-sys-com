@@ -1,12 +1,12 @@
 // API loa công ty (YouTube): phát link cho cả công ty, điều khiển (tạm dừng / tiếp / tua / tắt), danh sách bài gần đây;
-// CEO cấp/thu quyền. Chỉ CEO và người được cấp quyền mới phát/điều khiển; ai đăng nhập cũng xem được trạng thái.
+// Admin cấp/thu quyền. Chỉ Admin và người được cấp quyền mới phát/điều khiển; ai đăng nhập cũng xem được trạng thái.
 import { setMusicPermission, musicPermissions, musicState, canMusic, youtubeId, youtubeTitle, playMusic, controlMusic, recentMusic } from '../social.js';
 import { audit } from '../db.js';
 import { check, v, rateLimit } from '../http.js';
 import { HttpError } from '../store.js';
 
 export function musicRoutes(api, { db, store, hub, guards: { needAuth, needAdmin } }) {
-  const needMusic = (req, _res, next) => canMusic(store, req.actor) ? next() : next(new HttpError(403, 'Bạn chưa được CEO cấp quyền mở nhạc.', { code: 'forbidden' }));
+  const needMusic = (req, _res, next) => canMusic(store, req.actor) ? next() : next(new HttpError(403, 'Bạn chưa được Admin cấp quyền mở nhạc.', { code: 'forbidden' }));
   const limit = rateLimit('music', { max: 30, windowMs: 60e3, methods: ['POST'] });
   const byOf = req => hub.displayOf(req.actor);
   api.get('/music', needAuth, (req, res) => res.json({ state: musicState(store), recent: recentMusic(store), canControl: canMusic(store, req.actor) }));

@@ -198,7 +198,7 @@ export class ProjectPanel {
         ${d ? `<em class="pj-due ${d.cls}">${icon('clock', 11)} ${esc(d.label)}</em>` : '<em class="pj-due none">Không hạn</em>'}</button>`; };
     if (!this.put(body, `<div class="ov">
       <div class="ov-stats">${stat('grid', act.length, 'Dự án đang làm')}${stat('check', mine.length, 'Việc của bạn')}${stat('clock', soon, 'Tới hạn trong 24 giờ', soon ? 'warn' : '')}${stat('info', over, 'Quá hạn', over ? 'bad' : '')}</div>
-      ${this.s.isAdmin && all.some(p => !p.isMember) ? `<p class="pj-note">${icon('info', 14)} Bạn là CEO: thấy mọi dự án của công ty (dự án bạn không tham gia có nhãn "CEO xem").</p>` : ''}
+      ${this.s.isAdmin && all.some(p => !p.isMember) ? `<p class="pj-note">${icon('info', 14)} Bạn là Admin: thấy mọi dự án của công ty (dự án bạn không tham gia có nhãn "Admin xem").</p>` : ''}
       <section class="ov-card"><header><h4>${icon('check', 15)} Việc của bạn</h4><small>${mine.length ? 'Sắp xếp theo hạn chót · bấm để mở' : ''}</small></header>
         ${mine.length ? `<div class="ov-list">${mine.map(row).join('')}</div>` : `<p class="ov-empty">${icon('check', 18)} Không có việc nào đang chờ bạn. Tuyệt!</p>`}</section>
       <section class="ov-card"><header><h4>${icon('grid', 15)} Dự án đang làm <em>${act.length}</em></h4><button type="button" class="sx-ghost" data-new>${icon('plus', 14)} Dự án mới</button></header>
@@ -216,7 +216,7 @@ export class ProjectPanel {
       ${p.description ? `<span class="pj-pcd">${esc(p.description)}</span>` : '<span class="pj-pcd muted">Chưa có mô tả.</span>'}
       <span class="pj-prog" aria-label="${c.done}/${total} việc xong"><i style="width:${total ? Math.round(c.done / total * 100) : 0}%"></i></span>
       <span class="pj-pcf"><span class="mp-avs">${p.leads.slice(0, 3).map(l => avatar(l.key, l.name, 'host')).join('')}</span><small>${p.memberCount} người · ${open} việc mở</small>
-        <span class="pj-tags">${!p.isMember ? '<em class="pj-tag">CEO xem</em>' : ''}${c.mine ? `<em class="pj-tag mine">${c.mine} việc của bạn</em>` : ''}${c.overdue ? `<em class="pj-tag over">${c.overdue} quá hạn</em>` : ''}${un ? '<em class="pj-tag new">tin mới</em>' : ''}</span></span></button>`;
+        <span class="pj-tags">${!p.isMember ? '<em class="pj-tag">Admin xem</em>' : ''}${c.mine ? `<em class="pj-tag mine">${c.mine} việc của bạn</em>` : ''}${c.overdue ? `<em class="pj-tag over">${c.overdue} quá hạn</em>` : ''}${un ? '<em class="pj-tag new">tin mới</em>' : ''}</span></span></button>`;
   }
 
   // ---------- chọn người (tạo dự án, thêm thành viên) ----------
@@ -273,7 +273,7 @@ export class ProjectPanel {
     f.querySelectorAll('input,textarea').forEach(x => x.addEventListener('keydown', e => { if (e.key !== 'Escape') e.stopPropagation(); }));
     this.bindColors(f, c => { color = c; });
     this.picker(f.querySelector('.pj-pickhost'), { people, picked, onChange: n => { f.querySelector('.pj-cnt').textContent = n ? `(bạn + ${n} người)` : '(bạn là Trưởng dự án)'; } });
-    if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => f.name.focus({ preventScroll: true }), 30);
+    if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { if (!f.contains(document.activeElement)) f.name.focus({ preventScroll: true }); }, 30);   // (đã bấm vào ô khác thì không giật con trỏ về ô tên)
     f.onsubmit = async e => {
       e.preventDefault();
       const err = f.querySelector('.sx-err'), btn = f.querySelector('[type=submit]');

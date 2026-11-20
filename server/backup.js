@@ -1,7 +1,7 @@
 // Sao lưu database tự động: mỗi đêm (sau 2 giờ sáng giờ Việt Nam) chép toàn bộ SQLite ra một file riêng bằng
 // một file JSON (mọi bảng, chép tại một thời điểm — nhất quán), giữ BACKUP_KEEP bản gần nhất (mặc định 14). Bản .db cũ
 // (SQLite, trước khi chuyển sang MongoDB) vẫn hiện trong danh sách và tải về được.
-// Thư mục: BACKUP_DIR hoặc <thư mục chứa database>/backups. CEO xem danh sách, sao lưu ngay, tải về trong Bảng quản trị.
+// Thư mục: BACKUP_DIR hoặc <thư mục chứa database>/backups. Admin xem danh sách, sao lưu ngay, tải về trong Bảng quản trị.
 import fs from 'node:fs';
 import path from 'node:path';
 

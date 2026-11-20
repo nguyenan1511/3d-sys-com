@@ -4,7 +4,7 @@
 //  • "Folder của tôi": mọi cuộc họp mình đặt / được mời — xem lại tài liệu, bảng vẽ, chat của cuộc họp đó (cả sau khi họp xong).
 //  • Họp của dự án (projectId — server/projects.js): người đặt phải là thành viên dự án; mọi thành viên tự được mời (tối đa 50);
 //    tài liệu / bảng vẽ đã lưu của cuộc họp hiện trong tab Tài liệu của dự án.
-//  • Host sửa / huỷ được lịch của mình; CEO huỷ được mọi lịch. Không hai lịch trùng giờ trong cùng một phòng.
+//  • Host sửa / huỷ được lịch của mình; Admin huỷ được mọi lịch. Không hai lịch trùng giờ trong cùng một phòng.
 // Bảng meetings: { id, room, title, agenda, start, end, host, host_name, invitees: [khoá phiên], status: 'booked'|'cancelled',
 //   created_at, updated_at, project_id? }. Bảng meeting_files: { id, meeting_id, name, type, size, by, by_name, ts } (nội dung: db.blobs 'file:<id>').
 import { HttpError } from './store.js';
@@ -19,7 +19,7 @@ const VN = 7 * 3600e3;
 /** Giờ trong ngày (giờ Việt Nam, đơn vị giờ thập phân) của một mốc thời gian. */
 const vnHour = t => (((t + VN) % 86400e3) + 86400e3) % 86400e3 / 3600e3;
 /** Hết hạn mức dung lượng file tổng (server/blobs.js QuotaBlobs). */
-export function quotaErr(db) { const u = db.blobs.usage?.() || { used: 0, max: 0 }, mb = x => Math.round(x / 1048576); return new HttpError(507, `Bộ nhớ lưu file của công ty đã đầy (${mb(u.used)}/${mb(u.max)} MB). Nhờ CEO hoặc trưởng dự án xoá bớt tài liệu cũ rồi thử lại.`, { code: 'quota' }); }
+export function quotaErr(db) { const u = db.blobs.usage?.() || { used: 0, max: 0 }, mb = x => Math.round(x / 1048576); return new HttpError(507, `Bộ nhớ lưu file của công ty đã đầy (${mb(u.used)}/${mb(u.max)} MB). Nhờ Admin hoặc trưởng dự án xoá bớt tài liệu cũ rồi thử lại.`, { code: 'quota' }); }
 export const keyOf = a => a.kind === 'admin' ? `admin:${a.username}` : `employee:${a.code}`;
 
 /** Loại file cho phép (tài liệu văn phòng, ảnh, PDF, văn bản). */
@@ -130,27 +130,27 @@ export class Meetings {
   cancel(actor, id) {
     const key = keyOf(actor), m = getMeeting(this.store, id);
     if (!m || m.status !== 'booked') throw new HttpError(404, 'Không còn lịch họp này.', { code: 'not_found' });
-    if (m.host !== key && actor.kind !== 'admin') throw new HttpError(403, 'Chỉ người đặt phòng (hoặc CEO) được huỷ lịch.', { code: 'forbidden' });
+    if (m.host !== key && actor.kind !== 'admin') throw new HttpError(403, 'Chỉ người đặt phòng (hoặc Admin) được huỷ lịch.', { code: 'forbidden' });
     this.db.meetings.update(m.id, { status: 'cancelled', updated_at: Date.now() });
     audit(this.db, key, 'meeting.cancel', String(m.id), { title: m.title });
     return m;
   }
-  /** Host / CEO kết thúc cuộc họp sớm: giờ kết thúc = bây giờ (phòng trống ngay). Chưa tới giờ họp thì coi như huỷ. */
+  /** Host / Admin kết thúc cuộc họp sớm: giờ kết thúc = bây giờ (phòng trống ngay). Chưa tới giờ họp thì coi như huỷ. */
   endNow(actor, id) {
     const key = keyOf(actor), m = getMeeting(this.store, id), now = Date.now();
     if (!m || m.status !== 'booked') throw new HttpError(404, 'Không còn cuộc họp này.', { code: 'not_found' });
-    if (m.host !== key && actor.kind !== 'admin') throw new HttpError(403, 'Chỉ host (hoặc CEO) được kết thúc cuộc họp.', { code: 'forbidden' });
+    if (m.host !== key && actor.kind !== 'admin') throw new HttpError(403, 'Chỉ host (hoặc Admin) được kết thúc cuộc họp.', { code: 'forbidden' });
     if (now >= m.end) throw new HttpError(400, 'Cuộc họp đã kết thúc.', { code: 'ended' });
     if (now < m.start) this.db.meetings.update(m.id, { status: 'cancelled', updated_at: now });
     else this.db.meetings.update(m.id, { end: now, ended_early: 1, updated_at: now });
     audit(this.db, key, 'meeting.end', String(m.id), { title: m.title });
     return getMeeting(this.store, m.id);
   }
-  /** Host / CEO xoá cuộc họp cùng toàn bộ dữ liệu (tài liệu, bảng vẽ, chat). Không hoàn tác được. */
+  /** Host / Admin xoá cuộc họp cùng toàn bộ dữ liệu (tài liệu, bảng vẽ, chat). Không hoàn tác được. */
   async purge(actor, id) {
     const key = keyOf(actor), m = getMeeting(this.store, id);
     if (!m || m.status === 'deleted') throw new HttpError(404, 'Không còn cuộc họp này.', { code: 'not_found' });
-    if (m.host !== key && actor.kind !== 'admin') throw new HttpError(403, 'Chỉ host (hoặc CEO) được xoá cuộc họp và dữ liệu. Bạn có thể ẩn cuộc họp khỏi folder của mình.', { code: 'forbidden' });
+    if (m.host !== key && actor.kind !== 'admin') throw new HttpError(403, 'Chỉ host (hoặc Admin) được xoá cuộc họp và dữ liệu. Bạn có thể ẩn cuộc họp khỏi folder của mình.', { code: 'forbidden' });
     const files = this.db.meeting_files.by('meeting_id', m.id);
     this.db.tx(() => {
       for (const f of files) this.db.meeting_files.del(f.id);

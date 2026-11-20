@@ -13,7 +13,7 @@ const make = cfg => { hub = new Hub({ on() {} }, { maxOnline: 2, ...cfg }); retu
 const online = (h, ws) => { h.sockets.set(ws.key, new Set([ws])); return ws; };
 
 describe('cổng giới hạn người online + hàng chờ', () => {
-  it('đủ người: người mới vào hàng chờ theo thứ tự; có chỗ thì người chờ trước vào trước; CEO không bị giới hạn', () => {
+  it('đủ người: người mới vào hàng chờ theo thứ tự; có chỗ thì người chờ trước vào trước; Admin không bị giới hạn', () => {
     const h = make();
     online(h, fakeWs('employee:1001')); online(h, fakeWs('employee:1002'));
     expect(h.gate.check('employee:1003')).toMatchObject({ ok: false, pos: 1, online: 2, max: 2 });
@@ -35,7 +35,7 @@ describe('cổng giới hạn người online + hàng chờ', () => {
 });
 
 describe('vị trí chỉ gửi cho người xem cùng tầng', () => {
-  it('người xem tầng khác không nhận cập nhật thường; đổi tầng / người mới thì ai cũng nhận; CEO nhận hết', () => {
+  it('người xem tầng khác không nhận cập nhật thường; đổi tầng / người mới thì ai cũng nhận; Admin nhận hết', () => {
     const h = make({ maxOnline: 80 });
     const a = online(h, fakeWs('employee:1001', { viewF: 1 })), b = online(h, fakeWs('employee:1002', { viewF: 2 })), ceo = online(h, fakeWs('admin:admin', { viewF: 2 }));
     const p = { key: 'employee:1001', kind: 'employee', code: '1001', display: 'An', x: 1, y: 0, z: 1, f: 1, yaw: 0 };
@@ -108,5 +108,28 @@ describe('xoá nhân viên không để lại quyền cho người tạo lại c
       expect(db.meetings.get(m3).status).toBe('booked'); expect(db.meetings.get(m3).host).toMatch(/^deleted:/);
       expect(db.chat_messages.all().map(x => x.channel)).toEqual(['all']);
     } finally { await r.close(); }
+  });
+});
+
+describe('dung lượng file theo loại + dọn file thừa (server/files.js)', () => {
+  it('đếm theo loại; file không còn chủ (dự án / cuộc họp / tin đã xoá, logo đã gỡ) là "thừa" và dọn được; file đang dùng giữ nguyên', async () => {
+    const { openDb } = await import('../server/db.js');
+    const { fileReport, pruneFiles } = await import('../server/files.js');
+    const db = openDb(); db.blobs = await new QuotaBlobs(new MemBlobs(), 10e6).init();
+    const pid = db.projects.insert({ name: 'A', status: 'active', logo_v: 1 }), gone = db.projects.insert({ name: 'B', status: 'deleted' });
+    const pf = db.project_files.insert({ project_id: pid, name: 'a.pdf', size: 100 });
+    const mid = db.meetings.insert({ title: 'H', invitees: '[]' });
+    const put = (id, n) => db.blobs.put(id, Buffer.alloc(n), 'x');
+    await put(`pfile:${pf}`, 100); await put('pfile:999', 50);                         // (tài liệu đang dùng / đã gỡ)
+    await put(`board:p${pid}`, 30); await put(`wbf:p${pid}:img1`, 40); await put(`wbf:p${gone}:img2`, 60);   // (dự án đã xoá)
+    await put(`board:${mid}`, 20); await put('board:4242', 25);                        // (cuộc họp đã xoá)
+    await put(`plogo:${pid}`, 10); await put(`plogo:${gone}`, 15); await put('tiktok:list', 5);
+    const r = fileReport(db);
+    expect(r.used).toBe(355);
+    expect(Object.fromEntries(r.groups.map(g => [g.key, [g.count, g.bytes]]))).toEqual({ pfile: [2, 150], wbf: [2, 100], board: [3, 75], plogo: [2, 25], tiktok: [1, 5] });
+    expect(r.orphans).toEqual({ count: 4, bytes: 150 });
+    expect(await pruneFiles(db)).toEqual({ count: 4, bytes: 150 });
+    expect(fileReport(db)).toMatchObject({ used: 205, orphans: { count: 0, bytes: 0 } });
+    expect(await db.blobs.get(`pfile:${pf}`)).toBeTruthy(); expect(await db.blobs.get('pfile:999')).toBeNull();
   });
 });

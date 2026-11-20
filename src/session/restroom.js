@@ -82,7 +82,7 @@ export class Restroom {
     const st = this.stalls[m.stall]; if (!st) return;
     st.rattle = 0.7;
     const a = this.s.player?.agent;
-    if (m.knocker === (this.s.isAdmin ? `CEO (${this.s.me.admin.username})` : this.s.me.employee?.display)) this.s.toast(`${m.by} (trong buồng): «${m.text}»`, true);
+    if (m.knocker === (this.s.isAdmin ? `Admin (${this.s.me.admin.username})` : this.s.me.employee?.display)) this.s.toast(`${m.by} (trong buồng): «${m.text}»`, true);
     if (!a || a.f !== 0 || Math.hypot(a.x - st.out.x, a.z - st.out.z) > 12) return;
     const sp = angrySprite(m.text); sp.position.copy(st.door); sp.position.y += 0.25; this.app.scene.add(sp);
     this.angry.push({ sp, t: 3.5 });

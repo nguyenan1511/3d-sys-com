@@ -166,7 +166,7 @@ export class Store {
   }
   lookOf(code) { const e = this.employee(code); return e?.look ? JSON.parse(e.look) : null; }
 
-  /** CEO tạo trước nhân viên "1151-An"; người đó đăng nhập đúng mã-tên là vào được. */
+  /** Admin tạo trước nhân viên "1151-An"; người đó đăng nhập đúng mã-tên là vào được. */
   adminCreateEmployee(actor, input, department = '') {
     const p = parseLogin(input);
     if (!p.ok) throw new HttpError(400, p.error);
@@ -227,7 +227,7 @@ export class Store {
     return this.seatView(this.seatRow(deskId));
   }
 
-  /** Kiểm tra quyền ngồi. Chỉ chủ chỗ; CEO chỉ ngồi chỗ người khác khi ADMIN_CAN_SIT_ANYWHERE=true. */
+  /** Kiểm tra quyền ngồi. Chỉ chủ chỗ; Admin chỉ ngồi chỗ người khác khi ADMIN_CAN_SIT_ANYWHERE=true. */
   checkSit(actor, deskId) {
     const row = this.requireDesk(deskId);
     if (row.locked) throw new HttpError(403, 'Chỗ này đang bị khóa.', { reason: 'locked' });

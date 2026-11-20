@@ -30,7 +30,7 @@ export class Player {
     this.WALK = 2.8 * this.CR; this.RUN = 4.2 * this.CR; this.STRIDE = 0.42 * cs;
     const apex = 0.36, jh = 0.57 * H; this.JUMP_V = 2 * jh / apex; this.GJ = this.JUMP_V / apex;
     this.R = Math.min(0.26 * cs, 0.15); // (thân tròn ≤ 0,15 m: đi lọt mọi lối mà lưới đi lại cho phép — lưới tính thân 0,2 m từ tâm ô) this.BODY0 = 0.2; this.BODY1 = 1.7 * cs; // thân va chạm: từ 0.2 m trên chân (bước lên bậc 17 cm được)
-    const e = session.me.employee || { look: CEO_LOOK, display: `CEO (${session.me.admin?.username || ''})` }; // CEO: nhân vật cố định mặc vest
+    const e = session.me.employee || { look: CEO_LOOK, display: `Admin (${session.me.admin?.username || ''})` }; // Admin: nhân vật cố định mặc vest
     const sp = app.model.waypoints.lobby || { x: 1.3, z: 1.35 }; // điểm xuất hiện: sảnh (theo layout)
     this.agent = { key: session.key, local: true, idx: 0, visible: true, x: sp.x, y: app.model.floorY(0), z: sp.z, f: 0, yaw: 0, sit: 0, walkAmt: 0, walkPhase: 0, anim: 'idle', animT: 0, act: null, actT: 0, jumpH: 0, cup: false, onStair: null, camH: 0.75 * cs, camR: this.CR, emp: { look: e.look || {} }, display: e.display };
     this.vx = 0; this.vz = 0; this.vy = 0; this.onGround = true; this.keys = {}; this.run = false;

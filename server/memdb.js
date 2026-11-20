@@ -31,7 +31,9 @@ export const TABLES = {
   project_tasks: { auto: true, index: ['project_id'] },                   // công việc (Kanban 3 cột)
   task_comments: { auto: true, index: ['task_id', 'project_id'] },        // bình luận trên công việc
   project_files: { auto: true, index: ['project_id'] },                   // tài liệu dự án (nội dung file: db.blobs 'pfile:<id>')
-  project_notes: { auto: true, index: ['project_id'] }                    // ghi chú dự án (nhiều tờ, kiểu Notes của macOS)
+  project_notes: { auto: true, index: ['project_id'] },                  // ghi chú dự án (nhiều tờ, kiểu Notes của macOS)
+  feedback_threads: { auto: true, index: ['owner'] },                     // góp ý & báo lỗi gửi Admin (server/feedback.js)
+  feedback_messages: { auto: true, index: ['thread_id'] }                 // tin nhắn trong mỗi cuộc góp ý (ảnh: db.blobs 'fb:<id>')
 };
 
 class Table {

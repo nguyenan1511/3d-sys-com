@@ -1,6 +1,6 @@
 // Chấm công (phía trình duyệt): máy chấm công gắn tường cạnh cửa chính (sảnh tầng trệt). Vào tới sảnh mà chưa chấm công
 // hôm nay thì có gợi ý; đứng trước máy bấm E → thẻ chấm công (giờ hiện tại, "Chấm công vào ca" / "Chấm công ra về").
-// Bản ghi trong ngày của mọi người (server/attendance.js) dùng cho bảng thông tin trên bàn làm việc; CEO xem bảng chấm công
+// Bản ghi trong ngày của mọi người (server/attendance.js) dùng cho bảng thông tin trên bàn làm việc; Admin xem bảng chấm công
 // trong ngày bằng nút "Chấm công".
 import * as THREE from 'three';
 import { api } from '../net/api.js';

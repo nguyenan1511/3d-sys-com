@@ -1,4 +1,4 @@
-// Chạy server thật (DB tạm, mật khẩu CEO ngẫu nhiên, không đọc .env) cho các script chụp ảnh/kiểm thử/đo hiệu năng.
+// Chạy server thật (DB tạm, mật khẩu Admin ngẫu nhiên, không đọc .env) cho các script chụp ảnh/kiểm thử/đo hiệu năng.
 import { spawn } from 'child_process';
 import crypto from 'crypto';
 import os from 'os';
@@ -20,10 +20,10 @@ export async function startServer(port, { demo = true } = {}) {
   }
   return {
     url, adminPw,
-    /** Đăng nhập CEO cho context của page (cookie dùng chung với trang). */
+    /** Đăng nhập Admin cho context của page (cookie dùng chung với trang). */
     async loginAdmin(page) {
       const r = await page.request.post(`${url}/api/login/admin`, { data: { username: 'admin', password: adminPw } });
-      if (!r.ok()) throw new Error('Không đăng nhập được CEO: ' + await r.text());
+      if (!r.ok()) throw new Error('Không đăng nhập được Admin: ' + await r.text());
     },
     stop() { child.kill('SIGTERM'); }
   };

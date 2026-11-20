@@ -34,7 +34,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe('dự án: quyền và thành viên', () => {
-  it('ai cũng tạo được; người ngoài không thấy (404); CEO thấy mọi dự án; chỉ Trưởng dự án sửa / mời', async () => {
+  it('ai cũng tạo được; người ngoài không thấy (404); Admin thấy mọi dự án; chỉ Trưởng dự án sửa / mời', async () => {
     const { p, added } = P.create(emp('1001'), { name: '  Website mới ', description: 'Làm lại web', members: [K('1002'), K('1002'), K('1001')] });
     expect(p).toMatchObject({ name: 'Website mới', status: 'active' }); expect(added).toEqual([K('1002')]);
     expect(P.members(p.id).map(m => [m.key, m.role])).toEqual([[K('1001'), 'lead'], [K('1002'), 'member']]);
@@ -128,7 +128,7 @@ describe('dự án: Kanban, bình luận, nhắc hạn', () => {
 });
 
 describe('dự án: chat, tài liệu, họp, phòng 3D, xoá', () => {
-  it('kênh proj:<id>: thành viên + CEO đọc / gửi; người ngoài không; lưu trữ thì chỉ đọc', () => {
+  it('kênh proj:<id>: thành viên + Admin đọc / gửi; người ngoài không; lưu trữ thì chỉ đọc', () => {
     const { p } = P.create(emp('1001'), { name: 'A', members: [K('1002')] }), ch = `proj:${p.id}`;
     expect(canUseChannel(store, emp('1002'), K('1002'), ch)).toBe(true);
     expect(canUseChannel(store, ADMIN, 'admin:admin', ch)).toBe(true);

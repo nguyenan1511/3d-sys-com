@@ -33,7 +33,7 @@ test('người mới vào: không còn bắt đầu ở cổng / đi theo chị 
   expect((await a.evaluate(() => JSON.parse(localStorage.getItem('sysone.tasks.' + window.__app.session.me.employee.code)))).items[0].done).toBe(true);
 });
 
-test('chấm công: online là tự vào ca; máy cạnh cửa chính E → ra về; bảng trên bàn hiện đã đến; CEO xem bảng chấm công', async ({ browser }) => {
+test('chấm công: online là tự vào ca; máy cạnh cửa chính E → ra về; bảng trên bàn hiện đã đến; Admin xem bảng chấm công', async ({ browser }) => {
   test.skip(LAYOUT_WORLD !== 'sysone-mo', 'máy chấm công ở toà nhà lớn');
   const a = await newPage(browser);
   await loginEmployeeUI(a, `${uniqueCode()}-Công`); await waitScene(a); await finishAvatar(a);
@@ -51,14 +51,14 @@ test('chấm công: online là tự vào ca; máy cạnh cửa chính E → ra v
   await expect.poll(() => a.evaluate(d => window.__app.app.deskInfoSig?.(d) || '', desk), { timeout: 15_000 }).toContain('Đã đến');
   await a.locator('.att-card .att-go').click();
   await expect.poll(async () => (await call(a, 'GET', '/api/attendance/me')).body.today.checkOut).toBeGreaterThan(0);
-  // CEO xem bảng chấm công trong ngày
+  // Admin xem bảng chấm công trong ngày
   const ceo = await newPage(browser); await loginAdminAPI(ceo);
   const r = await call(ceo, 'GET', '/api/admin/attendance');
   expect(r.body.list.some(x => x.display.endsWith('-Công') && x.checkOut)).toBe(true);
   expect((await call(a, 'GET', '/api/admin/attendance')).status).toBe(403);
 });
 
-test('góc âm nhạc: đi tới máy hát bấm E, dán link YouTube (cần CEO cấp quyền); cả công ty cùng nghe, thanh điều khiển chỉ người có quyền dùng được', async ({ browser }) => {
+test('góc âm nhạc: đi tới máy hát bấm E, dán link YouTube (cần Admin cấp quyền); cả công ty cùng nghe, thanh điều khiển chỉ người có quyền dùng được', async ({ browser }) => {
   test.skip(LAYOUT_WORLD !== 'sysone-mo', 'góc âm nhạc ở toà nhà lớn');
   const a = await newPage(browser), b = await newPage(browser);
   await loginEmployeeUI(a, `${uniqueCode()}-Nhạc`); await waitScene(a); await finishAvatar(a);
@@ -92,7 +92,7 @@ test('góc âm nhạc: đi tới máy hát bấm E, dán link YouTube (cần CEO
   await expect.poll(() => b.evaluate(() => window.__app.session.social.musicState.paused)).toBe(true);
 });
 
-test('bảng công: nhân viên mở bảng công tháng/năm của mình; CEO xem bảng tháng của mọi người', async ({ browser }) => {
+test('bảng công: nhân viên mở bảng công tháng/năm của mình; Admin xem bảng tháng của mọi người', async ({ browser }) => {
   test.skip(LAYOUT_WORLD !== 'sysone-mo', 'chấm công ở toà nhà lớn');
   const a = await newPage(browser);
   await loginEmployeeUI(a, `${uniqueCode()}-Bảng`); await waitScene(a); await finishAvatar(a);

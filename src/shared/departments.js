@@ -53,5 +53,5 @@ const BY_DEPT = {
 };
 export const onboardingTasks = dept => [...COMMON, ...(BY_DEPT[dept?.id] || [])];
 
-/** Nhân vật CEO: cố định (không chỉnh được) — bộ vest tối, sơ mi trắng, cà vạt đỏ, đeo kính (nhân vật "Sếp" của my-office). */
+/** Nhân vật Admin: cố định (không chỉnh được) — bộ vest tối, sơ mi trắng, cà vạt đỏ, đeo kính (nhân vật "Sếp" của my-office). */
 export const CEO_LOOK = { model: 'mo-sep', pixel: 'mo-sep' };

@@ -35,7 +35,7 @@ test('giới thiệu bằng ghim nổi: tự hiện lần đầu, bấm ghim đ�
   // đã xem: tải lại không tự hiện; nút "Có gì ở đây?" bật / tắt ghim
   await a.reload(); await waitScene(a); await a.waitForTimeout(2000);
   await expect(a.locator('.ipin-layer')).toHaveCount(0);
-  await a.locator('.intro-btn').first().click();
+  await a.click('#hudMe'); await a.locator('.intro-btn').first().click();   // (trong menu thẻ hồ sơ)
   await expect(a.locator('.ipin-layer')).toBeVisible();
   await a.locator('.ipin-bar [data-hide]').click();
   await expect(a.locator('.ipin-layer')).toHaveCount(0);

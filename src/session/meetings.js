@@ -57,7 +57,7 @@ export class Meetings {
   async loadMine(first = false) {
     const r = await api('GET', '/api/meetings/mine'); if (!r.ok) return;
     this.mine = r.meetings; this.panel.paintUpcoming?.();
-    this.s.social?.setMeetDot?.(this.mine.some(m => m.open && !m.past));
+    this.s.social?.setMeetDot?.(this.mine.filter(m => m.open && !m.past).length);
     // vừa vào văn phòng: nhắc cuộc họp hôm nay của mình
     if (first && !this._greeted) {
       this._greeted = true;   // (kết nối lại: không nhắc lại)

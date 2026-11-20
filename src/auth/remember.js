@@ -1,7 +1,7 @@
 // Nhớ trên máy này: mã đăng nhập (dạng "1151-An") và nhân vật đã chọn. Phiên đăng nhập nằm trong cookie + database của
 // server; nếu server mất dữ liệu (gói Render miễn phí không có ổ đĩa: khởi động lại là database trống) hoặc phiên hết hạn,
 // máy tự đăng nhập lại và khôi phục nhân vật — người dùng không phải gõ mã, chọn nhân vật lại.
-// Không nhớ nữa khi: bấm Đăng xuất, hoặc bị server buộc đăng xuất (đăng nhập ở máy khác, CEO cho đăng xuất, mã bị khoá).
+// Không nhớ nữa khi: bấm Đăng xuất, hoặc bị server buộc đăng xuất (đăng nhập ở máy khác, Admin cho đăng xuất, mã bị khoá).
 // Mã đăng nhập không phải mật khẩu (ai biết mã đều gõ được), nên lưu ở localStorage không mở thêm quyền gì.
 const K_LOGIN = 'sysone.login', K_LOOK = 'sysone.look.';
 const get = k => { try { return localStorage.getItem(k); } catch { return null; } };

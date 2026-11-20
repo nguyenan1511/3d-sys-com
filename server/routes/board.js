@@ -1,7 +1,7 @@
-// API bảng thông báo công ty (server/board.js). Đọc: mọi người đã đăng nhập. Đăng: CEO, Phòng HC-NS, người được CEO cấp quyền
-// (/admin/board-perms); sửa / gỡ: CEO + HC-NS mọi tin, người được cấp quyền tin của mình.
+// API bảng thông báo công ty (server/board.js). Đọc: mọi người đã đăng nhập. Đăng: Admin, Phòng HC-NS, người được Admin cấp quyền
+// (/admin/board-perms); sửa / gỡ: Admin + HC-NS mọi tin, người được cấp quyền tin của mình.
 // Có thay đổi: báo qua WebSocket ('board') để bảng 3D ở sảnh và panel đang mở cập nhật ngay.
-import { page, create, update, remove, canPost, canManage, setImage, dropImage, setPostPermission, postPermissions } from '../board.js';
+import { page, create, update, remove, canPost, canManage, setImage, dropImage, setPostPermission, postPermissions, putInlineImage, INLINE_ID } from '../board.js';
 import { HttpError } from '../store.js';
 import { audit } from '../db.js';
 import { check, v } from '../http.js';
@@ -25,8 +25,16 @@ export function boardRoutes(api, { store, hub, guards: { needAuth, needAdmin } }
     if (!b) return res.status(404).json({ error: 'Không có ảnh.', code: 'not_found' });
     res.set('Content-Type', b.type || 'image/jpeg').set('X-Content-Type-Options', 'nosniff').set('Cache-Control', 'private, max-age=31536000, immutable').send(b.data);   // (?v= đổi khi thay ảnh)
   });
+  /** Ảnh chèn trong nội dung tin (ô soạn thảo): tải lên → { id, url }; xem (ai đăng nhập cũng xem được). */
+  api.post('/board/img', needAuth, async (req, res) => res.json({ ok: true, ...(await putInlineImage(store, req.actor, who(req), req.body || {})) }));
+  api.get('/board/img/:id', needAuth, async (req, res) => {
+    const id = String(req.params.id); if (!INLINE_ID.test(id)) return res.status(404).json({ error: 'Không có ảnh.', code: 'not_found' });
+    const b = await store.db.blobs.get(`annimg:${id}`);
+    if (!b) return res.status(404).json({ error: 'Không có ảnh.', code: 'not_found' });
+    res.set('Content-Type', b.type || 'image/jpeg').set('X-Content-Type-Options', 'nosniff').set('Content-Security-Policy', "default-src 'none'; sandbox").set('Cache-Control', 'private, max-age=31536000, immutable').send(b.data);
+  });
   api.delete('/board/:id', needAuth, (req, res) => { const { id } = check(req.params, { id: v.int({ min: 1 }) }); remove(store, req.actor, who(req), id); changed(); res.json({ ok: true }); });
-  /** CEO cấp / thu quyền đăng tin: danh sách người được cấp; cấp cho một người, hoặc nhiều người một lần ({ codes, allow }). */
+  /** Admin cấp / thu quyền đăng tin: danh sách người được cấp; cấp cho một người, hoặc nhiều người một lần ({ codes, allow }). */
   api.get('/admin/board-perms', needAdmin, (_req, res) => res.json({ allowed: postPermissions(store) }));
   api.post('/admin/board-perms', needAdmin, (req, res) => {
     const { allow } = check(req.body, { allow: v.bool() }), codes = req.body?.codes;

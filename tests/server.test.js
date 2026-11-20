@@ -47,7 +47,7 @@ describe('chính sách trùng mã', () => {
 });
 
 describe('chỗ ngồi', () => {
-  it('chỉ chủ chỗ ngồi được; CEO cũng không, trừ khi ADMIN_CAN_SIT_ANYWHERE', () => {
+  it('chỉ chủ chỗ ngồi được; Admin cũng không, trừ khi ADMIN_CAN_SIT_ANYWHERE', () => {
     store.loginEmployee('1151-An', offline); store.loginEmployee('2222-Bình', offline);
     store.claim('1151', 'T2-01', { monitors: 2 });
     expect(err(() => store.checkSit({ kind: 'employee', code: '2222' }, 'T2-01')).message).toBe('Chỗ này thuộc về 1151-An');
@@ -91,7 +91,7 @@ describe('tạo hình nhân vật', () => {
     expect(err(() => store.setLook({ kind: 'employee', code: '1151', key: 'emp:1151' }, '1151', { pixel: 'khong-co' })).status).toBe(400);
     expect(err(() => store.setLook({ kind: 'employee', code: '2222', key: 'emp:2222' }, '1151', {})).status).toBe(403);
   });
-  it('CEO tạo trước nhân viên; người đó đăng nhập đúng mã-tên thì vào được', () => {
+  it('Admin tạo trước nhân viên; người đó đăng nhập đúng mã-tên thì vào được', () => {
     store.adminCreateEmployee(admin, '4321-Mai Anh', 'Kế toán');
     expect(err(() => store.adminCreateEmployee(admin, '4321-Khác')).status).toBe(409);
     expect(store.loginEmployee('4321-mai anh', offline).created).toBe(false);

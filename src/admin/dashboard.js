@@ -1,4 +1,4 @@
-// Bảng quản trị CEO — cùng khung dashboard với "Dự án" / "Phòng họp" (.sx.dash): thanh bên (mục quản trị + số liệu nhanh,
+// Bảng quản trị Admin — cùng khung dashboard với "Dự án" / "Phòng họp" (.sx.dash): thanh bên (mục quản trị + số liệu nhanh,
 // tình trạng server) + vùng chính (đầu trang có nút theo mục, nội dung).
 //  • Tổng quan: thẻ số (online, chấm công, chỗ trống, chưa có chỗ — bấm để mở mục), biểu đồ online 6 giờ, chấm công hôm nay,
 //    chỗ ngồi theo tầng, hoạt động gần đây, ai đang ở văn phòng, tình trạng server / MongoDB.
@@ -20,7 +20,7 @@ import { overlayOn, overlayOff } from '../ui/overlay.js';
 import { avatar } from '../ui/meetPanel.js';
 
 const charName = id => characterDef(id)?.name || id || 'mặc định';
-const ACTION_LABEL = { 'login.new': 'Đăng ký mới', 'look.create': 'Tạo nhân vật', 'look.update': 'Đổi nhân vật', 'attendance.checkin': 'Chấm công vào', 'attendance.auto': 'Tự chấm công (online)', 'tiktok.add': 'Thêm video TikTok', 'tiktok.delete': 'Xoá video TikTok', 'attendance.checkout': 'Chấm công ra', 'login.return': 'Vào lại', 'seat.claim': 'Nhận chỗ', 'seat.move': 'Tự đổi chỗ', 'seat.equipment': 'Sửa dụng cụ', 'seat.sit': 'Ngồi', 'admin.login': 'CEO đăng nhập', 'admin.login.fail': 'CEO đăng nhập sai', 'admin.seat.assign': 'Gán chỗ', 'admin.seat.release': 'Giải phóng chỗ', 'admin.seat.lock': 'Khóa chỗ', 'admin.seat.unlock': 'Mở khóa chỗ', 'admin.employee.create': 'Thêm nhân viên', 'admin.employee.update': 'Sửa nhân viên', 'admin.employee.delete': 'Xóa nhân viên', 'admin.employee.logout': 'Buộc đăng xuất', 'admin.csv.import': 'Nhập CSV', 'admin.csv.export': 'Xuất CSV', 'admin.backup': 'Sao lưu database', 'admin.backup.download': 'Tải bản sao lưu', 'admin.password.change': 'Đổi mật khẩu', logout: 'Đăng xuất', 'admin.seed': 'Tạo tài khoản CEO', 'layout.desk_removed': 'Bàn bị bỏ khỏi layout', 'board.post': 'Đăng tin bảng thông báo', 'board.permission.grant': 'Cấp quyền đăng tin', 'board.permission.revoke': 'Thu quyền đăng tin', 'board.edit': 'Sửa tin bảng thông báo', 'board.delete': 'Gỡ tin bảng thông báo', 'board.image': 'Đổi ảnh tin', 'meeting.book': 'Đặt phòng họp', 'meeting.edit': 'Sửa lịch họp', 'meeting.cancel': 'Huỷ lịch họp', 'meeting.end': 'Kết thúc họp sớm', 'meeting.delete': 'Xoá cuộc họp & dữ liệu', 'meeting.file.add': 'Tải tài liệu họp', 'meeting.file.delete': 'Xoá tài liệu họp', 'project.create': 'Tạo dự án', 'project.edit': 'Sửa dự án', 'project.archive': 'Lưu trữ dự án', 'project.restore': 'Khôi phục dự án', 'project.delete': 'Xoá dự án', 'project.members.add': 'Thêm người vào dự án', 'project.members.remove': 'Xoá người khỏi dự án', 'project.leave': 'Rời dự án', 'project.role': 'Đổi vai trò trong dự án', 'project.file.add': 'Tải tài liệu dự án', 'project.file.delete': 'Xoá tài liệu dự án', 'project.note.add': 'Thêm ghi chú dự án', 'project.note.delete': 'Xoá ghi chú dự án', 'project.logo': 'Đổi logo dự án', 'project.logo.delete': 'Gỡ logo dự án' };
+const ACTION_LABEL = { 'login.new': 'Đăng ký mới', 'look.create': 'Tạo nhân vật', 'look.update': 'Đổi nhân vật', 'attendance.checkin': 'Chấm công vào', 'attendance.auto': 'Tự chấm công (online)', 'tiktok.add': 'Thêm video TikTok', 'tiktok.delete': 'Xoá video TikTok', 'attendance.checkout': 'Chấm công ra', 'login.return': 'Vào lại', 'seat.claim': 'Nhận chỗ', 'seat.move': 'Tự đổi chỗ', 'seat.equipment': 'Sửa dụng cụ', 'seat.sit': 'Ngồi', 'admin.login': 'Admin đăng nhập', 'admin.login.fail': 'Admin đăng nhập sai', 'admin.seat.assign': 'Gán chỗ', 'admin.seat.release': 'Giải phóng chỗ', 'admin.seat.lock': 'Khóa chỗ', 'admin.seat.unlock': 'Mở khóa chỗ', 'admin.employee.create': 'Thêm nhân viên', 'admin.employee.update': 'Sửa nhân viên', 'admin.employee.delete': 'Xóa nhân viên', 'admin.employee.logout': 'Buộc đăng xuất', 'admin.csv.import': 'Nhập CSV', 'admin.csv.export': 'Xuất CSV', 'admin.backup': 'Sao lưu database', 'admin.backup.download': 'Tải bản sao lưu', 'admin.password.change': 'Đổi mật khẩu', logout: 'Đăng xuất', 'admin.seed': 'Tạo tài khoản Admin', 'layout.desk_removed': 'Bàn bị bỏ khỏi layout', 'board.post': 'Đăng tin bảng thông báo', 'board.permission.grant': 'Cấp quyền đăng tin', 'board.permission.revoke': 'Thu quyền đăng tin', 'board.edit': 'Sửa tin bảng thông báo', 'board.delete': 'Gỡ tin bảng thông báo', 'board.image': 'Đổi ảnh tin', 'meeting.book': 'Đặt phòng họp', 'meeting.edit': 'Sửa lịch họp', 'meeting.cancel': 'Huỷ lịch họp', 'meeting.end': 'Kết thúc họp sớm', 'meeting.delete': 'Xoá cuộc họp & dữ liệu', 'meeting.file.add': 'Tải tài liệu họp', 'meeting.file.delete': 'Xoá tài liệu họp', 'project.create': 'Tạo dự án', 'project.edit': 'Sửa dự án', 'project.archive': 'Lưu trữ dự án', 'project.restore': 'Khôi phục dự án', 'project.delete': 'Xoá dự án', 'project.members.add': 'Thêm người vào dự án', 'project.members.remove': 'Xoá người khỏi dự án', 'project.leave': 'Rời dự án', 'project.role': 'Đổi vai trò trong dự án', 'project.file.add': 'Tải tài liệu dự án', 'project.file.delete': 'Xoá tài liệu dự án', 'project.note.add': 'Thêm ghi chú dự án', 'project.note.delete': 'Xoá ghi chú dự án', 'project.logo': 'Đổi logo dự án', 'project.logo.delete': 'Gỡ logo dự án', 'admin.files.prune': 'Dọn file thừa', 'tiktok.channels': 'Đổi kênh TikTok' };
 /** Nhóm thao tác trong nhật ký (lọc nhanh). */
 const AUDIT_GROUPS = [['all', 'Tất cả'], ['emp', 'Nhân viên'], ['seat', 'Chỗ ngồi'], ['login', 'Đăng nhập'], ['att', 'Chấm công'], ['work', 'Họp · Dự án'], ['other', 'Khác']];
 const groupOf = a => /^(admin\.employee|admin\.csv|login\.new|look\.)/.test(a) ? 'emp' : /^(seat\.|admin\.seat|layout\.)/.test(a) ? 'seat'
@@ -158,12 +158,12 @@ export class Dashboard {
     const fu = st?.files, full = fu && fu.used / fu.max;
     this.put(this.el.querySelector('.adm-sys'), st ? `<p>${db}</p>
       <p><i class="${st.waiting ? 'warn' : 'ok'}"></i>Online ${st.now}/${st.maxOnline}${st.waiting ? ` · ${st.waiting} người đang chờ` : ''}</p>
-      ${fu ? `<p><i class="${full > 0.9 ? 'bad' : full > 0.75 ? 'warn' : 'ok'}"></i>File ${Math.round(fu.used / 1048576)}/${Math.round(fu.max / 1048576)} MB</p>` : ''}
+      ${fu ? `<p><i class="${full > 0.9 ? 'bad' : full > 0.75 ? 'warn' : 'ok'}"></i>Dung lượng file ${Math.round(fu.used / 1048576)}/${Math.round(fu.max / 1048576)} MB</p>` : ''}
       <p><i class="ok"></i>Server chạy ${uptime(st.uptimeSec + Math.round((Date.now() - st._at) / 1000))}</p><p class="adm-ver">Phiên bản ${esc(st.version)}</p>` : '');
   }
   isOnline(code) { return this.session.online.some(o => o.code === code); }
-  /** "emp:1151" → "1151-An"; "admin:x" → "CEO". */
-  actorName(k) { const s = String(k || ''), m = /^(?:emp|employee):(.+)$/.exec(s); if (m) { const e = this.employees.find(x => x.code === m[1]); return e ? e.display : m[1]; } return s.startsWith('admin') ? 'CEO' : s; }
+  /** "emp:1151" → "1151-An"; "admin:x" → "Admin". */
+  actorName(k) { const s = String(k || ''), m = /^(?:emp|employee):(.+)$/.exec(s); if (m) { const e = this.employees.find(x => x.code === m[1]); return e ? e.display : m[1]; } return s.startsWith('admin') ? 'Admin' : s; }
   /** Đếm chỗ (một tầng hoặc cả toà): khoá tính riêng (chỗ có chủ mà bị khoá vẫn là "khoá"), còn lại có chủ / trống. */
   seatStats(floor = null) {
     const out = { owned: 0, free: 0, locked: 0, online: 0, total: 0 };
@@ -392,7 +392,7 @@ export class Dashboard {
     if (r) { toast(`Đã gán ${r} cho ${e.display}.`); this.refresh(); }
   }
 
-  // ---------- chỗ ngồi (thao tác trên một bàn — cũng mở khi CEO bấm bàn trong cảnh 3D) ----------
+  // ---------- chỗ ngồi (thao tác trên một bàn — cũng mở khi Admin bấm bàn trong cảnh 3D) ----------
   async deskActions(deskId) {
     const s = this.session.seats.get(deskId), d = this.app.model.deskById.get(deskId); if (!d) return;
     const cands = this.employees.filter(e => e.status === 'active').sort((a, b) => (!!a.seat - !!b.seat) || (a.code < b.code ? -1 : 1));
@@ -591,7 +591,7 @@ export class Dashboard {
   // ---------- sao lưu ----------
   async renderBackups() {
     this.put(this.body, '<div class="adm-bk"><div class="adm-skel tall"></div></div>');
-    const r = await api('GET', '/api/admin/backups');
+    const [r, fr] = await Promise.all([api('GET', '/api/admin/backups'), api('GET', '/api/admin/files')]);
     if (this.tab !== 'backup') return;
     if (!r.ok) { this.put(this.body, empty('info', esc(r.error))); return; }
     this.bk = r; this.renderHead();
@@ -601,11 +601,29 @@ export class Dashboard {
         <div class="ov-stat ${r.enabled ? 'ok' : 'warn'}"><span class="ov-ic">${icon('db', 18)}</span><b class="txt">${r.enabled ? 'Đang bật' : 'Tắt'}</b><small>${r.enabled ? 'tự sao lưu mỗi đêm sau 2 giờ' : 'database chạy trong bộ nhớ (chế độ thử)'}</small></div>
         <div class="ov-stat"><span class="ov-ic">${icon('history', 18)}</span><b class="txt">${lastTs ? ago(lastTs) : '—'}</b><small>bản gần nhất</small></div>
         <div class="ov-stat"><span class="ov-ic">${icon('folder', 18)}</span><b>${r.backups.length}<em> / ${r.keep}</em></b><small>bản đang giữ</small></div></div>
+      ${fr.ok ? this.filesCard(fr) : ''}
       <p class="adm-note soft">${icon('info', 14)} Thỉnh thoảng hãy tải một bản về máy hoặc Google Drive: bản đó vẫn còn kể cả khi mất server.</p>
       <section class="ov-card"><header><h4>Các bản sao lưu <em>${r.backups.length}</em></h4></header>
       ${r.backups.length ? `<div class="adm-table flat"><table class="adm-t"><thead><tr><th>Thời gian</th><th>Tên file</th><th class="n">Dung lượng</th><th><span class="sr-only">Tải về</span></th></tr></thead><tbody>
         ${r.backups.map(b => `<tr><td><b>${fmt(b.ts)}</b> <span class="adm-mu">· ${ago(b.ts)}</span></td><td><code>${esc(b.name)}</code></td><td class="n">${kb(b.size)}</td><td class="adm-acts"><a class="adm-ib" href="/api/admin/backups/${encodeURIComponent(b.name)}" download title="Tải về" aria-label="Tải ${esc(b.name)}">${icon('download', 14)}</a></td></tr>`).join('')}
       </tbody></table></div>` : empty('db', r.enabled ? 'Chưa có bản sao lưu nào — bấm "Sao lưu ngay".' : 'Database đang chạy trong bộ nhớ (chế độ thử), không sao lưu.')}</section></div>`);
+  }
+  /** Dung lượng file (tài liệu, ảnh, bảng vẽ… lưu trong MongoDB): theo loại, hạn mức, dọn file thừa (không còn chủ). */
+  filesCard(fr) {
+    const mb = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`, pct = fr.max ? fr.used / fr.max : 0;
+    setTimeout(() => this.body.querySelector('[data-prune]')?.addEventListener('click', e => this.pruneFiles(e.currentTarget)), 0);
+    return `<section class="ov-card adm-files"><header><h4>${icon('folder', 15)} Dung lượng file <em>${mb(fr.used)} / ${Math.round(fr.max / 1048576)} MB</em></h4>
+        ${fr.orphans.count ? `<button type="button" class="sx-ghost" data-prune>${icon('trash', 14)} <span>Dọn ${fr.orphans.count} file thừa (${mb(fr.orphans.bytes)})</span></button>` : '<small>Không có file thừa</small>'}</header>
+      ${bar([[fr.used, pct > 0.9 ? C.locked : pct > 0.75 ? '#f2a93b' : C.online], [Math.max(0, fr.max - fr.used), 'transparent']])}
+      <p class="adm-foot">Tính cả tài liệu dự án / cuộc họp, ảnh và nội dung bảng vẽ, ảnh bảng tin, logo dự án. Hết chỗ thì không tải file mới được — xoá tài liệu cũ trong dự án / cuộc họp, hoặc "Dọn file thừa" (file của dự án, cuộc họp, tin đã xoá).</p>
+      ${fr.groups.length ? `<ul class="adm-mini">${fr.groups.map(g => `<li><span>${esc(g.label)}<small>${g.count} file</small></span><em>${mb(g.bytes)}</em></li>`).join('')}</ul>` : ''}</section>`;
+  }
+  async pruneFiles(btn) {
+    if (!(await confirmDanger('Dọn file thừa?', 'Xoá vĩnh viễn nội dung các file không còn chủ (dự án, cuộc họp, tin đã xoá; tài liệu đã gỡ). File đang dùng không bị ảnh hưởng.', 'Dọn'))) return;
+    btn.disabled = true;
+    const r = await api('POST', '/api/admin/files/prune', {});
+    if (!r.ok) { btn.disabled = false; toast(r.error, true); return; }
+    toast(`Đã dọn ${r.count} file, giải phóng ${(r.bytes / 1048576).toFixed(1)} MB.`); this.loadHome(); this.renderBackups();
   }
   async backupNow(btn) {
     if (btn.disabled) return;

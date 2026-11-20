@@ -1,4 +1,4 @@
-// Màn hình đăng nhập: tab Nhân viên (mã "1151-An") và tab Admin (tài khoản CEO: tên đăng nhập + mật khẩu).
+// Màn hình đăng nhập: tab Nhân viên (mã "1151-An") và tab Admin (tài khoản Admin: tên đăng nhập + mật khẩu).
 // Kiểm tra định dạng ngay khi gõ; quyết định cuối cùng ở server.
 import { parseLogin } from '../shared/identity.js';
 import { api } from '../net/api.js';
@@ -80,7 +80,7 @@ export function showLogin(root, { onSuccess, notice, prefill = '' } = {}) {
     onSuccess?.();
   };
 
-  // ----- CEO -----
+  // ----- Admin -----
   $('paneCeo').onsubmit = async e => {
     e.preventDefault();
     const u = $('ceoUser').value.trim(), pw = $('ceoPass').value, cerr = $('ceoErr'), cb = $('ceoSubmit');
@@ -90,7 +90,7 @@ export function showLogin(root, { onSuccess, notice, prefill = '' } = {}) {
     const r = await api('POST', '/api/login/admin', { username: u, password: pw });
     cb.disabled = false; cb.textContent = 'Đăng nhập';
     if (!r.ok) { cerr.textContent = r.error; $('ceoPass').value = ''; $('ceoPass').focus(); return; }
-    forgetLogin();   // (máy này giờ dùng tài khoản CEO: không tự đăng nhập lại mã nhân viên cũ)
+    forgetLogin();   // (máy này giờ dùng tài khoản Admin: không tự đăng nhập lại mã nhân viên cũ)
     onSuccess?.();
   };
   inp.focus();

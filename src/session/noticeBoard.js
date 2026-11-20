@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { api } from '../net/api.js';
 import { esc, confirmDanger } from './ui.js';
 import { icon, drawIcon } from '../ui/icons.js';
+import { richEditor, mdToHtml, mdToText } from '../ui/richText.js';
 import { notice } from '../ui/notices.js';
 import { overlayOn, overlayOff } from '../ui/overlay.js';
 import { DatePicker, vnDay, fmtLong } from '../ui/datePicker.js';
@@ -42,7 +43,7 @@ export class NoticeBoard {
     this.top = []; this.canPost = false; this.list = []; this.hasMore = false; this.filter = 'all'; this.el = null;
     session.rt.on('hello', () => this.refresh());
     session.rt.on('board', () => this.refresh(true));
-    session.rt.on('boardPerm', m => { session.toast(m.allow ? 'CEO đã cấp cho bạn quyền đăng tin lên bảng thông báo.' : 'CEO đã thu quyền đăng tin của bạn.'); this.refresh(); });
+    session.rt.on('boardPerm', m => { session.toast(m.allow ? 'Admin đã cấp cho bạn quyền đăng tin lên bảng thông báo.' : 'Admin đã thu quyền đăng tin của bạn.'); this.refresh(); });
   }
 
   // ---------- dữ liệu ----------
@@ -56,7 +57,7 @@ export class NoticeBoard {
     this.s.social?.setBoardDot?.(this.unseen());
     if (this.el) this.load(true);
   }
-  /** Quyền của mình (server gửi kèm mỗi lần tải): đăng tin / quản lý mọi tin / CEO. Nút "Đăng tin" hiện / ẩn theo quyền. */
+  /** Quyền của mình (server gửi kèm mỗi lần tải): đăng tin / quản lý mọi tin / Admin. Nút "Đăng tin" hiện / ẩn theo quyền. */
   perms(r) {
     this.canPost = !!r.canPost; this.canManage = !!r.canManage; this.isAdmin = !!r.isAdmin;
     const add = this.el?.querySelector('.nb-add'); if (add) add.hidden = !this.canPost;
@@ -174,7 +175,7 @@ export class NoticeBoard {
       g.fillStyle = '#2b2d42'; g.font = `900 40px ${F}`; const tl = wrap(g, f.title, LW - 56, 2); tl.forEach((l, i) => g.fillText(l, fx + 28, y + i * 48)); y += tl.length * 48 + 4;
       g.font = `800 24px ${F}`; g.fillStyle = '#6b6d85'; g.fillText(fit(g, `${f.byName} · ${ago(f.createdAt, now)}`, LW - 56), fx + 28, y); y += 44;
     }
-    if (f.body) { g.font = `600 25px ${F}`; g.fillStyle = '#4a4c63'; const lines = wrap(g, f.body.replace(/\s+/g, ' '), LW - 56, Math.max(1, Math.floor((fy + fh - 26 - y) / 36) + 1)); lines.forEach((l, i) => g.fillText(l, fx + 28, y + i * 36)); }
+    if (f.body) { g.font = `600 25px ${F}`; g.fillStyle = '#4a4c63'; const lines = wrap(g, mdToText(f.body).replace(/\s+/g, ' '), LW - 56, Math.max(1, Math.floor((fy + fh - 26 - y) / 36) + 1)); lines.forEach((l, i) => g.fillText(l, fx + 28, y + i * 36)); }
     // ---- danh sách ----
     const rx = P + LW + 26, rw = TW - rx - P, rest = items.slice(1), n = 9, gap = 10, rh = (fh - gap * (n - 1)) / n;
     rest.forEach((it, i) => {
@@ -201,7 +202,7 @@ export class NoticeBoard {
     const back = this.el = document.createElement('div'); back.className = 'sx-back';
     back.innerHTML = `<div class="sx nb" role="dialog" aria-modal="true" aria-labelledby="nbTitle">
       <header class="sx-h nb-h"><span class="sx-ic">${icon('megaphone', 22)}</span><div><h2 id="nbTitle">Bảng thông báo</h2><p>Tin chính và sự kiện của SYSONE</p></div>
-        ${this.isAdmin ? `<button type="button" class="sx-ghost nb-perm" title="CEO cấp quyền đăng tin cho nhân viên">${icon('key', 15)} <span>Quyền đăng tin</span></button>` : ''}
+        ${this.isAdmin ? `<button type="button" class="sx-ghost nb-perm" title="Admin cấp quyền đăng tin cho nhân viên">${icon('key', 15)} <span>Quyền đăng tin</span></button>` : ''}
         <button type="button" class="sx-primary nb-add"${this.canPost ? '' : ' hidden'}>${icon('plus', 15)} Đăng tin</button>
         <button type="button" class="sx-x" aria-label="Đóng">${icon('close', 16)}</button></header>
       <nav class="sx-tabs" role="tablist">${[['all', 'Tất cả'], ['event', 'Sự kiện'], ['notice', 'Thông báo']].map(([k, n]) => `<button type="button" role="tab" data-f="${k}" class="${k === this.filter ? 'on' : ''}" aria-selected="${k === this.filter}">${n}</button>`).join('')}</nav>
@@ -242,12 +243,12 @@ export class NoticeBoard {
         ${it.kind === 'event' && it.eventAt ? `<span class="nb-date${it.upcoming ? '' : ' past'}"><b>${dayNum(it.eventAt)}</b><small>${monthVN(it.eventAt)}</small></span>` : `<span class="nb-dot ${it.pinned ? 'pin' : ''}">${icon(it.pinned ? 'pin' : 'megaphone', 15)}</span>`}
         <span class="nb-tx"><b>${esc(it.title)}${now - it.createdAt < 2 * 86400e3 ? ' <i class="nb-new">MỚI</i>' : ''}</b>
           <small>${it.kind === 'event' && it.eventAt ? `${icon('clock', 12)} ${fmtHM(it.eventAt)}${it.place ? ` · ${esc(it.place)}` : ''} · <em>${until(it.eventAt, now)}</em>` : ''}${it.kind === 'event' ? ' · ' : ''}${esc(it.byName)} · ${ago(it.createdAt, now)}</small>
-          ${it.body ? `<span class="nb-snip">${esc(it.body.slice(0, 140))}${it.body.length > 140 ? '…' : ''}</span>` : ''}</span>${it.image ? `<img class="nb-thumb" src="${esc(it.image)}" alt="" loading="lazy" decoding="async">` : ''}</button>`;
+          ${it.body ? (t => `<span class="nb-snip">${esc(t.slice(0, 140))}${t.length > 140 ? '…' : ''}</span>`)(mdToText(it.body)) : ''}</span>${it.image ? `<img class="nb-thumb" src="${esc(it.image)}" alt="" loading="lazy" decoding="async">` : ''}</button>`;
     const sec = (title, list) => list.length ? `<div class="nb-sec">${title}</div><div class="nb-list">${list.map(row).join('')}</div>` : '';
     body.innerHTML = this.list.length
       ? `${sec(`${icon('pin', 13)} Đã ghim`, pin)}${sec(`${icon('calendar', 13)} Sắp diễn ra`, up)}${sec('Mới nhất', rest)}
          ${this.hasMore ? '<div class="nb-more"><button type="button" class="sx-ghost nb-load">Xem thêm tin cũ</button></div>' : this.list.length > 10 ? '<p class="sx-end">Đã hết tin.</p>' : ''}`
-      : `<div class="sx-empty">${icon('megaphone', 34)}<b>Chưa có tin nào</b><span>${this.canPost ? 'Bấm "Đăng tin" để thông báo cho cả công ty.' : 'Phòng Hành chính - Nhân sự (và người được CEO cấp quyền) sẽ đăng thông báo, sự kiện ở đây.'}</span></div>`;
+      : `<div class="sx-empty">${icon('megaphone', 34)}<b>Chưa có tin nào</b><span>${this.canPost ? 'Bấm "Đăng tin" để thông báo cho cả công ty.' : 'Phòng Hành chính - Nhân sự (và người được Admin cấp quyền) sẽ đăng thông báo, sự kiện ở đây.'}</span></div>`;
     body.querySelectorAll('[data-id]').forEach(b => b.onclick = () => this.read(+b.dataset.id));
     body.querySelector('.nb-load')?.addEventListener('click', e => { e.target.disabled = true; e.target.textContent = 'Đang tải…'; this.load(false); });
   }
@@ -263,7 +264,7 @@ export class NoticeBoard {
         <h3>${esc(it.title)}</h3>
         <div class="nb-meta">${avatar(it.by || it.byName, it.byName)}<span><b>${esc(it.byName)}</b><small>Đăng ${ago(it.createdAt)}${edited ? ` · sửa ${ago(it.updatedAt)}` : ''}</small></span></div>
         ${it.kind === 'event' && it.eventAt ? `<div class="nb-when"><span class="nb-when-ic">${icon('calendar', 18)}</span><span><b>${esc(fmtFull(it.eventAt))}</b>${it.place ? `<small>${icon('map', 12)} ${esc(it.place)}</small>` : ''}</span><em>${until(it.eventAt)}</em></div>` : ''}
-        ${it.body ? `<div class="nb-text">${esc(it.body).replace(/\n/g, '<br>')}</div>` : ''}
+        ${it.body ? `<div class="nb-text rt-view">${mdToHtml(it.body)}</div>` : ''}
         ${it.canEdit ? `<div class="nb-acts"><button type="button" class="sx-ghost" data-a="edit">${icon('edit', 14)} Sửa</button>${this.canManage ? `<button type="button" class="sx-ghost" data-a="pin">${icon('pin', 14)} ${it.pinned ? 'Bỏ ghim' : 'Ghim lên đầu'}</button>` : ''}<button type="button" class="sx-ghost danger" data-a="del">${icon('trash', 14)} Gỡ tin</button></div>` : ''}
       </div>
     </article>`;
@@ -276,7 +277,7 @@ export class NoticeBoard {
     });
   }
   /** Đăng / sửa tin (HC-NS, quản trị). */
-  /** (CEO) Cấp quyền đăng tin: bật / tắt cho từng nhân viên, hoặc cho tất cả một lần. HC-NS luôn được đăng. */
+  /** (Admin) Cấp quyền đăng tin: bật / tắt cho từng nhân viên, hoặc cho tất cả một lần. HC-NS luôn được đăng. */
   async permView() {
     this.reading = 'perm';
     const body = this.el?.querySelector('.nb-body'); if (!body) return;
@@ -288,7 +289,7 @@ export class NoticeBoard {
     body.innerHTML = `<div class="nb-perm-v">
       <button type="button" class="sx-back-link">${icon('chevLeft', 15)} Bảng thông báo</button>
       <h3>${icon('key', 18)} Quyền đăng tin</h3>
-      <p class="nb-perm-note">Người được cấp quyền đăng được tin mới, sửa / gỡ tin của chính mình. Phòng Hành chính - Nhân sự và CEO luôn được đăng, sửa, ghim mọi tin.</p>
+      <p class="nb-perm-note">Người được cấp quyền đăng được tin mới, sửa / gỡ tin của chính mình. Phòng Hành chính - Nhân sự và Admin luôn được đăng, sửa, ghim mọi tin.</p>
       <div class="nb-perm-bar"><input type="search" class="nb-perm-q" placeholder="Tìm theo mã, tên, phòng ban…" aria-label="Tìm nhân viên">
         <span class="nb-perm-n" aria-live="polite"></span>
         <button type="button" class="sx-ghost" data-all="1">${icon('check', 14)} Cấp cho tất cả</button><button type="button" class="sx-ghost danger" data-all="0">${icon('close', 13)} Thu hồi tất cả</button></div>
@@ -327,12 +328,13 @@ export class NoticeBoard {
           <img class="nb-prev" alt="" ${it?.image ? `src="${esc(it.image)}"` : 'hidden'}>
           <span class="nb-dropt">${icon('upload', 22)}<b>Bấm hoặc kéo ảnh vào đây</b><small>Ảnh ngang 16:9 hiển thị đẹp nhất trên bảng ở sảnh</small></span>
           <button type="button" class="sx-icon nb-rm" aria-label="Bỏ ảnh" ${it?.image ? '' : 'hidden'}>${icon('trash', 15)}</button></label></div>
-      <label class="sx-field"><span>Nội dung</span><textarea name="body" rows="6" maxlength="2000" placeholder="Chi tiết cho mọi người…">${esc(it?.body || '')}</textarea></label>
+      <div class="sx-field"><span>Nội dung <small>(bôi chữ rồi chọn định dạng · Ctrl+B / I / U · Ctrl+K chèn liên kết · dán / kéo thả ảnh vào)</small></span><textarea name="body" rows="6" placeholder="Chi tiết cho mọi người…">${esc(it?.body || '')}</textarea></div>
       ${this.canManage ? `<label class="sx-check"><input type="checkbox" name="pinned" ${it?.pinned ? 'checked' : ''}> ${icon('pin', 14)} Ghim lên đầu bảng</label>` : ''}
       <p class="sx-err" role="alert"></p>
       <div class="sx-acts"><button type="button" class="sx-ghost" data-cancel>Huỷ</button><button type="submit" class="sx-primary">${it ? 'Lưu thay đổi' : 'Đăng lên bảng'}</button></div>
     </form>`;
     const f = body.querySelector('form'), back = () => it ? this.read(it.id) : this.render();
+    richEditor(f.body, { max: 5000, placeholder: 'Chi tiết cho mọi người…', upload: async img => { const r = await api('POST', '/api/board/img', img); if (!r.ok) throw new Error(r.error); return r.url; } });   // (ô soạn thảo có định dạng — src/ui/richText.js)
     body.querySelector('.sx-back-link').onclick = back; f.querySelector('[data-cancel]').onclick = back;
     f.querySelectorAll('input[name=kind]').forEach(r => r.onchange = () => { f.querySelector('.nb-evf').hidden = f.kind.value !== 'event'; });
     // ngày sự kiện: nút → lịch tháng (không dùng ô ngày giờ mặc định của trình duyệt)
@@ -358,7 +360,7 @@ export class NoticeBoard {
     drop.addEventListener('drop', e => { e.preventDefault(); drop.classList.remove('over'); take(e.dataTransfer.files[0]); });
     rm.onclick = e => { e.preventDefault(); e.stopPropagation(); img = null; prev.hidden = true; prev.removeAttribute('src'); rm.hidden = true; drop.classList.remove('has'); file.value = ''; };
     f.querySelectorAll('input,textarea').forEach(x => x.addEventListener('keydown', e => e.stopPropagation()));
-    setTimeout(() => f.title.focus(), 30);
+    setTimeout(() => { if (!f.contains(document.activeElement)) f.title.focus(); }, 30);   // (đã bấm vào ô khác thì không giật con trỏ về)
     f.onsubmit = async e => {
       e.preventDefault();
       const err = f.querySelector('.sx-err'), btn = f.querySelector('[type=submit]');

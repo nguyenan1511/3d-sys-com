@@ -63,7 +63,7 @@ export class ExcaliBoard {
       h(W.Center, null, h(W.Center.Heading, null, 'Vẽ cùng nhau: mọi người trong cuộc họp thấy ngay, bảng được lưu lại trong "Folder của tôi"')));
     this.root = D.createRoot(box);
     this.root.render(h(X.Excalidraw, {
-      excalidrawAPI: a => { this.xapi = a; this.loadFiles(this.initial);   /* (lúc này hình ban đầu chưa vào bảng — tải ảnh theo initial, không theo getSceneElements) */ this.paintPeers(); this.fixLang(); setTimeout(() => this.fixLang(), 600); },
+      excalidrawAPI: a => { this.xapi = a; this.loadFiles(this.initial); this.syncFiles();   /* (lúc này hình ban đầu chưa vào bảng — tải ảnh theo initial, không theo getSceneElements) */ this.paintPeers(); this.fixLang(); setTimeout(() => this.fixLang(), 600); },
       initialData: { elements, appState: { viewBackgroundColor: '#ffffff', currentItemFontFamily: X.FONT_FAMILY?.Nunito ?? 6, name: this.o.name || 'bang-ve' }, scrollToContent: true },
       onChange: els => this.changed(els),
       onPointerUpdate: this.readOnly ? undefined : p => this.pointer(p),
@@ -141,7 +141,18 @@ export class ExcaliBoard {
       try { const r = await fetch(`${this.base}/wbfile/${encodeURIComponent(fid)}`, { credentials: 'same-origin' }); if (!r.ok) throw new Error(r.status); const f = await r.json(); this.files.set(fid, f); this.uploaded.add(fid); got.push(f); }
       catch { this.files.delete(fid); this.failed.set(fid, Date.now()); }
     }));
-    if (got.length && this.xapi) { this.xapi.addFiles(got); this.o.onChange?.(); }
+    if (got.length) this.syncFiles();
+  }
+  /** Đưa vào Excalidraw mọi ảnh đã tải mà bảng chưa có. Ảnh nằm sẵn trong bộ nhớ đệm trình duyệt về RẤT nhanh — trước khi bảng
+   *  dựng xong, addFiles lúc đó bị bỏ qua ("component not yet mounted") → vào lại phòng không thấy ảnh. Nên kiểm tra lại thêm vài
+   *  nhịp sau khi bảng dựng xong. */
+  syncFiles() {
+    const run = () => {
+      if (!this.xapi || this.gone) return;
+      const have = this.xapi.getFiles() || {}, miss = [...this.files.values()].filter(f => f && !have[f.id]);
+      if (miss.length) { this.xapi.addFiles(miss); this.o.onChange?.(); }
+    };
+    run(); for (const ms of [120, 400, 1000, 2500]) setTimeout(run, ms);
   }
   /** Con trỏ / vùng chọn của một người khác. */
   peer(m) { this.peers.set(m.key, m); this.schedPeers(); }

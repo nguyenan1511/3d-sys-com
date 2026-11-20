@@ -64,11 +64,11 @@ export function meetingRoutes(api, { store, hub, guards: { needAuth } }) {
     hub.meet.toRoom(m.id, { t: 'meet:files', id: m.id });
     res.json({ ok: true });
   });
-  /** Danh bạ để mời người họp: nhân viên đang làm việc + CEO (mã, tên, phòng ban, đang online). */
+  /** Danh bạ để mời người họp: nhân viên đang làm việc + Admin (mã, tên, phòng ban, đang online). */
   api.get('/people', needAuth, (_req, res) => {
     const people = store.db.employees.where(e => e.status === 'active').map(e => ({ key: `employee:${e.code}`, code: e.code, name: displayOf(e.code, e.name), department: e.department || '', online: hub.isOnline(e.code) }))
       .sort((a, b) => a.code < b.code ? -1 : 1);
-    for (const a of store.db.admins.all()) people.unshift({ key: `admin:${a.username}`, code: '', name: `CEO (${a.username})`, department: 'Ban giám đốc', online: hub.sockets.has(`admin:${a.username}`) });
+    for (const a of store.db.admins.all()) people.unshift({ key: `admin:${a.username}`, code: '', name: `Admin (${a.username})`, department: 'Ban giám đốc', online: hub.sockets.has(`admin:${a.username}`) });
     res.json({ people });
   });
 }

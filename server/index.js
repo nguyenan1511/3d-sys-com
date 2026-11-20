@@ -24,7 +24,7 @@ app.use(finish);
 
 hub.attach(server);
 server.listen(config.port, config.host, () => {
-  console.log(`SYSONE digital twin: http://localhost:${config.port}  (chính sách trùng mã: ${config.duplicatePolicy}, CEO ngồi mọi chỗ: ${config.adminCanSitAnywhere})`);
+  console.log(`SYSONE digital twin: http://localhost:${config.port}  (chính sách trùng mã: ${config.duplicatePolicy}, Admin ngồi mọi chỗ: ${config.adminCanSitAnywhere})`);
 });
 // tắt server (Render cho ngủ / deploy gửi SIGTERM): ghi nốt các thay đổi còn trong hàng đợi lên MongoDB (tối đa 20 giây) rồi mới thoát
 let stopping = false;

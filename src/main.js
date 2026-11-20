@@ -43,6 +43,13 @@ import { OUTLINE } from './agents/toon.js';
 import { icon } from './ui/icons.js';
 import { Minimap } from './ui/minimap.js';
 import { QuickTravel } from './ui/quickTravel.js';
+import { mountProfile, hintsHtml, bindHints, bindHudKeys } from './ui/hud.js';
+import '@fontsource/be-vietnam-pro/400.css';
+import '@fontsource/be-vietnam-pro/500.css';
+import '@fontsource/be-vietnam-pro/600.css';
+import '@fontsource/be-vietnam-pro/700.css';
+import '@fontsource/be-vietnam-pro/800.css';
+import './ui/hud.css';
 import { Intro } from './ui/intro.js';
 import { loading } from './ui/loading.js';
 import { TouchControls, isTouchUI } from './ui/touchControls.js';
@@ -469,7 +476,7 @@ export async function startApp(me, hooks = {}) {
   app.bldRoot = bld ? bld.root : null;   // (đồ vật my-office → toạ độ thế giới: src/scene/props.js)
   const deskInfo = BIG ? new DeskInfoBoards(scene, model) : null; // bảng thông tin làm việc trong ngày trên mỗi bàn có chủ
   app.deskInfoSig = id => deskInfo?.items.get(id)?.sig || ''; // (kiểm thử) nội dung bảng trên bàn
-  if (session.isAdmin && !localStorage.getItem('sysone.view')) VIEW.mode = '3d'; // CEO mặc định xem 3D (bản 2D đang ẩn: luôn 3D — pixel/billboard.js ENABLE_2D)
+  if (session.isAdmin && !localStorage.getItem('sysone.view')) VIEW.mode = '3d'; // Admin mặc định xem 3D (bản 2D đang ẩn: luôn 3D — pixel/billboard.js ENABLE_2D)
   app.rebuildDesks();
   // HUD điều khiển nhân vật
   let followCheck = 0;
@@ -501,11 +508,15 @@ export async function startApp(me, hooks = {}) {
       const qt = app.quickTravel = new QuickTravel(app, session, host);
       session.onSeats(() => qt.render());
     } else if (!session.player && menu && slot && menu.parentElement !== slot) { menu.hidden = false; slot.appendChild(menu); }
-    // "Của tôi" trong ngăn kéo: Nhân vật của tôi, Hiện chủ chỗ, Âm báo tin nhắn, Đăng xuất
-    const meRow = document.querySelector('#meBox .me-row'), look = $('btnLook'), owners = $('cOwners')?.closest('label'), snd = $('cSound')?.closest('label'), out = $('btnLogout');
-    const introBtn = document.createElement('button'); introBtn.type = 'button'; introBtn.className = 'dock-btn intro-btn'; introBtn.innerHTML = `${icon('info')} <span class="lbl">Có gì ở đây?</span>`;
-    if (meRow) { meRow.replaceChildren(...[introBtn, look, $('btnDash'), $('btnPw'), owners, snd, out].filter(Boolean)); $('meBox').hidden = !meRow.children.length; }
+    // thẻ hồ sơ + menu thả xuống (src/ui/hud.js): Nhân vật của tôi, Có gì ở đây?, [Admin], Hiện chủ chỗ, Âm báo tin nhắn, Đăng xuất
+    if (!$('btnLogout')?.closest('#hudMenu')) {
+      const introBtn = document.createElement('button'); introBtn.type = 'button'; introBtn.className = 'intro-btn';
+      mountProfile(session, introBtn); $('meBox').hidden = true;
+      if (session.player && innerWidth >= 1024 && $('viewBox')) { let v = null; try { v = localStorage.getItem('sysone.quick'); } catch { /* */ } $('viewBox').open = v !== '0'; $('viewBox').addEventListener('toggle', () => { try { localStorage.setItem('sysone.quick', $('viewBox').open ? '1' : '0'); } catch { /* */ } }); }   // (máy tính: "Đi nhanh tới" mở sẵn như thiết kế)
+    }
     $('sessionBar').querySelector('.dock')?.remove();
+    // thứ tự cột trái: hồ sơ → chỗ ngồi của tôi → đi nhanh tới
+    { const sb = $('seatBox'), vb = $('viewBox'), pr = $('hudProfile'); if (sb && pr && pr.nextElementSibling !== sb) pr.after(sb); if (vb && sb && sb.nextElementSibling !== vb) sb.after(vb); }
     // thanh dưới một dòng: Đang online + phím chính + nút Phím tắt
     const online = $('onlineBox'), slotO = ctrlNav.querySelector('.nav-online'); if (online && online.parentElement !== slotO) slotO.replaceChildren(online);
     const hud = $('hud'), acts = hud.querySelector('.hud-acts'), keys = hud.querySelector('.hud-keys');
@@ -517,14 +528,15 @@ export async function startApp(me, hooks = {}) {
   const km = $('keysModal');
   // (nút Phím tắt: gắn bằng JS — CSP bản production chặn onclick viết trong HTML)
   document.addEventListener('click', e => { if (e.target.closest?.('.keys-btn')) app.openKeys(); });
-  app.openKeys = () => { km.querySelector('.km-keys').innerHTML = keyFull(app.mode2d ? KEYROWS2D : KEYROWS3D); km.hidden = false; requestAnimationFrame(() => km.classList.add('show')); $('keysClose').focus(); };
+  app.openKeys = () => { km.querySelector('.km-keys').innerHTML = app.mode2d ? keyFull(KEYROWS2D) : keyGroups(KEYGROUPS3D); km.hidden = false; requestAnimationFrame(() => km.classList.add('show')); $('keysClose').focus(); };
   app.closeKeys = () => { km.classList.remove('show'); setTimeout(() => { km.hidden = true; }, 220); };
   $('keysClose').onclick = app.closeKeys;
   km.addEventListener('click', e => { if (e.target === km || e.target.closest('[data-act]')) app.closeKeys(); });
   window.addEventListener('keydown', e => { if (e.key === 'Escape' && !km.hidden) { e.stopPropagation(); app.closeKeys(); } }, true);
   const _renderBar = session.renderBar.bind(session), _renderOnline = session.renderOnline.bind(session);
   session.renderBar = () => { _renderBar(); mountNav(); };
-  session.renderOnline = () => { _renderOnline(); mountNav(); };
+  let qtT = 0;
+  session.renderOnline = () => { _renderOnline(); mountNav(); clearTimeout(qtT); qtT = setTimeout(() => app.quickTravel?.render(), 400); };   // (Đi nhanh tới: danh sách đồng nghiệp online)
   mountNav();
   session.onSeats(() => applyStaff(validateStaff(model, simData([...session.seats.values()])), seatNotes));
   if (seatNotes.length) panel.showErrors(staff.errors, [...seatNotes, ...warn]);
@@ -620,11 +632,18 @@ export async function startApp(me, hooks = {}) {
   // gợi ý phím: một dòng 3 phím chính + nút "Phím tắt" (mở cửa sổ đầy đủ)
   const keyCaps = k => k.split(' ').map(x => `<span class="key">${x}</span>`).join('');
   const keyFull = rows => '<ul class="keylist">' + rows.map(([k, t]) => `<li><span class="keys">${keyCaps(k)}</span><span class="what">${t}</span></li>`).join('') + '</ul>';
-  const keyLine = (rows, n = 3) => `<span class="keys-short">${rows.slice(0, n).map(([k, t]) => `<span class="ks">${keyCaps(k)}<span class="what">${t}</span></span>`).join('')}</span><button type="button" class="keys-btn" title="Xem tất cả phím tắt và động tác">${icon('keyboard')} Phím tắt</button>`;
+  const keyLine = (rows, n = 3) => `<span class="keys-short">${rows.slice(0, n).map(([k, t]) => `<span class="ks">${keyCaps(k)}<span class="what">${t}</span></span>`).join('')}</span><button type="button" class="keys-btn" title="Xem tất cả phím tắt và động tác">${icon('keyboard')} Phím tắt</button>`;;
   const KEYROWS3D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['B', 'Về bàn làm việc (tự đi tới và ngồi)'], ['T', 'Chat nội bộ'], ['Space', 'Nhảy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['V', 'Góc nhìn thứ nhất / thứ ba'], ['C', 'Đưa camera về sau lưng'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Kéo', 'Xoay camera — khi đang xem xung quanh (Esc)'], ['Cuộn + −', 'Phóng to / thu nhỏ'], ['2 ngón', 'Điện thoại: chụm để zoom, kéo ngang để xoay'], ['Esc', 'Xem xung quanh bằng chuột (bật / tắt) · đi tiếp: camera theo lại sau lưng']];
   const KEYROWS2D = [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['E', 'Ngồi / đứng dậy'], ['F', 'Kéo / hạ rèm khi đứng gần cửa sổ'], ['Chuột', 'Bấm sàn để tự đi tới'], ['Chuột', 'Bấm bàn để xem chủ chỗ'], ['Cầu thang', 'Đi vào cầu thang để lên / xuống tầng'], ['Esc', 'Xem xung quanh bằng chuột (bật / tắt) · đi tiếp: camera theo lại sau lưng']];
-  const KEYS3D = keyLine([...KEYROWS3D.slice(0, 3), ['Esc', 'Xem xung quanh']], 4), KEYS2D = keyLine(KEYROWS2D); // (3D: thêm Esc — xoay camera bằng chuột)
-  { const k = document.querySelector('.hud-keys'); if (k) k.innerHTML = KEYS3D; }
+  const KEYS3D = hintsHtml(), KEYS2D = keyLine(KEYROWS2D); // (3D: thanh gợi ý gọn theo thiết kế HUD — src/ui/hud.js)
+  // cửa sổ Phím tắt (3D): các nhóm 2 cột
+  const KEYGROUPS3D = [['DI CHUYỂN', [['W A S D', 'Đi'], ['Shift', 'Chạy'], ['Space', 'Nhảy'], ['Esc', 'Xem xung quanh']]],
+    ['TƯƠNG TÁC', [['E', 'Ngồi / đứng dậy'], ['B', 'Về bàn làm việc'], ['F', 'Kéo / hạ rèm'], ['G', 'Đi nhanh tới']]],
+    ['GIAO DIỆN', [['M', 'Ẩn / hiện bản đồ'], ['T', 'Mở chat'], ['?', 'Phím tắt']]],
+    ['CAMERA', [['V', 'Góc nhìn thứ nhất / thứ ba'], ['C', 'Camera về sau lưng'], ['Cuộn', 'Phóng to / thu nhỏ'], ['Chuột', 'Bấm sàn để tự đi tới']]]];
+  const keyGroups = groups => `<div class="kg-grid">${groups.map(([t, rows]) => `<section class="kg"><h4>${t}</h4>${rows.map(([k, w]) => `<div class="kg-row"><span>${w}</span><span class="kg-keys">${k.split(' ').map(x => `<kbd>${x}</kbd>`).join('')}</span></div>`).join('')}</section>`).join('')}</div>`;
+  { const k = document.querySelector('.hud-keys'); if (k) { k.innerHTML = KEYS3D; bindHints(k); } }
+  bindHudKeys(app);
   // chuyển 2D/3D có mờ chuyển cảnh ~0.2 s; luôn theo chế độ đích MỚI NHẤT (đổi nhanh liên tiếp không bị kẹt sai chế độ)
   let modeTarget = false, modeTimer = 0;
   function setMode2D(on) {
@@ -638,7 +657,7 @@ export async function startApp(me, hooks = {}) {
       app.mode2d = on;
       $('map2d').hidden = !on; $('c3').style.visibility = on ? 'hidden' : '';
       document.body.classList.toggle('mode2d', on);
-      const keys = document.querySelector('.hud-keys'); if (keys) keys.innerHTML = on ? KEYS2D : KEYS3D;
+      const keys = document.querySelector('.hud-keys'); if (keys) { keys.innerHTML = on ? KEYS2D : KEYS3D; if (!on) bindHints(keys); }
       const pl = app.session?.player;
       if (on) { if (rig.fp) rig.setFirstPerson(false); map2d.cam.ready = false; }
       else if (pl) { rig.S.th = rig.G.th = pl.agent.yaw; rig.camDist = null; pl.follow(); }
@@ -728,7 +747,7 @@ export async function startApp(me, hooks = {}) {
   const myDept = () => session.isAdmin ? 'Ban giám đốc' : (session.me.employee?.department || deptOfCode(session.me.employee?.code));
   /** Tên + phòng ban của một người (bảng tên trong phòng bi-a / karaoke dùng chung kiểu với văn phòng). */
   app.tagInfo = key => {
-    if (key === session.key) return { me: true, name: session.isAdmin ? `CEO (${session.me.admin.username})` : session.me.employee.display, dept: myDept() };
+    if (key === session.key) return { me: true, name: session.isAdmin ? `Admin (${session.me.admin.username})` : session.me.employee.display, dept: myDept() };
     const a = session.remote.byKey.get(key);
     return { name: a?.display || key, dept: a?.department || deptOfCode(key.startsWith('employee:') ? key.slice(9) : null) };
   };
@@ -737,7 +756,7 @@ export async function startApp(me, hooks = {}) {
     for (const a of session.remote.list) {
       if (!a.visible && a !== session.player?.agent) continue;
       if (a.local && a._mirror) continue;   // (đang soi gương: góc nhìn ngang mắt, không hiện nhãn của mình)
-      if (a.local) list.push({ key: 'me', me: true, name: session.isAdmin ? `CEO (${session.me.admin.username})` : session.me.employee.display, dept: a.act === 'meet' ? 'Đang họp' : myDept(), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf('me') });
+      if (a.local) list.push({ key: 'me', me: true, name: session.isAdmin ? `Admin (${session.me.admin.username})` : session.me.employee.display, dept: a.act === 'meet' ? 'Đang họp' : myDept(), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf('me') });
       else if (a.key === 'guide') list.push({ key: 'guide', guide: true, name: 'Chị Mai', dept: '', x: a.x, y: a.y, z: a.z, f: a.f, sit: a.sit });
       else list.push({ key: a.key, name: a.display, dept: a.target?.act === 'meet' ? 'Đang họp' : a.department || deptOfCode(a.key.startsWith('employee:') ? a.key.slice(9) : null), x: a.x, y: a.y + (a.jumpH || 0), z: a.z, f: a.f, sit: a.sit, bubble: session.social?.bubbleOf(a.key) });
     }

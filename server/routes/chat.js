@@ -7,7 +7,7 @@ import { HttpError } from '../store.js';
 export const actorKey = a => a.kind === 'admin' ? `admin:${a.username}` : `employee:${a.code}`;
 
 export function chatRoutes(api, { store, guards: { needAuth } }) {
-  /** Kênh của tôi: Toàn công ty, phòng ban của mình (CEO: mọi phòng), các cuộc nhắn riêng đã có. */
+  /** Kênh của tôi: Toàn công ty, phòng ban của mình (Admin: mọi phòng), các cuộc nhắn riêng đã có. */
   api.get('/chat/channels', needAuth, (req, res) => {
     const key = actorKey(req.actor), mine = deptIdOf(store, req.actor);
     const depts = req.actor.kind === 'admin' ? DEPARTMENTS : DEPARTMENTS.filter(d => d.id === mine);

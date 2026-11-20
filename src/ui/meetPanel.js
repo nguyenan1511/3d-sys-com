@@ -19,7 +19,7 @@ const VN = 7 * 3600e3, DAY = 86400e3, SLOT = 30 * 60e3, ROW = 30;
 const dayStart = t => Math.floor((t + VN) / DAY) * DAY - VN;
 const fmtDate = t => new Intl.DateTimeFormat('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }).format(t);
 const fmtSize = n => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
-const initials = name => String(name || '?').replace(/^\d{4}-/, '').replace(/^CEO \((.*)\)$/, '$1').split(/\s+/).filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
+const initials = name => String(name || '?').replace(/^\d{4}-/, '').replace(/^Admin \((.*)\)$/, '$1').split(/\s+/).filter(Boolean).slice(-2).map(w => w[0]).join('').toUpperCase() || '?';
 const hue = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
 export const avatar = (key, name, cls = '') => `<span class="mt-av ${cls}" style="--h:${hue(key)}" title="${esc(name)}">${esc(initials(name))}</span>`;
 const fmtIn = ms => { const m = Math.max(1, Math.round(ms / 60e3)); return m >= 60 ? `${Math.floor(m / 60)} giờ${m % 60 ? ` ${m % 60} phút` : ''}` : `${m} phút`; };
@@ -311,7 +311,7 @@ export class MeetPanel {
         <div class="mp-fcol">
       <label class="sx-field mp-tfield"><span>Tên cuộc họp <i>*</i></span><input name="title" maxlength="120" required value="${esc(m?.title || (project ? `Họp dự án ${project.name}` : ''))}" placeholder="Ví dụ: Họp kế hoạch sprint 12"></label>
       <div class="sx-field mp-people-f"><span>Người tham dự <small>(${picked.size} người · tối đa ${MAXI})</small></span>
-        <div class="mp-chips"><span class="mp-chip host">${avatar(me, this.s.me.employee?.display || 'CEO')} Bạn (host)</span></div>
+        <div class="mp-chips"><span class="mp-chip host">${avatar(me, this.s.me.employee?.display || 'Admin')} Bạn (host)</span></div>
         <div class="mp-pick"><input class="mp-q" placeholder="Tìm theo tên, mã hoặc phòng ban…" autocomplete="off" aria-label="Tìm người để mời">
           ${depts.length ? `<select class="mp-dept" aria-label="Mời cả phòng ban"><option value="">+ Mời cả phòng ban…</option>${depts.map(d => `<option>${esc(d)}</option>`).join('')}</select>` : ''}</div>
         <ul class="mp-res" role="listbox" hidden></ul></div>
@@ -382,7 +382,7 @@ export class MeetPanel {
     q.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); const a = res.querySelector('.act'); if (a) add(a.dataset.k); } if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const lis = [...res.querySelectorAll('[data-k]')], i = lis.findIndex(x => x.classList.contains('act')), j = Math.max(0, Math.min(lis.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1))); lis.forEach((x, k) => x.classList.toggle('act', k === j)); } });
     f.querySelector('.mp-dept')?.addEventListener('change', e => { const d = e.target.value; e.target.value = ''; if (!d) return; for (const p of people) if (p.department === d && p.key !== me && picked.size < MAXI) picked.set(p.key, p.name); drawChips(); });
     drawChips();
-    if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => f.title.focus({ preventScroll: true }), 30);   // (điện thoại: không tự bật bàn phím, giữ lịch ở trên cùng)
+    if (!matchMedia('(pointer: coarse)').matches) setTimeout(() => { if (!f.contains(document.activeElement)) f.title.focus({ preventScroll: true }); }, 30);   // (điện thoại: không tự bật bàn phím, giữ lịch ở trên cùng)
     f.onsubmit = async e => {
       e.preventDefault();
       const err = f.querySelector('.sx-err'), btn = f.querySelector('[type=submit]');

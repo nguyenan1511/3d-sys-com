@@ -1,4 +1,4 @@
-// API lướt TikTok (server/tiktok.js): xem danh sách, dán link, xoá (người dán / CEO / HC-NS).
+// API lướt TikTok (server/tiktok.js): xem danh sách, dán link, xoá (người dán / Admin / HC-NS).
 import { TikTokList, TikTokChannels } from '../tiktok.js';
 import { canManage } from '../board.js';
 import { audit } from '../db.js';
@@ -14,9 +14,9 @@ export function tiktokRoutes(api, { db, store, hub, guards: { needAuth } }) {
     const [chans, shared] = await Promise.all([ch.videos(), tt.load()]), seen = new Set(chans.map(x => x.id));
     res.json({ items: [...chans, ...shared.filter(x => !seen.has(x.id)).map(it => tt.view(it, me, manage))], channels: ch.list(), canManage: manage });
   });
-  /** CEO / HC-NS: đổi danh sách kênh cố định. */
+  /** Admin / HC-NS: đổi danh sách kênh cố định. */
   api.put('/tiktok/channels', needAuth, limit, async (req, res) => {
-    if (!canManage(store, req.actor)) return res.status(403).json({ error: 'Chỉ CEO hoặc Hành chính - Nhân sự đổi được kênh.', code: 'forbidden' });
+    if (!canManage(store, req.actor)) return res.status(403).json({ error: 'Chỉ Admin hoặc Hành chính - Nhân sự đổi được kênh.', code: 'forbidden' });
     const list = ch.set(keyOf(req.actor), req.body?.channels);
     audit(db, keyOf(req.actor), 'tiktok.channels', '', { channels: list });
     const items = await ch.videos();

@@ -1,6 +1,7 @@
+import crypto from 'node:crypto';
 // Bảng thông báo công ty: tin chính (thông báo) và sự kiện sắp tới / mới của công ty.
-//  • Ai đăng: CEO (admin), nhân viên Phòng Hành chính - Nhân sự (theo hồ sơ hoặc bàn mình nhận), và nhân viên được CEO cấp quyền
-//    đăng tin (employees.can_post — giống quyền mở nhạc / bật đèn). Sửa / gỡ / ghim mọi tin: CEO + HC-NS; người được cấp quyền
+//  • Ai đăng: Admin (admin), nhân viên Phòng Hành chính - Nhân sự (theo hồ sơ hoặc bàn mình nhận), và nhân viên được Admin cấp quyền
+//    đăng tin (employees.can_post — giống quyền mở nhạc / bật đèn). Sửa / gỡ / ghim mọi tin: Admin + HC-NS; người được cấp quyền
 //    chỉ sửa / gỡ tin của chính mình (không ghim). Mọi người đọc.
 //  • Thứ tự: tin ghim → sự kiện sắp diễn ra (gần nhất trước) → tin mới nhất. 10 tin đầu hiện trên bảng 3D ở sảnh, phần còn lại
 //    xem trong danh sách "Xem thêm" (tải theo trang). Sự kiện đã qua xếp theo ngày đăng như tin thường.
@@ -14,19 +15,19 @@ import { ROOT } from './config.js';
 
 export const BOARD_TOP = 10;
 const PAGE = 10;
-const MAX = { title: 120, body: 2000, place: 80 };
+const MAX = { title: 120, body: 5000, place: 80 };   // (body: Markdown gọn từ ô soạn thảo — src/ui/richText.js)
 
-/** CEO hoặc HC-NS: quản lý mọi tin (sửa, gỡ, ghim). */
+/** Admin hoặc HC-NS: quản lý mọi tin (sửa, gỡ, ghim). */
 export function canManage(store, actor) { return actor.kind === 'admin' || deptIdOf(store, actor) === 'hcns'; }
-/** Được đăng tin: CEO, HC-NS, hoặc nhân viên được CEO cấp quyền. */
+/** Được đăng tin: Admin, HC-NS, hoặc nhân viên được Admin cấp quyền. */
 export function canPost(store, actor) { return canManage(store, actor) || (actor.kind === 'employee' && !!store.db.employees.get(actor.code)?.can_post); }
 const keyOfActor = a => a.kind === 'admin' ? `admin:${a.username}` : `employee:${a.code}`;
 /** Sửa / gỡ được tin này không. */
 export function canEdit(store, actor, r) { return canManage(store, actor) || (canPost(store, actor) && r?.by === keyOfActor(actor)); }
-/** CEO cấp / thu quyền đăng tin của một nhân viên. */
+/** Admin cấp / thu quyền đăng tin của một nhân viên. */
 export function setPostPermission(store, code, allow) { return store.db.employees.update(code, { can_post: allow ? 1 : 0 }) === 1; }
 export function postPermissions(store) { return store.db.employees.where(r => r.can_post).map(r => r.code); }
-const NO = 'Bạn chưa được CEO cấp quyền đăng tin.', NOT_MINE = 'Bạn chỉ sửa / gỡ được tin của chính mình.';
+const NO = 'Bạn chưa được Admin cấp quyền đăng tin.', NOT_MINE = 'Bạn chỉ sửa / gỡ được tin của chính mình.';
 function needEdit(store, actor, cur) { if (!canEdit(store, actor, cur)) throw new HttpError(403, canPost(store, actor) ? NOT_MINE : NO, { code: 'forbidden' }); }
 
 const upcoming = (r, now) => r.kind === 'event' && r.event_at && r.event_at >= now - 2 * 3600e3;   // (sự kiện đang diễn ra 2 giờ vẫn tính "sắp diễn ra")
@@ -67,7 +68,7 @@ function clean(body, partial = false) {
 
 export function create(store, actor, who, body) {
   if (!canPost(store, actor)) throw new HttpError(403, NO, { code: 'forbidden' });
-  const r = clean(body); if (!canManage(store, actor)) delete r.pinned;   // (ghim: chỉ CEO / HC-NS)
+  const r = clean(body); if (!canManage(store, actor)) delete r.pinned;   // (ghim: chỉ Admin / HC-NS)
   if (r.kind === 'event' && !r.event_at) throw new HttpError(400, 'Sự kiện cần có ngày giờ diễn ra.', { code: 'invalid', field: 'eventAt' });
   if (r.kind !== 'event') { r.event_at = null; r.place = ''; }
   const now = Date.now();
@@ -147,6 +148,23 @@ export async function setImage(store, actor, who, id, { data, type } = {}) {
   store.db.announcements.update(id, { image_v: Date.now(), updated_at: Date.now() });
   audit(store.db, who.key, 'board.image', String(id), { size: buf.length });
   return view(store.db.announcements.get(id));
+}
+/** Ảnh chèn trong nội dung tin (ô soạn thảo — src/ui/richText.js): người được đăng tin tải lên, trả mã ảnh. Nội dung tin chỉ
+ *  được nhắc tới ảnh qua đường dẫn /api/board/img/<mã> (Markdown ![](…)). Mã = thời điểm (base36) + ngẫu nhiên: ảnh chưa thuộc
+ *  tin nào quá 1 ngày là "file thừa" (dọn ở Quản trị → Sao lưu, server/files.js). */
+export const INLINE_ID = /^[a-z0-9]{6,10}-[a-f0-9]{12}$/;
+export async function putInlineImage(store, actor, who, { data, type } = {}) {
+  if (!canPost(store, actor)) throw new HttpError(403, NO, { code: 'forbidden' });
+  const magic = IMG_TYPES[type];
+  if (!magic || typeof data !== 'string' || !/^[A-Za-z0-9+/]*={0,2}$/.test(data)) throw new HttpError(400, 'Ảnh phải là JPG, PNG hoặc WebP.', { code: 'bad_type' });
+  const buf = Buffer.from(data, 'base64');
+  if (!buf.length || !magic.every((b, i) => buf[i] === b) || (type === 'image/webp' && buf.toString('latin1', 8, 12) !== 'WEBP')) throw new HttpError(400, 'File không phải ảnh hợp lệ.', { code: 'bad_type' });
+  if (buf.length > IMAGE_MAX) throw new HttpError(413, 'Ảnh tối đa 1,5 MB.', { code: 'too_large' });
+  const id = `${Date.now().toString(36)}-${crypto.randomBytes(6).toString('hex')}`;
+  try { await store.db.blobs.put(`annimg:${id}`, buf, type); }
+  catch (e) { if (e.code === 'quota') throw new HttpError(507, e.message, { code: 'quota' }); throw e; }
+  audit(store.db, who.key, 'board.inline_image', id, { size: buf.length });
+  return { id, url: `/api/board/img/${id}` };
 }
 export async function dropImage(store, actor, who, id) {
   const cur = store.db.announcements.get(id); if (!cur) throw new HttpError(404, 'Tin này không còn.', { code: 'not_found' });

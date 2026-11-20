@@ -1,5 +1,5 @@
-// API đèn công ty (công tắc ở sảnh): ai đăng nhập cũng xem được trạng thái; CEO và người được CEO cấp quyền mới bật/tắt.
-// CEO cấp/thu quyền từng nhân viên (giống loa công ty: server/routes/music.js).
+// API đèn công ty (công tắc ở sảnh): ai đăng nhập cũng xem được trạng thái; Admin và người được Admin cấp quyền mới bật/tắt.
+// Admin cấp/thu quyền từng nhân viên (giống loa công ty: server/routes/music.js).
 import { canLights, lightsState, setLights, setLightsPermission, lightsPermissions } from '../lights.js';
 import { audit } from '../db.js';
 import { check, v, rateLimit } from '../http.js';
@@ -9,7 +9,7 @@ export function lightsRoutes(api, { db, store, hub, guards: { needAuth, needAdmi
   const limit = rateLimit('lights', { max: 30, windowMs: 60e3, methods: ['POST'] });
   api.get('/lights', needAuth, (req, res) => res.json({ state: lightsState(store), canControl: canLights(store, req.actor) }));
   api.post('/lights', needAuth, limit, (req, res) => {
-    if (!canLights(store, req.actor)) throw new HttpError(403, 'Bạn chưa được CEO cấp quyền bật/tắt đèn công ty.', { code: 'forbidden' });
+    if (!canLights(store, req.actor)) throw new HttpError(403, 'Bạn chưa được Admin cấp quyền bật/tắt đèn công ty.', { code: 'forbidden' });
     const { on } = check(req.body, { on: v.bool() });
     const state = setLights(store, req.actor.key, hub.displayOf(req.actor), on);
     audit(db, req.actor.key, on ? 'lights.on' : 'lights.off');

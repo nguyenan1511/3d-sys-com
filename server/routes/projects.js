@@ -19,7 +19,7 @@ export function projectRoutes(api, { store, hub, guards: { needAuth } }) {
   const me = req => keyOf(req.actor);
 
   api.get('/projects/config', needAuth, (_req, res) => res.json({ colors: PROJECT_COLORS, maxMembers: MAX_MEMBERS, maxTasks: MAX_TASKS, fileMax: FILE_MAX, filesMax: PROJECT_FILES_MAX, ext: ALLOWED_EXT }));
-  /** Dự án của tôi (CEO: mọi dự án) — thẻ trong danh sách. */
+  /** Dự án của tôi (Admin: mọi dự án) — thẻ trong danh sách. */
   api.get('/projects', needAuth, (req, res) => res.json({ projects: P.list(req.actor), now: Date.now() }));
   /** Việc của tôi ở mọi dự án (trang Tổng quan). */
   api.get('/projects/tasks/mine', needAuth, (req, res) => res.json({ tasks: P.myTasks(req.actor), now: Date.now() }));
@@ -85,7 +85,7 @@ export function projectRoutes(api, { store, hub, guards: { needAuth } }) {
     H.changed(p.id);
     res.json({ ok: true, members: P.members(p.id) });
   });
-  /** Xoá người khỏi dự án (Trưởng dự án / CEO) hoặc tự rời (key = chính mình). */
+  /** Xoá người khỏi dự án (Trưởng dự án / Admin) hoặc tự rời (key = chính mình). */
   api.delete('/projects/:id/members/:key', needAuth, (req, res) => {
     const who = String(req.params.key), { p } = P.removeMember(req.actor, id(req), who);
     H.removed(p, [who]);

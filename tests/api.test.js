@@ -68,7 +68,7 @@ describe('chấm công', () => {
     expect((await req('GET', '/api/v1/attendance/today', { cookie: c })).body.list.some(x => x.code === '4201')).toBe(true);
     expect((await req('GET', '/api/v1/admin/attendance', { cookie: c })).status).toBe(403);
     const ceo = await loginCeo();
-    expect((await req('POST', '/api/v1/attendance/checkin', { cookie: ceo, body: {} })).status).toBe(403);   // CEO không chấm công
+    expect((await req('POST', '/api/v1/attendance/checkin', { cookie: ceo, body: {} })).status).toBe(403);   // Admin không chấm công
     const adm = await req('GET', '/api/v1/admin/attendance', { cookie: ceo });
     expect(adm.body.list.find(x => x.code === '4201')).toMatchObject({ display: '4201-Bình' });
     expect((await req('GET', '/api/v1/admin/attendance?day=hom-nay', { cookie: ceo })).body).toMatchObject({ code: 'invalid', field: 'day' });
@@ -77,7 +77,7 @@ describe('chấm công', () => {
 });
 
 describe('chat và loa', () => {
-  it('kênh phòng ban chỉ thành viên phòng (và CEO) đọc được; tham số sai bị chặn', async () => {
+  it('kênh phòng ban chỉ thành viên phòng (và Admin) đọc được; tham số sai bị chặn', async () => {
     const a = await loginEmp('4301-An'), b = await loginEmp('4302-Bình'), ceo = await loginCeo();
     expect((await req('POST', '/api/v1/seats/T2-09/claim', { cookie: a, body: {} })).status).toBe(200);   // bàn Phòng Mobile App
     expect((await req('GET', '/api/v1/chat/channels', { cookie: a })).body.channels.map(x => x.id)).toEqual(['all', 'dept:mobile']);
@@ -87,7 +87,7 @@ describe('chat và loa', () => {
     expect((await req('GET', '/api/v1/chat/all?before=abc', { cookie: a })).body.code).toBe('invalid');
     expect((await req('GET', `/api/v1/chat/${encodeURIComponent('<script>')}`, { cookie: a })).status).toBe(400);
   });
-  it('chỉ CEO cấp quyền bật nhạc; dữ liệu phải đúng kiểu; có ghi nhật ký', async () => {
+  it('chỉ Admin cấp quyền bật nhạc; dữ liệu phải đúng kiểu; có ghi nhật ký', async () => {
     const a = await loginEmp('4401-An'), ceo = await loginCeo();
     expect((await req('POST', '/api/v1/admin/music/4401', { cookie: a, body: { allow: true } })).status).toBe(403);
     expect((await req('POST', '/api/v1/admin/music/4401', { cookie: ceo, body: { allow: 'yes' } })).body).toMatchObject({ code: 'invalid', field: 'allow' });
@@ -100,7 +100,7 @@ describe('chat và loa', () => {
 });
 
 describe('đèn công ty', () => {
-  it('CEO bật/tắt được; nhân viên chỉ bật/tắt khi được CEO cấp quyền; trạng thái lưu lại; có ghi nhật ký', async () => {
+  it('Admin bật/tắt được; nhân viên chỉ bật/tắt khi được Admin cấp quyền; trạng thái lưu lại; có ghi nhật ký', async () => {
     const e = await loginEmp('4511-Đèn'), ceo = await loginCeo();
     expect((await req('GET', '/api/v1/lights', { cookie: e })).body).toMatchObject({ state: { on: false }, canControl: false });
     expect((await req('POST', '/api/v1/lights', { cookie: e, body: { on: true } })).status).toBe(403);
@@ -131,7 +131,7 @@ describe('giới hạn tần suất', () => {
 });
 
 describe('bảng công tháng / năm', () => {
-  it('nhân viên xem tháng/năm của mình; CEO xem ma trận tháng, năm và lịch từng người; tham số sai bị chặn', async () => {
+  it('nhân viên xem tháng/năm của mình; Admin xem ma trận tháng, năm và lịch từng người; tham số sai bị chặn', async () => {
     const c = await loginEmp('4601-Hà'), ceo = await loginCeo();
     await req('POST', '/api/v1/attendance/checkin', { cookie: c, body: {} });
     const ym = (await req('GET', '/api/v1/attendance/me', { cookie: c })).body.today.day.slice(0, 7);
@@ -182,7 +182,7 @@ describe('loa công ty (YouTube)', () => {
 });
 
 describe('sao lưu (API)', () => {
-  it('chỉ CEO xem được; tên file lạ trả 404', async () => {
+  it('chỉ Admin xem được; tên file lạ trả 404', async () => {
     expect((await req('GET', '/api/v1/admin/backups')).status).toBe(401);
     const emp = await loginEmp('7101-Sao');
     expect((await req('GET', '/api/v1/admin/backups', { cookie: emp })).status).toBe(403);

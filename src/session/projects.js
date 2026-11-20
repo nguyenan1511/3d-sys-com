@@ -57,7 +57,7 @@ export class Projects {
     if (msg.from === this.s.key || this.panel.reading(id) || this.s.meet?.inRoom === `p${id}`) this.markRead(id, msg.id);
     this.paintDot(); this.panel.onList();
   }
-  paintDot() { this.s.social?.setProjDot?.(this.list.some(p => this.unread(p) || p.counts.overdue && p.counts.mine)); }
+  paintDot() { this.s.social?.setProjDot?.(this.list.filter(p => this.unread(p) || p.counts.overdue && p.counts.mine).length); }
 
   // ---------- phòng dự án ----------
   join(id) { this.panel.close(); this.s.meet?.join(`p${id}`); }

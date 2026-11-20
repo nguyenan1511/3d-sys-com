@@ -43,7 +43,7 @@ describe('TikTok: nhận link', () => {
     const again = new TikTokList(st, fakeFetch);
     expect((await again.load()).map(x => x.id)).toEqual(['7300000000000000002', '7300000000000000001']);
     await expect(again.remove('employee:2', '7300000000000000001', false)).rejects.toMatchObject({ status: 403 });
-    await again.remove('employee:9', '7300000000000000001', true);   // (CEO / HC-NS)
+    await again.remove('employee:9', '7300000000000000001', true);   // (Admin / HC-NS)
     await again.remove('employee:2', '7300000000000000002', false);  // (người dán)
     expect(await again.load()).toEqual([]);
   });
@@ -57,7 +57,7 @@ describe('kênh TikTok cố định (trang nhúng hồ sơ chính thức)', () =
       .toEqual([{ id: '7705605760830442759', title: 'Tin nóng hôm nay', author: 'VTV24NEWS' }]);
     expect(parseCreatorEmbed('<a href="https://www.tiktok.com/@abc.xyz/video/7111111111111111111?x=1">', 'abc.xyz').map(x => x.id)).toEqual(['7111111111111111111']);
   });
-  it('xen kẽ video các kênh; lỗi mạng giữ bản cũ; CEO đổi kênh (chuẩn hoá @ / link, chặn tên sai, tối đa 12)', async () => {
+  it('xen kẽ video các kênh; lỗi mạng giữ bản cũ; Admin đổi kênh (chuẩn hoá @ / link, chặn tên sai, tối đa 12)', async () => {
     const { TikTokChannels, DEFAULT_CHANNELS } = await import('../server/tiktok.js');
     const prev = process.env.TIKTOK_OEMBED; delete process.env.TIKTOK_OEMBED;
     try {
