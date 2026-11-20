@@ -41,12 +41,15 @@ function yearHtml(data) {
 
 // ---------- khung hộp thoại: hiện/ẩn mờ dần; chỉ phần nội dung đổi (giữ chiều cao, chuyển mờ) → không giật khi đổi tháng/năm ----------
 function shell(title, cls = '') {
-  document.querySelector('.ts-pop')?.remove();
+  document.querySelector('.ts-pop')?.remove(); document.querySelector('.ts-veil')?.remove();
+  // nền mờ phía sau (tối dần — không blur trên cảnh 3D để giữ mượt); bấm nền để đóng
+  const veil = document.createElement('div'); veil.className = 'ts-veil'; document.getElementById('appRoot').appendChild(veil);
   const pop = document.createElement('div'); pop.className = `ts-pop ${cls}`; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', title);
   pop.innerHTML = `<header><b>${icon('clipboard', 16)} ${esc(title)}</b><button type="button" class="ts-x" aria-label="Đóng">${icon('close', 14)}</button></header><div class="ts-body"><div class="ts-tabs" role="tablist"></div><div class="ts-nav"><button type="button" data-step="-1" aria-label="Trước">‹</button><b class="ts-label"></b><button type="button" data-step="1" aria-label="Sau">›</button></div><button type="button" class="ts-back" hidden>‹ Tất cả nhân viên</button><div class="ts-content"></div></div>`;
   document.getElementById('appRoot').appendChild(pop);
-  requestAnimationFrame(() => pop.classList.add('show'));
-  const close = () => { window.removeEventListener('keydown', onEsc, true); pop.classList.remove('show'); setTimeout(() => pop.remove(), 220); };
+  requestAnimationFrame(() => { pop.classList.add('show'); veil.classList.add('show'); });
+  const close = () => { window.removeEventListener('keydown', onEsc, true); pop.classList.remove('show'); veil.classList.remove('show'); setTimeout(() => { pop.remove(); veil.remove(); }, 220); };
+  veil.onclick = close;
   const onEsc = e => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
   window.addEventListener('keydown', onEsc, true);
   pop.querySelector('.ts-x').onclick = close;

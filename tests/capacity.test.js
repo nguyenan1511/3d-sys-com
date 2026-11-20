@@ -133,3 +133,24 @@ describe('dung lượng file theo loại + dọn file thừa (server/files.js)',
     expect(await db.blobs.get(`pfile:${pf}`)).toBeTruthy(); expect(await db.blobs.get('pfile:999')).toBeNull();
   });
 });
+
+describe('danh sách file cho Admin (server/files.js fileList / adminDeleteFile)', () => {
+  it('mỗi file biết nằm ở dự án / cuộc họp nào, ai tải lên; Admin xoá được tài liệu (xoá cả dòng tài liệu), không xoá được file đang dùng', async () => {
+    const { openDb } = await import('../server/db.js');
+    const { fileList, adminDeleteFile, fileReport } = await import('../server/files.js');
+    const db = openDb(); db.blobs = await new QuotaBlobs(new MemBlobs(), 10e6).init();
+    const pid = db.projects.insert({ name: 'Website 2027', status: 'active', logo_v: 5 });
+    const pf = db.project_files.insert({ project_id: pid, name: 'spec.pdf', size: 120, by_name: '1001-Lan', ts: 1000 });
+    const mid = db.meetings.insert({ title: 'Họp tuần', invitees: '[]' }), mf = db.meeting_files.insert({ meeting_id: mid, name: 'bien-ban.docx', size: 80, by_name: '1002-Minh', ts: 2000 });
+    const put = (id, n) => db.blobs.put(id, Buffer.alloc(n), 'x');
+    await put(`pfile:${pf}`, 120); await put(`file:${mf}`, 80); await put(`wbf:p${pid}:img1`, 40); await put(`plogo:${pid}`, 10);
+    const by = Object.fromEntries(fileList(db).map(x => [x.kind, x]));
+    expect(by.pfile).toMatchObject({ name: 'spec.pdf', by: '1001-Lan', where: { type: 'project', id: pid, title: 'Website 2027' }, deletable: true, orphan: false });
+    expect(by.file).toMatchObject({ name: 'bien-ban.docx', by: '1002-Minh', where: { type: 'meeting', id: mid, title: 'Họp tuần' }, deletable: true });
+    expect(by.wbf).toMatchObject({ where: { type: 'project', title: 'Website 2027', part: 'Bảng vẽ' }, deletable: false });
+    expect((await adminDeleteFile(db, `plogo:${pid}`)).refused).toBe(true);
+    await adminDeleteFile(db, `pfile:${pf}`);
+    expect(db.project_files.get(pf)).toBeUndefined(); expect(await db.blobs.get(`pfile:${pf}`)).toBeNull();
+    expect(fileReport(db).used).toBe(130);
+  });
+});

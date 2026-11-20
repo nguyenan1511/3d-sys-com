@@ -20,7 +20,7 @@ import { overlayOn, overlayOff } from '../ui/overlay.js';
 import { avatar } from '../ui/meetPanel.js';
 
 const charName = id => characterDef(id)?.name || id || 'mặc định';
-const ACTION_LABEL = { 'login.new': 'Đăng ký mới', 'look.create': 'Tạo nhân vật', 'look.update': 'Đổi nhân vật', 'attendance.checkin': 'Chấm công vào', 'attendance.auto': 'Tự chấm công (online)', 'tiktok.add': 'Thêm video TikTok', 'tiktok.delete': 'Xoá video TikTok', 'attendance.checkout': 'Chấm công ra', 'login.return': 'Vào lại', 'seat.claim': 'Nhận chỗ', 'seat.move': 'Tự đổi chỗ', 'seat.equipment': 'Sửa dụng cụ', 'seat.sit': 'Ngồi', 'admin.login': 'Admin đăng nhập', 'admin.login.fail': 'Admin đăng nhập sai', 'admin.seat.assign': 'Gán chỗ', 'admin.seat.release': 'Giải phóng chỗ', 'admin.seat.lock': 'Khóa chỗ', 'admin.seat.unlock': 'Mở khóa chỗ', 'admin.employee.create': 'Thêm nhân viên', 'admin.employee.update': 'Sửa nhân viên', 'admin.employee.delete': 'Xóa nhân viên', 'admin.employee.logout': 'Buộc đăng xuất', 'admin.csv.import': 'Nhập CSV', 'admin.csv.export': 'Xuất CSV', 'admin.backup': 'Sao lưu database', 'admin.backup.download': 'Tải bản sao lưu', 'admin.password.change': 'Đổi mật khẩu', logout: 'Đăng xuất', 'admin.seed': 'Tạo tài khoản Admin', 'layout.desk_removed': 'Bàn bị bỏ khỏi layout', 'board.post': 'Đăng tin bảng thông báo', 'board.permission.grant': 'Cấp quyền đăng tin', 'board.permission.revoke': 'Thu quyền đăng tin', 'board.edit': 'Sửa tin bảng thông báo', 'board.delete': 'Gỡ tin bảng thông báo', 'board.image': 'Đổi ảnh tin', 'meeting.book': 'Đặt phòng họp', 'meeting.edit': 'Sửa lịch họp', 'meeting.cancel': 'Huỷ lịch họp', 'meeting.end': 'Kết thúc họp sớm', 'meeting.delete': 'Xoá cuộc họp & dữ liệu', 'meeting.file.add': 'Tải tài liệu họp', 'meeting.file.delete': 'Xoá tài liệu họp', 'project.create': 'Tạo dự án', 'project.edit': 'Sửa dự án', 'project.archive': 'Lưu trữ dự án', 'project.restore': 'Khôi phục dự án', 'project.delete': 'Xoá dự án', 'project.members.add': 'Thêm người vào dự án', 'project.members.remove': 'Xoá người khỏi dự án', 'project.leave': 'Rời dự án', 'project.role': 'Đổi vai trò trong dự án', 'project.file.add': 'Tải tài liệu dự án', 'project.file.delete': 'Xoá tài liệu dự án', 'project.note.add': 'Thêm ghi chú dự án', 'project.note.delete': 'Xoá ghi chú dự án', 'project.logo': 'Đổi logo dự án', 'project.logo.delete': 'Gỡ logo dự án', 'admin.files.prune': 'Dọn file thừa', 'tiktok.channels': 'Đổi kênh TikTok' };
+const ACTION_LABEL = { 'login.new': 'Đăng ký mới', 'look.create': 'Tạo nhân vật', 'look.update': 'Đổi nhân vật', 'attendance.checkin': 'Chấm công vào', 'attendance.auto': 'Tự chấm công (online)', 'tiktok.add': 'Thêm video TikTok', 'tiktok.delete': 'Xoá video TikTok', 'attendance.checkout': 'Chấm công ra', 'login.return': 'Vào lại', 'seat.claim': 'Nhận chỗ', 'seat.move': 'Tự đổi chỗ', 'seat.equipment': 'Sửa dụng cụ', 'seat.sit': 'Ngồi', 'admin.login': 'Admin đăng nhập', 'admin.login.fail': 'Admin đăng nhập sai', 'admin.seat.assign': 'Gán chỗ', 'admin.seat.release': 'Giải phóng chỗ', 'admin.seat.lock': 'Khóa chỗ', 'admin.seat.unlock': 'Mở khóa chỗ', 'admin.employee.create': 'Thêm nhân viên', 'admin.employee.update': 'Sửa nhân viên', 'admin.employee.delete': 'Xóa nhân viên', 'admin.employee.logout': 'Buộc đăng xuất', 'admin.csv.import': 'Nhập CSV', 'admin.csv.export': 'Xuất CSV', 'admin.backup': 'Sao lưu database', 'admin.backup.download': 'Tải bản sao lưu', 'admin.password.change': 'Đổi mật khẩu', logout: 'Đăng xuất', 'admin.seed': 'Tạo tài khoản Admin', 'layout.desk_removed': 'Bàn bị bỏ khỏi layout', 'board.post': 'Đăng tin bảng thông báo', 'board.permission.grant': 'Cấp quyền đăng tin', 'board.permission.revoke': 'Thu quyền đăng tin', 'board.edit': 'Sửa tin bảng thông báo', 'board.delete': 'Gỡ tin bảng thông báo', 'board.image': 'Đổi ảnh tin', 'meeting.book': 'Đặt phòng họp', 'meeting.edit': 'Sửa lịch họp', 'meeting.cancel': 'Huỷ lịch họp', 'meeting.end': 'Kết thúc họp sớm', 'meeting.delete': 'Xoá cuộc họp & dữ liệu', 'meeting.file.add': 'Tải tài liệu họp', 'meeting.file.delete': 'Xoá tài liệu họp', 'project.create': 'Tạo dự án', 'project.edit': 'Sửa dự án', 'project.archive': 'Lưu trữ dự án', 'project.restore': 'Khôi phục dự án', 'project.delete': 'Xoá dự án', 'project.members.add': 'Thêm người vào dự án', 'project.members.remove': 'Xoá người khỏi dự án', 'project.leave': 'Rời dự án', 'project.role': 'Đổi vai trò trong dự án', 'project.file.add': 'Tải tài liệu dự án', 'project.file.delete': 'Xoá tài liệu dự án', 'project.note.add': 'Thêm ghi chú dự án', 'project.note.delete': 'Xoá ghi chú dự án', 'project.logo': 'Đổi logo dự án', 'project.logo.delete': 'Gỡ logo dự án', 'admin.files.prune': 'Dọn file thừa', 'admin.files.delete': 'Admin xoá file', 'tiktok.channels': 'Đổi kênh TikTok' };
 /** Nhóm thao tác trong nhật ký (lọc nhanh). */
 const AUDIT_GROUPS = [['all', 'Tất cả'], ['emp', 'Nhân viên'], ['seat', 'Chỗ ngồi'], ['login', 'Đăng nhập'], ['att', 'Chấm công'], ['work', 'Họp · Dự án'], ['other', 'Khác']];
 const groupOf = a => /^(admin\.employee|admin\.csv|login\.new|look\.)/.test(a) ? 'emp' : /^(seat\.|admin\.seat|layout\.)/.test(a) ? 'seat'
@@ -611,12 +611,66 @@ export class Dashboard {
   /** Dung lượng file (tài liệu, ảnh, bảng vẽ… lưu trong MongoDB): theo loại, hạn mức, dọn file thừa (không còn chủ). */
   filesCard(fr) {
     const mb = n => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`, pct = fr.max ? fr.used / fr.max : 0;
-    setTimeout(() => this.body.querySelector('[data-prune]')?.addEventListener('click', e => this.pruneFiles(e.currentTarget)), 0);
+    setTimeout(() => { this.body.querySelector('[data-prune]')?.addEventListener('click', e => this.pruneFiles(e.currentTarget)); this.loadFileList(); }, 0);
     return `<section class="ov-card adm-files"><header><h4>${icon('folder', 15)} Dung lượng file <em>${mb(fr.used)} / ${Math.round(fr.max / 1048576)} MB</em></h4>
         ${fr.orphans.count ? `<button type="button" class="sx-ghost" data-prune>${icon('trash', 14)} <span>Dọn ${fr.orphans.count} file thừa (${mb(fr.orphans.bytes)})</span></button>` : '<small>Không có file thừa</small>'}</header>
       ${bar([[fr.used, pct > 0.9 ? C.locked : pct > 0.75 ? '#f2a93b' : C.online], [Math.max(0, fr.max - fr.used), 'transparent']])}
       <p class="adm-foot">Tính cả tài liệu dự án / cuộc họp, ảnh và nội dung bảng vẽ, ảnh bảng tin, logo dự án. Hết chỗ thì không tải file mới được — xoá tài liệu cũ trong dự án / cuộc họp, hoặc "Dọn file thừa" (file của dự án, cuộc họp, tin đã xoá).</p>
-      ${fr.groups.length ? `<ul class="adm-mini">${fr.groups.map(g => `<li><span>${esc(g.label)}<small>${g.count} file</small></span><em>${mb(g.bytes)}</em></li>`).join('')}</ul>` : ''}</section>`;
+      ${fr.groups.length ? `<ul class="adm-mini">${fr.groups.map(g => `<li><span>${esc(g.label)}<small>${g.count} file</small></span><em>${mb(g.bytes)}</em></li>`).join('')}</ul>` : ''}
+      <div class="adm-flist" data-flist><div class="adm-skel"></div></div></section>`;
+  }
+  // ---------- danh sách từng file: nằm ở dự án / cuộc họp / tin nào, ai tải lên — lọc, tìm, mở nơi chứa, xoá ----------
+  async loadFileList() {
+    const host = this.body.querySelector('[data-flist]'); if (!host) return;
+    const r = await api('GET', '/api/admin/files/list'); if (!host.isConnected) return;
+    if (!r.ok) { host.innerHTML = `<p class="adm-foot">${esc(r.error)}</p>`; return; }
+    this.fl = { files: r.files, f: this.fl?.f || 'all', q: this.fl?.q || '', n: 40 };
+    this.paintFileList();
+  }
+  paintFileList() {
+    const host = this.body.querySelector('[data-flist]'); if (!host || !this.fl) return;
+    const { files, f, q } = this.fl, KL = { pfile: 'Tài liệu dự án', file: 'Tài liệu cuộc họp', wbf: 'Ảnh bảng vẽ', board: 'Bảng vẽ', plogo: 'Logo dự án', ann: 'Ảnh bìa tin', annimg: 'Ảnh trong tin', fb: 'Ảnh góp ý', tiktok: 'TikTok', other: 'Khác' };
+    const WT = { project: ['grid', 'Dự án'], meeting: ['calendar', 'Cuộc họp'], board: ['megaphone', 'Bảng tin'], feedback: ['chat', 'Góp ý'], system: ['db', 'Hệ thống'] };
+    const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').toLowerCase();
+    const counts = {}; for (const x of files) counts[x.kind] = (counts[x.kind] || 0) + 1;
+    const orph = files.filter(x => x.orphan).length, nq = norm(q);
+    const shown = files.filter(x => (f === 'all' || (f === 'orphan' ? x.orphan : x.kind === f)) && (!nq || norm(`${x.name} ${x.where?.title} ${x.by} ${KL[x.kind]}`).includes(nq)));
+    const chips = [['all', `Tất cả ${files.length}`], ...Object.keys(KL).filter(k => counts[k]).map(k => [k, `${KL[k]} ${counts[k]}`]), ...(orph ? [['orphan', `File thừa ${orph}`]] : [])];
+    host.innerHTML = `<div class="afl-bar"><div class="afl-chips" role="tablist">${chips.map(([k, l]) => `<button type="button" data-ff="${k}" class="${f === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
+        <label class="afl-q">${icon('target', 14)}<input type="search" placeholder="Tìm tên file, dự án, cuộc họp, người tải…" value="${esc(q)}" aria-label="Tìm file"></label></div>
+      ${shown.length ? `<div class="adm-table flat"><table class="adm-t afl-t"><thead><tr><th>File</th><th>Nằm ở</th><th>Người tải lên</th><th>Ngày</th><th class="n">Dung lượng</th><th><span class="sr-only">Thao tác</span></th></tr></thead><tbody>
+        ${shown.slice(0, this.fl.n).map((x, i) => { const w = x.where || {}, [wi, wl] = WT[w.type] || WT.system; return `<tr${x.orphan ? ' class="orph"' : ''}>
+          <td><b class="afl-n" title="${esc(x.name)}">${esc(x.name)}</b><small>${esc(KL[x.kind] || x.kind)}${x.orphan ? ' · <em class="afl-orph">thừa</em>' : ''}</small></td>
+          <td><span class="afl-w">${icon(wi, 14)}<span><small>${wl}${w.part ? ` · ${esc(w.part)}` : ''}</small><b title="${esc(w.title || '')}">${esc(w.title || '—')}</b></span></span></td>
+          <td>${esc(x.by || '—')}</td><td title="${esc(fmt(x.ts))}">${x.ts ? esc(ago(x.ts)) : '—'}</td><td class="n">${kb(x.size)}</td>
+          <td class="adm-acts">${w.id != null && ['project', 'meeting', 'board', 'feedback'].includes(w.type) && !/đã xoá|đã gỡ|Chưa gắn/.test(w.title || '') ? `<button type="button" class="adm-ib" data-open="${i}" title="Mở ${wl.toLowerCase()} này">${icon('arrowRight', 14)}</button>` : ''}${x.deletable ? `<button type="button" class="adm-ib danger" data-del="${i}" title="Xoá file">${icon('trash', 14)}</button>` : ''}</td></tr>`; }).join('')}
+      </tbody></table></div>${shown.length > this.fl.n ? `<button type="button" class="sx-ghost afl-more">Xem thêm ${Math.min(40, shown.length - this.fl.n)} / còn ${shown.length - this.fl.n} file</button>` : ''}` : `<p class="adm-foot">Không có file nào khớp.</p>`}`;
+    host.querySelectorAll('[data-ff]').forEach(b => b.onclick = () => { this.fl.f = b.dataset.ff; this.fl.n = 40; this.paintFileList(); });
+    const inp = host.querySelector('.afl-q input'); inp.oninput = () => { this.fl.q = inp.value; this.fl.n = 40; clearTimeout(this.flT); this.flT = setTimeout(() => { this.paintFileList(); const i2 = this.body.querySelector('.afl-q input'); i2?.focus(); i2?.setSelectionRange(i2.value.length, i2.value.length); }, 200); };
+    host.querySelector('.afl-more')?.addEventListener('click', () => { this.fl.n += 40; this.paintFileList(); });
+    host.querySelectorAll('[data-open]').forEach(b => b.onclick = () => this.openFileWhere(shown[+b.dataset.open]));
+    host.querySelectorAll('[data-del]').forEach(b => b.onclick = () => this.deleteFile(shown[+b.dataset.del], b));
+  }
+  /** Mở nơi chứa file (đóng bảng quản trị trước). */
+  openFileWhere(x) {
+    const w = x?.where, s = this.session; if (!w) return;
+    this.toggle(false);
+    setTimeout(() => {
+      if (w.type === 'project') s.projects?.panel.open(w.id);
+      else if (w.type === 'meeting') s.meet?.panel.open('folder', w.id);
+      else if (w.type === 'board') { s.board?.open(); setTimeout(() => s.board?.read(w.id), 600); }
+      else if (w.type === 'feedback') s.feedback?.open(w.id);
+    }, 250);
+  }
+  async deleteFile(x, btn) {
+    if (!x) return;
+    const where = x.where?.title ? ` (${x.where.title})` : '';
+    if (!(await confirmDanger('Xoá file?', `Xoá vĩnh viễn "${x.name}"${where} — ${kb(x.size)}. Mọi người sẽ không mở được file này nữa. Không hoàn tác được.`, 'Xoá'))) return;
+    btn.disabled = true;
+    const r = await api('DELETE', `/api/admin/files/item?key=${encodeURIComponent(x.key)}`);
+    if (!r.ok) { btn.disabled = false; toast(r.error, true); return; }
+    toast(`Đã xoá "${x.name}".`); this.fl.files = this.fl.files.filter(y => y.key !== x.key); this.paintFileList(); this.loadHome?.();
+    const em = this.body.querySelector('.adm-files header h4 em'); if (em && r.report) em.textContent = `${kb(r.report.used)} / ${Math.round(r.report.max / 1048576)} MB`;
   }
   async pruneFiles(btn) {
     if (!(await confirmDanger('Dọn file thừa?', 'Xoá vĩnh viễn nội dung các file không còn chủ (dự án, cuộc họp, tin đã xoá; tài liệu đã gỡ). File đang dùng không bị ảnh hưởng.', 'Dọn'))) return;

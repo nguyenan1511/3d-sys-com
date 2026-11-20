@@ -267,7 +267,10 @@ html:root {
   #appRoot #ctrlNav #onlineBox.open .online-list::before { content: 'Đang online'; padding: 4px 10px 6px; font: 700 11px var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--h-subtle); }
   #appRoot #ctrlNav #onlineBox .online-list li { display: flex !important; align-items: center; gap: 4px; width: 100%; margin: 0 !important; padding: 0 !important; border: 0 !important; background: none !important; }
   #appRoot #ctrlNav #onlineBox .online-list li > button[data-follow] { justify-content: flex-start; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #appRoot #ctrlNav #onlineBox .online-list .ol-dm { flex: none; width: 32px; height: 32px; padding: 0 !important; justify-content: center; color: var(--h-muted); }
+  /* nút nhắn riêng: ô vuông 32px cố định, icon ở giữa (lỗi cũ: bị bóp còn 14px, nền hover méo lệch) */
+  #appRoot #ctrlNav #onlineBox .online-list button.ol-dm { flex: 0 0 32px !important; box-sizing: border-box; width: 32px !important; min-width: 32px !important; height: 32px !important; padding: 0 !important; display: grid !important; place-items: center; border-radius: 8px !important; border: 0 !important; color: var(--h-muted); transition: background .15s, color .15s; }
+  #appRoot #ctrlNav #onlineBox .online-list button.ol-dm:hover { background: var(--h-tint) !important; color: var(--h-accent-t); }
+  #appRoot #ctrlNav #onlineBox .online-list button.ol-dm .ico { width: 15px; height: 15px; }
   #appRoot #ctrlNav #onlineBox .online-list button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 10px; font: 500 13px var(--font); color: var(--h-ink); cursor: pointer; }
   #appRoot #ctrlNav #onlineBox .online-list button[data-follow] { flex: 1; min-width: 0; }
   #appRoot #ctrlNav #onlineBox .online-list button:hover { background: var(--h-hover); }
@@ -330,9 +333,9 @@ html:root {
 }
 
 /* ===== Ô soạn thảo có định dạng (src/ui/richText.js) — bảng tin: đăng / sửa tin ===== */
-.rt { border: 1px solid rgba(43,45,66,.2); border-radius: 12px; background: #fff; overflow: hidden; transition: border-color .15s; }
+.rt { position: relative; border: 1px solid rgba(43,45,66,.2); border-radius: 12px; background: #fff; overflow: visible; transition: border-color .15s; }
 .rt:focus-within { border-color: var(--h-ink); }
-.rt-bar { display: flex; align-items: center; gap: 2px; padding: 4px 6px; border-bottom: 1px solid var(--h-div); background: #FBF7F0; flex-wrap: wrap; }
+.rt-bar { display: flex; align-items: center; gap: 2px; padding: 4px 6px; border-radius: 11px 11px 0 0; border-bottom: 1px solid var(--h-div); background: #FBF7F0; flex-wrap: wrap; }
 #appRoot .rt-bar button, .rt-bar button { all: unset; box-sizing: border-box; min-width: 30px; height: 30px; padding: 0 7px; border-radius: 8px; display: inline-grid; place-items: center; font: 600 14px var(--font); color: var(--h-ink); cursor: pointer; }
 .rt-bar button:hover { background: var(--h-tint); }
 .rt-bar button.on { background: var(--h-ink); color: #fff; }
@@ -356,3 +359,69 @@ html:root {
 .rt.busy .rt-n { color: var(--h-accent-t); font-weight: 700; }
 .rt.drop { border-color: var(--h-accent); box-shadow: 0 0 0 3px rgba(242,107,58,.15); }
 .rt-ed img.rt-img { max-height: 220px; }   /* (trong ô soạn: ảnh nhỏ gọn để còn thấy chữ) */
+
+/* ===== Quản trị → Sao lưu → Dung lượng file: danh sách từng file (nằm ở đâu, ai tải lên) ===== */
+.adm-flist { margin-top: 12px; border-top: 1px solid rgba(43,45,66,.1); padding-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.afl-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.afl-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+#appRoot .afl-chips button, .afl-chips button { all: unset; box-sizing: border-box; height: 28px; padding: 0 11px; border-radius: 999px; border: 1px solid rgba(43,45,66,.18); background: #fff; font: 600 12px var(--font); color: var(--ink); cursor: pointer; white-space: nowrap; }
+.afl-chips button:hover { border-color: var(--ink); }
+.afl-chips button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.afl-q { display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; width: min(320px, 100%); box-sizing: border-box; border: 1px solid rgba(43,45,66,.18); border-radius: 999px; background: #fff; color: #6b6f7a; }
+.afl-q:focus-within { border-color: var(--ink); }
+.afl-q input { flex: 1; min-width: 0; border: 0 !important; outline: none; background: transparent; font: 500 13px var(--font); color: var(--ink); padding: 0; box-shadow: none !important; }
+.afl-t td { vertical-align: middle; }
+.afl-t td:first-child { max-width: 260px; }
+.afl-n { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.afl-t td small { display: block; font-size: 11.5px; color: #6b6f7a; }
+.afl-w { display: inline-flex; align-items: flex-start; gap: 6px; max-width: 280px; }
+.afl-w > .ico { flex: none; margin-top: 2px; color: #6b6f7a; }
+.afl-w > span { min-width: 0; display: flex; flex-direction: column; }
+.afl-w b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.afl-orph { font-style: normal; color: #c22f52; font-weight: 700; }
+.afl-t tr.orph td { background: #fff8f8; }
+.afl-more { align-self: center; }
+
+/* ===== Bảng công: modal rộng, nền mờ xung quanh (src/ui/timesheet.js) ===== */
+.ts-veil { position: absolute; inset: 0; z-index: 30; background: rgba(20,14,8,0); transition: background .22s ease; }
+.ts-veil.show { background: rgba(20,14,8,.5); }
+#appRoot .ts-pop { z-index: 31; width: min(900px, calc(100vw - 32px)); max-height: calc(100vh - 64px); border: 0; border-radius: 20px; box-shadow: var(--h-sh-modal); background: var(--h-surface); }
+#appRoot .ts-pop.ts-admin { width: min(1200px, calc(100vw - 32px)); }
+#appRoot .ts-pop > header { padding: 16px 20px; }
+#appRoot .ts-pop > header b { font: 700 18px var(--font); }
+#appRoot .ts-pop .ts-body { padding: 16px 24px 24px; }
+#appRoot .ts-pop .ts-sum { gap: 12px; margin-bottom: 16px; }
+#appRoot .ts-pop .ts-sum > div { padding: 12px 10px; border-radius: 14px; border-color: var(--h-border); }
+#appRoot .ts-pop .ts-sum b { font: 800 24px var(--font); } #appRoot .ts-pop .ts-sum span { font: 600 12px var(--font); }
+#appRoot .ts-pop .ts-cal .ts-dow, #appRoot .ts-pop .ts-cal .ts-grid { gap: 6px; }
+#appRoot .ts-pop .ts-cal .ts-dow span { font: 700 11.5px var(--font); }
+#appRoot .ts-pop .ts-cell { min-height: 62px; padding: 6px 9px; border-radius: 12px; font: 500 12px/1.35 var(--font); gap: 2px; }
+#appRoot .ts-pop .ts-cell b { font: 700 14px var(--font); }
+#appRoot .ts-pop .ts-cell.blank { min-height: 0; }
+#appRoot .ts-pop .ts-legend { margin-top: 14px; font: 600 12.5px var(--font); }
+#appRoot .ts-pop .ts-table { font: 500 13.5px var(--font); }
+#appRoot .ts-pop .ts-table td { padding: 10px 8px; }
+#appRoot .ts-pop .ts-tabs { max-width: 420px; margin: 0 auto 12px; }
+@media (max-width: 760px) {
+  #appRoot .ts-pop { width: calc(100vw - 12px); max-height: calc(100dvh - 24px); }
+  #appRoot .ts-pop .ts-body { padding: 12px 12px 16px; }
+  #appRoot .ts-pop .ts-cell { min-height: 54px; padding: 4px 5px; font-size: 10.5px; } #appRoot .ts-pop .ts-cell b { font-size: 12px; }
+  #appRoot .ts-pop .ts-sum { gap: 6px; } #appRoot .ts-pop .ts-sum b { font-size: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { .ts-veil { transition: none; } }
+/* màu chữ / tô nền (ô soạn thảo bảng tin) */
+.rt-c-red { color: #D93636; } .rt-c-orange { color: #E8740C; } .rt-c-green { color: #1E9E5A; } .rt-c-blue { color: #2463EB; } .rt-c-purple { color: #7C3AED; } .rt-c-gray { color: #6B6F7A; }
+mark[class^="rt-h-"] { color: inherit; padding: 0 2px; border-radius: 3px; }
+.rt-h-yellow { background: #FFF0A6; } .rt-h-green { background: #D3F5E1; } .rt-h-blue { background: #D9E8FF; } .rt-h-pink { background: #FFDDE8; }
+.rt-bar { position: relative; }
+.rt-a { position: relative; display: inline-flex; flex-direction: column; align-items: center; font: 800 14px/1 var(--font); }
+.rt-a i { display: block; width: 14px; height: 3px; margin-top: 2px; border-radius: 2px; background: #D93636; }
+.rt-bar button.open { background: var(--h-tint); }
+.rt-pal { position: absolute; top: calc(100% + 4px); left: 6px; z-index: 20; width: 256px; padding: 10px; box-sizing: border-box; background: #fff; border: 1px solid var(--h-border); border-radius: 12px; box-shadow: var(--h-sh-menu); }
+.rt-pal[hidden] { display: none; }
+.rt-pl { font: 700 10.5px var(--font); letter-spacing: .08em; text-transform: uppercase; color: var(--h-subtle); margin: 0 0 6px; }
+.rt-sw { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; } .rt-sw:last-child { margin-bottom: 0; }
+#appRoot .rt-sw button, .rt-sw button { all: unset; box-sizing: border-box; width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; cursor: pointer; font: 800 13px var(--font); color: var(--sw, #1F2533); border: 1px solid var(--h-border); background: #fff; }
+.rt-sw button:hover { border-color: var(--h-ink); }
+.rt-sw button.hl { background: var(--sw); }
+.rt-sw button.def.none { background: linear-gradient(135deg, #fff 45%, #E5484D 45%, #E5484D 55%, #fff 55%); }

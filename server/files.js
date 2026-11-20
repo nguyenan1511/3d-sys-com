@@ -42,3 +42,45 @@ export async function pruneFiles(db) {
   }
   return out;
 }
+
+// ---------- danh sách chi tiết: mỗi file nằm ở đâu, ai tải lên (Admin quản lý được) ----------
+const DAY = 86400e3;
+/** Nơi chứa của một phòng bảng vẽ: dự án (p<id>) hoặc cuộc họp (<id>). */
+function roomWhere(db, r) {
+  if (/^p\d+$/.test(r)) { const p = db.projects.get(Number(r.slice(1))); return { type: 'project', id: p?.id ?? Number(r.slice(1)), title: p ? (p.status === 'deleted' ? `${p.name} (đã xoá)` : p.name) : 'Dự án đã xoá' }; }
+  const m = /^\d+$/.test(r) ? db.meetings.get(Number(r)) : null;
+  return { type: 'meeting', id: m?.id ?? Number(r), title: m ? m.title : 'Cuộc họp đã xoá' };
+}
+/** Một file: { key (mã để xoá), kind, name, where: { type, id, title }, by, ts, size, orphan, deletable }. */
+function describe(db, f) {
+  const m = RE.exec(f.key), kind = m ? m[1] : 'other', rest = m ? m[2] : f.key, num = Number(String(rest).split(/[:_]/)[0]);
+  const out = { key: f.id, kind, name: '', where: null, by: '', ts: null, size: f.size, orphan: !!m && !owned(db, kind, rest), deletable: false };
+  switch (kind) {
+    case 'pfile': { const r = db.project_files.get(num), p = r && db.projects.get(r.project_id); Object.assign(out, { name: r?.name || '(tài liệu đã gỡ)', by: r?.by_name || '', ts: r?.ts || null, where: { type: 'project', id: r?.project_id ?? null, title: p ? p.name : 'Dự án đã xoá' }, deletable: true }); break; }
+    case 'file': { const r = db.meeting_files.get(num), mt = r && db.meetings.get(r.meeting_id); Object.assign(out, { name: r?.name || '(tài liệu đã gỡ)', by: r?.by_name || '', ts: r?.ts || null, where: { type: 'meeting', id: r?.meeting_id ?? null, title: mt ? mt.title : 'Cuộc họp đã xoá' }, deletable: true }); break; }
+    case 'wbf': { const [room, fid] = String(rest).split(/[:_]/); Object.assign(out, { name: `Ảnh dán lên bảng vẽ (${fid || '?'})`, where: { ...roomWhere(db, room), part: 'Bảng vẽ' } }); break; }
+    case 'board': Object.assign(out, { name: 'Nội dung bảng vẽ', where: { ...roomWhere(db, String(rest)), part: 'Bảng vẽ' } }); break;
+    case 'plogo': { const p = db.projects.get(num); Object.assign(out, { name: 'Logo dự án', ts: p?.logo_v || null, where: { type: 'project', id: num, title: p ? p.name : 'Dự án đã xoá' } }); break; }
+    case 'ann': { const a = db.announcements.get(num); Object.assign(out, { name: 'Ảnh bìa của tin', by: a?.by_name || '', ts: a?.image_v || null, where: { type: 'board', id: num, title: a ? a.title : 'Tin đã gỡ' } }); break; }
+    case 'annimg': { const id = String(rest), a = db.announcements.find(x => String(x.body || '').includes(`/api/board/img/${id}`)); Object.assign(out, { name: 'Ảnh trong nội dung tin', by: a?.by_name || '', ts: parseInt(id.split('-')[0], 36) || null, where: { type: 'board', id: a?.id ?? null, title: a ? a.title : 'Chưa gắn vào tin nào' } }); break; }
+    case 'fb': { const msg = db.feedback_messages.get(num), t = msg && db.feedback_threads.get(msg.thread_id); Object.assign(out, { name: 'Ảnh đính kèm', by: msg?.by_name || '', ts: msg?.ts || null, where: { type: 'feedback', id: t?.id ?? null, title: t ? `${t.kind === 'bug' ? 'Báo lỗi' : 'Góp ý'} của ${t.owner_name}` : 'Cuộc đã xoá' } }); break; }
+    case 'tiktok': Object.assign(out, { name: 'Danh sách video TikTok', where: { type: 'system', title: 'Buồng vệ sinh · TikTok' } }); break;
+    default: Object.assign(out, { name: f.key, where: { type: 'system', title: 'Khác' } });
+  }
+  if (out.orphan) out.deletable = true;
+  return out;
+}
+/** Mọi file, file lớn trước. */
+export function fileList(db) { return (db.blobs.list?.() || []).map(f => describe(db, f)).sort((a, b) => b.size - a.size); }
+
+/** Admin xoá một file: tài liệu dự án / cuộc họp (xoá cả dòng tài liệu) hoặc file thừa. Trả về mô tả file đã xoá. */
+export async function adminDeleteFile(db, key) {
+  const f = (db.blobs.list?.() || []).find(x => x.id === key || x.key === key); if (!f) return null;
+  const d = describe(db, f); if (!d.deletable) return { ...d, refused: true };
+  const m = RE.exec(f.key), num = m ? Number(String(m[2]).split(/[:_]/)[0]) : NaN;
+  if (d.kind === 'pfile' && db.project_files.get(num)) db.project_files.del(num);
+  if (d.kind === 'file' && db.meeting_files.get(num)) db.meeting_files.del(num);
+  await db.blobs.del(f.id);
+  return d;
+}
+export const FILE_RECENT_MS = DAY;

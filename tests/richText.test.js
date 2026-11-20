@@ -29,3 +29,11 @@ describe('richText: ảnh trong nội dung', () => {
     expect(mdToText(`Tiệc\n![](${ok})\nnhé`)).toBe('Tiệc\n\nnhé');
   });
 });
+
+describe('richText: màu chữ / tô nền', () => {
+  it('chỉ nhận màu trong bảng màu; chữ thuần bỏ mã màu', () => {
+    expect(mdToHtml('Hạn chót {c:red}**thứ Sáu**{/c} · {h:yellow}quan trọng{/h}')).toContain('<span class="rt-c-red"><b>thứ Sáu</b></span> · <mark class="rt-h-yellow">quan trọng</mark>');
+    expect(mdToHtml('{c:#f00}x{/c} {c:red" onclick="a}y{/c}')).not.toMatch(/<span|onclick="a/);
+    expect(mdToText('{c:red}Gấp{/c} {h:pink}nhé{/h}')).toBe('Gấp nhé');
+  });
+});

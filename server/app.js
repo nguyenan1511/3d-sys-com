@@ -5,7 +5,7 @@ import path from 'path';
 import { config as defaultConfig, ROOT } from './config.js';
 import { openData, audit } from './db.js';
 import { QuotaBlobs } from './blobs.js';
-import { fileReport, pruneFiles } from './files.js';
+import { fileReport, pruneFiles, fileList, adminDeleteFile } from './files.js';
 import { Store, HttpError } from './store.js';
 import { Hub } from './realtime.js';
 import { requestLog, securityHeaders, rateLimit } from './http.js';
@@ -216,6 +216,16 @@ export async function createApp(config = defaultConfig) {
     mongo: dataStatus(), files: db.blobs.usage?.() || null, maxOnline: config.maxOnline || 80, waiting: hub.gate.waitingCount() }));
   // dung lượng file theo loại + dọn file thừa (không còn chủ) — bảng Quản trị → Sao lưu (server/files.js)
   api.get('/admin/files', needAdmin, (_req, res) => res.json(fileReport(db)));
+  api.get('/admin/files/list', needAdmin, (_req, res) => res.json({ files: fileList(db) }));
+  api.delete('/admin/files/item', needAdmin, async (req, res) => {
+    const key = String(req.query.key || ''); if (!key || key.length > 200) return res.status(400).json({ error: 'Thiếu mã file.', code: 'invalid' });
+    const d = await adminDeleteFile(db, key);
+    if (!d) return res.status(404).json({ error: 'Không còn file này.', code: 'not_found' });
+    if (d.refused) return res.status(400).json({ error: 'File này đang được dùng (bảng vẽ, logo, ảnh tin…) — xoá ở nơi chứa nó.', code: 'in_use' });
+    audit(db, req.actor.key, 'admin.files.delete', d.name, { where: d.where?.title, size: d.size });
+    if (d.kind === 'pfile' && d.where?.id) hub.proj?.changed?.(d.where.id);
+    res.json({ ok: true, report: fileReport(db) });
+  });
   api.post('/admin/files/prune', needAdmin, async (req, res) => {
     const out = await pruneFiles(db);
     audit(db, req.actor.key, 'admin.files.prune', '', out);
