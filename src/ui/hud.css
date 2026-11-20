@@ -101,13 +101,13 @@ html:root {
 #viewBox[open] .qt-chev { transform: rotate(180deg); }
 #viewBox .qt-g { font: 600 11px var(--font); color: var(--h-muted); padding: 2px 6px; border: 1px solid var(--h-kbd); border-radius: 6px; background: #fff; }
 #viewBox .qt-host { padding: 0 10px 10px; }
-.qt .qt-search { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; background: #fff; border: 1px solid var(--h-border); border-radius: 10px; color: var(--h-subtle); margin-bottom: 6px; }
+.qt .qt-search { display: flex; align-items: center; gap: 0; height: 38px; padding: 0 10px; background: #fff; border: 1px solid var(--h-border); border-radius: 10px; color: var(--h-subtle); margin-bottom: 6px; }
 .qt .qt-search:focus-within { border-color: var(--h-accent); box-shadow: 0 0 0 3px rgba(242,107,58,.2); }
 /* (focus ô tìm: chừa chỗ cho vòng sáng 3px — trước sát mép khung #viewBox overflow:hidden nên bị cắt; clip: trình duyệt không tự cuộn khung khi focus) */
 #appRoot #panel #viewBox { overflow: clip; }
 #appRoot #panel #viewBox .qt-host { padding-top: 4px; }
 #appRoot #panel #viewBox .qt-search { margin: 0 2px 8px; }
-#appRoot #panel .qt .qt-q { flex: 1; min-width: 0; border: 0 !important; outline: none; background: transparent; padding: 0; font: 400 13px var(--font) !important; color: var(--h-ink); box-shadow: none; }
+#appRoot #panel .qt .qt-q { flex: 1; min-width: 0; border: 0 !important; outline: none; background: transparent; padding: 0 0 0 6px; font: 400 13px var(--font) !important; color: var(--h-ink); box-shadow: none; }
 .qt .qt-q::-webkit-search-cancel-button { display: none; }
 .qt .qt-list { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: var(--h-kbd) transparent; }
 #appRoot #panel #viewBox .qt button.qt-row { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 10px; padding: 8px; border-radius: 10px; cursor: pointer; text-align: left; }
