@@ -1,5 +1,6 @@
 // Phiên người dùng trong cảnh 3D: thanh phiên, chọn/nhận chỗ (xem trước 3D), dụng cụ, ngồi/đứng,
 // nhãn chủ chỗ, danh sách online, avatar người khác. Mọi quyết định quyền do server trả về.
+import { TabLock } from '../ui/tabLock.js';
 import { WaitRoom } from '../ui/waitRoom.js';
 import * as THREE from 'three';
 import { api } from '../net/api.js';
@@ -113,7 +114,7 @@ export class Session {
     this.renderSeatBox();
     sound.unlockOnGesture();
     this.rt.on('hello', m => {
-      this.waitRoom?.hide(); this._vf = undefined;   // (vào được: ẩn màn chờ; báo lại tầng đang xem)
+      this.waitRoom?.hide(); this.tabLock?.hide(); this._vf = undefined;   // (vào được: ẩn màn chờ; báo lại tầng đang xem)
       this.applySeats(m.seats, true);
       // kết nối lại: server không còn nhớ mình đang ngồi -> báo lại (server vẫn kiểm tra quyền)
       if (this.seated && !m.presence.some(p => p.key === this.key && p.seated === this.seated)) api('POST', `/api/seats/${encodeURIComponent(this.seated)}/sit`, {}).then(r => { if (!r.ok) { this.seated = null; this.renderSeatBox(); } });
@@ -133,6 +134,10 @@ export class Session {
     this.rt.on('kick', m => this.hooks.logout?.(m.reason));
     // văn phòng đủ người: màn chờ (tự vào khi có chỗ — server gửi hello)
     this.rt.on('full', m => { (this.waitRoom ||= new WaitRoom(this.rt)).show(m); });
+    // một tài khoản chỉ dùng ở một tab: tab đến sau / tab vừa bị chuyển đi hiện màn "Đang mở ở tab khác" (src/ui/tabLock.js)
+    const lock = () => (this.tabLock ||= new TabLock(this.rt));
+    this.rt.on('dup', () => { this.waitRoom?.hide(); lock().show('dup'); });
+    this.rt.on('replaced', m => { if (!m.same) lock().show('replaced'); });
     this.rt.on('employees', () => this.app.dashboard?.refresh());
     this.rt.connect();
     this.firstSteps();

@@ -92,7 +92,9 @@ export class Hub {
       if (!sess) { socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return; }
       const key = sess.kind === 'admin' ? `admin:${sess.subject}` : `employee:${sess.subject}`;
       if ((this.sockets.get(key)?.size || 0) >= MAX_TABS) { socket.write('HTTP/1.1 429 Too Many Requests\r\n\r\n'); socket.destroy(); return; }
-      this.wss.handleUpgrade(req, socket, head, ws => this.onConnect(ws, sess));
+      // mã tab (mỗi tab trình duyệt một mã) + takeover=1 (người dùng bấm "Dùng ở tab này"): một tài khoản chỉ dùng ở MỘT tab
+      const q = new URL(req.url, 'http://x').searchParams, tab = String(q.get('tab') || '').slice(0, 40), takeover = q.get('takeover') === '1';
+      this.wss.handleUpgrade(req, socket, head, ws => this.onConnect(ws, sess, { tab, takeover }));
     });
   }
 
@@ -102,12 +104,17 @@ export class Hub {
     return { key: `employee:${sess.subject}`, kind: 'employee', code: sess.subject, display: e ? displayOf(e.code, e.name) : sess.subject, look: e?.look ? JSON.parse(e.look) : null, department: e?.department || '' };
   }
 
-  onConnect(ws, sess) {
+  onConnect(ws, sess, { tab = '', takeover = false } = {}) {
     const id = this.identity(sess);
+    // một tài khoản = một tab: đang mở ở tab / máy khác → báo cho tab mới (không vào), trừ khi người dùng chọn chuyển sang tab
+    // này (takeover) hoặc chính tab đó nối lại (cùng mã tab: tải lại trang / rớt mạng mà server chưa kịp thấy kết nối cũ đóng)
+    const others = [...(this.sockets.get(id.key) || [])];
+    const elsewhere = others.filter(o => !tab || o.tab !== tab);
+    if (elsewhere.length && !takeover) { this.send(ws, { t: 'dup' }); setTimeout(() => ws.close(4009, 'dup'), 50); return; }
     // quá số người cho phép: báo vị trí trong hàng chờ rồi đóng (client tự thử lại — src/session/realtime.js)
     const g = this.gate.check(id.key);
     if (!g.ok) { ws.send(JSON.stringify({ t: 'full', pos: g.pos, online: g.online, max: g.max, retryMs: 10000 })); setTimeout(() => ws.close(4013, 'full'), 50); return; }
-    ws.sess = sess; ws.key = id.key; ws.alive = true; ws.viewF = -1;
+    ws.sess = sess; ws.key = id.key; ws.alive = true; ws.viewF = -1; ws.tab = tab;
     if (!this.sockets.has(id.key)) this.sockets.set(id.key, new Set());
     const first = this.sockets.get(id.key).size === 0;
     this.sockets.get(id.key).add(ws);
@@ -118,6 +125,8 @@ export class Hub {
     ws.on('pong', () => { ws.alive = true; });
     ws.on('message', buf => this.onMessage(ws, buf));
     ws.on('close', () => this.onClose(ws));
+    // tab cũ (đã chuyển sang tab này / kết nối cũ của chính tab này): báo rồi đóng — tab cũ hiện "Đang mở ở tab khác", không tự nối lại
+    for (const o of others) { this.send(o, { t: 'replaced', same: !!tab && o.tab === tab }); setTimeout(() => o.close(4010, 'replaced'), 50); }
     this.send(ws, { t: 'hello', you: id, online: this.onlineList(), seats: this.store.listSeats(), presence: [...this.presence.values()].filter(p => p.x !== null), blinds: this.blinds(), music: musicState(this.store), ktv: this.ktv.state(), bil: this.bil.state(), wc: this.wc.state(), meetBusy: this.meet.busy(), lights: lightsState(this.store), canLights: canLights(this.store, this.actorOf(ws)), canMusic: canMusic(this.store, this.actorOf(ws)) });
     if (first) { this.onlineDirty = true; if (id.code) { this.store.emit({ type: 'employees', code: id.code }); this.autoAttend(id.code, true); } }
   }
