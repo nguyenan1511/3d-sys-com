@@ -175,6 +175,11 @@ html:root {
   #appRoot #panel.collapsed > :not(#panelToggle) { display: revert; }
   #appRoot #panel #meBox { display: none !important; }
   #appRoot #panel #hudProfile, #appRoot #panel #seatBox { flex: none; }
+  /* chế độ mô phỏng (?mode=… : đồng hồ, thống kê, danh sách nhân viên): các thẻ giữ đủ cao, cả cột trái cuộn (trước bị flex co lại → đè lên nhau) */
+  #appRoot #panel .drawer-scroll > .box:not(#viewBox) { flex: none; }
+  #appRoot #panel:has(#simBox:not([hidden])) #viewBox { flex: none; }
+  /* thẻ thông tin người được chọn: bên phải cột trái, trên hàng dưới (trước nằm góc trái → bị cột HUD che) */
+  #appRoot #card { left: 376px !important; bottom: 88px !important; z-index: 6; }
   #appRoot #panel #viewBox { flex: 0 1 auto; display: flex; flex-direction: column; }
   #appRoot #panel #viewBox[open] { min-height: 120px; }
   #appRoot #panel #viewBox[open] .qt-host { flex: 1; min-height: 0; display: flex; flex-direction: column; }

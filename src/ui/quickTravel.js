@@ -80,7 +80,8 @@ export class QuickTravel {
     }
     if (innerWidth < 1024) { list.style.maxHeight = ''; return; }   // (điện thoại / máy tính bảng: cả ngăn kéo cuộn như cũ)
     const top = list.getBoundingClientRect().top, bottom = innerHeight - 88 - 10 - 10;   // (chừa hàng dưới 20 + 48 + 20, lề thẻ)
-    list.style.maxHeight = `${Math.max(140, Math.round(bottom - top))}px`;
+    const sim = document.getElementById('simBox'), simOn = sim && !sim.hidden;   // (chế độ mô phỏng: còn các thẻ khác bên dưới → danh sách gọn, cả cột cuộn)
+    list.style.maxHeight = `${simOn ? 260 : Math.max(140, Math.round(bottom - top))}px`;
   }
   render() {
     if (!this.metaT) this.metaT = setInterval(() => this.tickMeta(), 5000);

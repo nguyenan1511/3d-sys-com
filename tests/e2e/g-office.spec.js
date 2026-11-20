@@ -81,8 +81,9 @@ test('lướt TikTok trong buồng vệ sinh: khung điện thoại, dán link t
     if (k) await a.click('.tt-acts [data-share]');
     await a.fill('.tt-add input', `https://www.tiktok.com/@sysone/video/${id}?lang=vi`); await a.click('.tt-add button'); await expect(a.locator('.tt-add')).toBeHidden();
   }
-  await expect(a.locator('.tt-pos')).toHaveText('2/2');
+  await expect(a.locator('.tt-back')).toHaveAttribute('data-vid', '7300000000000000002');
   await expect(a.locator('.tt-frame')).toHaveAttribute('src', /tiktok\.com\/player\/v1\/7300000000000000002/);
+  await expect(a.locator('.tt-pos')).toHaveCount(0);   // (không hiện số thứ tự / tổng số: lướt như không có điểm cuối)
   // trùng link: báo đã có
   await a.click('.tt-acts [data-share]');
   await a.fill('.tt-add input', 'https://www.tiktok.com/@sysone/video/7300000000000000001'); await a.click('.tt-add button');
@@ -91,14 +92,25 @@ test('lướt TikTok trong buồng vệ sinh: khung điện thoại, dán link t
   // phím ↑ / vuốt lên: video trước / kế
   await a.evaluate(() => document.activeElement?.blur());   // (đang gõ trong ô link thì phím mũi tên dành cho ô nhập)
   await a.keyboard.press('ArrowUp');
-  await expect(a.locator('.tt-pos')).toHaveText('1/2');
+  await expect(a.locator('.tt-back')).toHaveAttribute('data-vid', '7300000000000000001');
   await expect(a.locator('.tt-frame')).toHaveAttribute('src', /7300000000000000001/);
   const box = await a.locator('.tt-swipe').boundingBox();
   await a.mouse.move(box.x + box.width / 2, box.y + box.height * 0.75); await a.mouse.down(); await a.mouse.move(box.x + box.width / 2, box.y + box.height * 0.3, { steps: 4 }); await a.mouse.up();   // (vuốt lên: video kế)
-  await expect(a.locator('.tt-pos')).toHaveText('2/2');
+  await expect(a.locator('.tt-back')).toHaveAttribute('data-vid', '7300000000000000002');
+  // hết danh sách: lặng lẽ quay về video đầu (không báo "hết")
+  await a.keyboard.press('ArrowDown'); await expect(a.locator('.tt-back')).toHaveAttribute('data-vid', '7300000000000000001');
+  await a.keyboard.press('ArrowDown'); await expect(a.locator('.tt-back')).toHaveAttribute('data-vid', '7300000000000000002');
+  // chọn điện thoại: Samsung / hai màn hình (nhớ trên máy)
+  await a.click('.tt-rail [data-model]'); await a.click('.tt-models [data-m=duo]');
+  await expect(a.locator('.tt-back')).toHaveAttribute('data-model', 'duo'); await expect(a.locator('.tt-models')).toBeHidden();
+  await expect(a.locator('.tt-next li button')).toHaveCount(1);   // (video kế tiếp ở màn hình phải)
+  await a.click('.tt-next li button'); await expect(a.locator('.tt-back')).toHaveAttribute('data-vid', '7300000000000000001');
+  await a.keyboard.press('ArrowDown'); await expect(a.locator('.tt-back')).toHaveAttribute('data-vid', '7300000000000000002');
+  expect(await a.evaluate(() => localStorage.getItem('sysone.ttModel'))).toBe('duo');
+  await a.click('.tt-rail [data-model]'); await a.click('.tt-models [data-m=iphone]');
   // người chia sẻ xoá được
   await a.click('.tt-rail [data-del]'); await a.click('#mOk');
-  await expect(a.locator('.tt-pos')).toHaveText('1/1');
+  await expect(a.locator('.tt-back')).toHaveAttribute('data-vid', '7300000000000000001');
   // cất điện thoại, ra khỏi buồng
   await a.click('.tt-close');
   await expect(a.locator('.tt-back')).toHaveCount(0);

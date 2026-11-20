@@ -647,16 +647,21 @@ export class AvatarSystem {
   pick(raycaster, agents, blockers = [], maxY = Infinity) {
     const parts = ['torso', 'head', 'pelvis', 'thigh', 'upper'].map(n => this.meshes[n]);
     for (const p of parts) { p.boundingSphere = null; p.boundingBox = null; }
-    const hits = raycaster.intersectObjects([...parts, ...this.glb.meshes(), ...this.mo.groups(), ...blockers], true);
+    const hits = raycaster.intersectObjects([...parts, ...this.glb.meshes(), ...this.mo.groups(), ...this.pixel.sprites(), ...blockers], true);
+    // đồ vật nằm sát ngay trước nhân vật (mặt bàn, màn hình, lưng ghế, vách bàn của nội thất my-office) không chặn việc bấm vào
+    // người đang ngồi; tường / sàn tầng khác cách xa hơn REACH thì vẫn chặn
+    const REACH = 1.2;
+    let block = Infinity;
     for (const h of hits) {
       if (h.point.y > maxY) continue;
-      if ((h.object.isSkinnedMesh || h.object.isMesh) && h.object.userData.agent) return h.object.userData.agent; // (nhân vật GLB / my-office)
+      if (h.distance > block + REACH) return null;
+      if (h.object.userData.agent) return h.object.userData.agent; // (nhân vật GLB / my-office / hình pixel ở xa)
       if (h.object.isInstancedMesh && h.object.parent === this.group) {
         const idx = h.object.userData.per ? Math.floor(h.instanceId / 2) : h.instanceId;
         return agents[idx] || null;
       }
       if (h.object.material && h.object.material.transparent) continue;
-      return null;
+      if (block === Infinity) block = h.distance;
     }
     return null;
   }

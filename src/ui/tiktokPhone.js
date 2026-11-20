@@ -8,6 +8,9 @@ import { esc, confirmDanger, modal } from '../session/ui.js';
 import { icon } from './icons.js';
 import { overlayOn, overlayOff } from './overlay.js';
 
+const MODELS = [['iphone', 'iPhone', 'Đảo động, khung titan'], ['samsung', 'Samsung', 'Camera đục lỗ, khung đen'], ['duo', 'Hai màn hình', 'Video một bên, danh sách bên kia']];
+const MODEL_KEY = 'sysone.ttModel';
+const savedModel = () => { try { const m = localStorage.getItem(MODEL_KEY); return MODELS.some(x => x[0] === m) ? m : 'iphone'; } catch { return 'iphone'; } };
 const PLAYER = id => `https://www.tiktok.com/player/v1/${id}?autoplay=1&loop=0&controls=1&progress_bar=1&play_button=0&volume_control=1&fullscreen_button=0&timestamp=0&music_info=1&description=1&rel=0&native_context_menu=0&closed_caption=0`;
 
 export class TikTokPhone {
@@ -20,7 +23,7 @@ export class TikTokPhone {
     // máy tính / máy tính bảng: góc nhìn thứ nhất — cảnh văn phòng mờ dần, điện thoại 3D (thân máy dày, khung kim loại, mặt kính
     // phản chiếu theo góc nghiêng) được nâng lên, khẽ nhấp nhô, nghiêng theo chuột. Điện thoại thật (màn nhỏ): toàn màn hình như cũ.
     const pov = this.pov = matchMedia('(min-width: 761px) and (min-height: 600px)').matches;
-    back.classList.toggle('pov', pov);
+    back.classList.toggle('pov', pov); back.dataset.model = savedModel();
     back.innerHTML = `<div class="tt-stage"><div class="tt-hold"><div class="tt-bob"><div class="tt-tilt"><i class="tt-shadow" aria-hidden="true"></i><div class="tt-phone">
         <div class="tt-status" aria-hidden="true"><span class="tt-clock"></span><i class="tt-island"></i><span class="tt-sys"><svg viewBox="0 0 18 12" width="17" height="11"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg><svg viewBox="0 0 26 12" width="24" height="11"><rect x=".5" y=".5" width="22" height="11" rx="3.5" fill="none" stroke="currentColor" opacity=".45"/><rect x="2.5" y="2.5" width="15" height="7" rx="2"/><rect x="23.5" y="4" width="2" height="4" rx="1" opacity=".45"/></svg></span></div>
         <div class="tt-screen"><iframe class="tt-frame" title="Video TikTok" allow="autoplay; encrypted-media; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
@@ -31,11 +34,14 @@ export class TikTokPhone {
         <div class="tt-info"><b class="tt-title"></b><small class="tt-by"></small></div>
         <div class="tt-rail">
           <button type="button" class="tt-btn" data-prev aria-label="Video trước">${icon('chevUp', 18)}</button>
-          <span class="tt-pos"></span>
           <button type="button" class="tt-btn" data-next aria-label="Video sau">${icon('chevDown', 18)}</button>
           <button type="button" class="tt-btn" data-mute aria-label="Tắt tiếng">${icon('volume', 17)}</button>
           <button type="button" class="tt-btn" data-del aria-label="Xoá video này" hidden>${icon('trash', 16)}</button>
+          <button type="button" class="tt-btn" data-model aria-label="Chọn điện thoại" aria-haspopup="true" aria-expanded="false">${icon('phone', 17)}</button>
+          <div class="tt-models" role="group" aria-label="Chọn điện thoại" hidden>${MODELS.map(([k, n, d]) => `<button type="button" data-m="${k}"><i class="tt-mi tt-mi-${k}" aria-hidden="true"></i><b>${n}</b><small>${d}</small></button>`).join('')}</div>
         </div>
+        <i class="tt-hinge" aria-hidden="true"></i><i class="tt-screen2" aria-hidden="true"></i>
+        <div class="tt-next" aria-label="Video tiếp theo"><h4>Tiếp theo</h4><ol></ol></div>
         <div class="tt-acts"><button type="button" class="tt-act" data-share>${icon('plus', 14)} Chia sẻ video</button><button type="button" class="tt-act" data-chans hidden>${icon('edit', 14)} Kênh</button></div>
         <form class="tt-add" hidden><input maxlength="500" inputmode="url" autocomplete="off" placeholder="Dán link video TikTok…" aria-label="Link video TikTok"><button type="submit" class="sx-primary">Thêm</button></form>
         <button type="button" class="tt-close sx-x" aria-label="Cất điện thoại">${icon('close', 18)}</button>
@@ -63,6 +69,13 @@ export class TikTokPhone {
     back.querySelector('[data-next]').onclick = () => this.go(1);
     back.querySelector('[data-mute]').onclick = () => this.toggleMute();
     back.querySelector('[data-del]').onclick = () => this.del();
+    const mBtn = back.querySelector('[data-model]'), mPop = back.querySelector('.tt-models');
+    const markModel = () => mPop.querySelectorAll('[data-m]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.m === back.dataset.model)));
+    const showModels = on => { mPop.hidden = !on; mBtn.setAttribute('aria-expanded', String(on)); if (on) markModel(); };
+    mBtn.onclick = () => showModels(mPop.hidden);
+    back.addEventListener('pointerdown', e => { if (!mPop.hidden && !e.target.closest('.tt-models, [data-model]')) showModels(false); });
+    mPop.onclick = e => { const b = e.target.closest('[data-m]'); if (!b) return; back.dataset.model = b.dataset.m; try { localStorage.setItem(MODEL_KEY, b.dataset.m); } catch { /* */ } markModel(); showModels(false); };
+    back.querySelector('.tt-next ol').onclick = e => { const li = e.target.closest('[data-j]'); if (li) this.jump(+li.dataset.j); };
     back.querySelector('.tt-close').onclick = () => this.close();
     back.querySelector('[data-share]').onclick = () => { const f = back.querySelector('.tt-add'); f.hidden = !f.hidden; if (!f.hidden) f.querySelector('input').focus(); };
     back.querySelector('[data-chans]').onclick = () => this.editChannels();
@@ -132,24 +145,28 @@ export class TikTokPhone {
   go(d) {
     if (!this.items.length) return;
     let n = this.i + d;
-    if (n >= this.items.length && this.items.length > 1) { n = 0; this.s.toast('Đã xem hết — xem lại từ đầu.'); }   // (hết danh sách: quay lại đầu)
-    if (n < 0 || n >= this.items.length) { this.bump(d); return; }
+    if (n >= this.items.length) n = 0;   // (hết danh sách: lặng lẽ quay lại video đầu — người xem không thấy "điểm cuối")
+    if (n < 0) { this.bump(d); return; }
     this.i = n; this.render(d);
   }
-  bump(d) { const sc = this.el?.querySelector('.tt-screen'); if (!sc) return; sc.classList.remove('bump-up', 'bump-down'); void sc.offsetWidth; sc.classList.add(d > 0 ? 'bump-up' : 'bump-down'); this.s.toast(d > 0 ? 'Hết video rồi.' : 'Đây là video đầu tiên.'); }
+  jump(j) { if (!this.items[j] || j === this.i) return; const d = j > this.i ? 1 : -1; this.i = j; this.render(d); }
+  bump(d) { const sc = this.el?.querySelector('.tt-screen'); if (!sc) return; sc.classList.remove('bump-up', 'bump-down'); void sc.offsetWidth; sc.classList.add(d > 0 ? 'bump-up' : 'bump-down'); }
   render(dir = 0) {
     const el = this.el; if (!el) return;
     const it = this.items[this.i], empty = !it;
     el.querySelector('.tt-empty').hidden = !empty; this.frame.hidden = empty;
-    el.querySelector('.tt-pos').textContent = empty ? '0/0' : `${this.i + 1}/${this.items.length}`;
-    el.querySelector('[data-prev]').disabled = this.i <= 0; el.querySelector('[data-next]').disabled = this.items.length < 2;
+    el.querySelector('[data-prev]').disabled = this.i <= 0; el.querySelector('[data-next]').disabled = empty;
+    el.dataset.vid = it?.id || '';   // (kiểm thử: video đang xem — không hiện số thứ tự / tổng số cho người xem)
+    // máy hai màn hình: vài video kế tiếp (vòng lại từ đầu như lướt mãi không hết)
+    const nx = []; for (let k = 1; k <= Math.min(4, this.items.length - 1); k++) nx.push((this.i + k) % this.items.length);
+    el.querySelector('.tt-next ol').innerHTML = nx.map(j => { const v = this.items[j]; return `<li><button type="button" data-j="${j}"><b>${esc(v.title || 'Video TikTok')}</b><small>${esc(v.channel ? '@' + v.channel : v.author ? '@' + v.author : v.byName || '')}</small></button></li>`; }).join('') || '<li class="tt-next-none">Đang tìm thêm video…</li>';
     el.querySelector('[data-del]').hidden = !it?.canDelete;
     el.querySelector('.tt-title').textContent = it ? (it.title || 'Video TikTok') : '';
     el.querySelector('.tt-by').innerHTML = !it ? '' : it.channel ? `@${esc(it.channel)}${it.author && it.author !== it.channel ? ` · ${esc(it.author)}` : ''}` : `${it.author ? `@${esc(it.author)} · ` : ''}${esc(it.byName || '')} chia sẻ`;
     if (empty) { this.frame.removeAttribute('src'); return; }
     const sc = el.querySelector('.tt-screen');
     if (dir) { sc.classList.remove('slide-up', 'slide-down'); void sc.offsetWidth; sc.classList.add(dir > 0 ? 'slide-up' : 'slide-down'); }
-    this.ready = false;
+    this.ready = false; this._unm = false;
     this.frame.src = PLAYER(it.id);
   }
   async del() {
@@ -164,7 +181,9 @@ export class TikTokPhone {
   onPlayer(e) {
     if (e.origin !== 'https://www.tiktok.com' || !this.frame || e.source !== this.frame.contentWindow) return;
     const d = e.data; if (!d || !d['x-tiktok-player']) return;
-    if (d.type === 'onPlayerReady') { this.ready = true; if (this.muted) this.post('mute'); }
+    // video mới tải: trình phát nhúng tự phát ở chế độ tắt tiếng → giữ đúng lựa chọn của người xem (mặc định có tiếng)
+    if (d.type === 'onPlayerReady') { this.ready = true; this.post(this.muted ? 'mute' : 'unMute'); if (!this.muted) this.post('play'); }
+    if (d.type === 'onStateChange' && d.value === 1 && !this.muted && !this._unm) { this._unm = true; this.post('unMute'); }
     if (d.type === 'onStateChange') { this.playing = d.value === 1; if (d.value === 0) setTimeout(() => this.go(1), 400); }   // (0: hết video → sang video kế)
   }
   togglePlay() { this.post(this.playing ? 'pause' : 'play'); this.playing = !this.playing; }

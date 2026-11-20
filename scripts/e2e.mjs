@@ -71,10 +71,15 @@ if (world === 'sysone-mo') {
 // 2. mô phỏng tới 10:00, bấm vào một người đang ngồi
 await page.evaluate(() => { window.__app.setTime('10:00'); window.__app.floor(window.__app.app.model.desks[0].floor); window.__app.render(); });
 const target = await page.evaluate(() => {
-  const app = window.__app.app, cam = app.camera, a = app.sim.agents.find(x => x.atDesk && x.sit > 0.9);
-  const v = new (cam.position.constructor)(a.x, a.y + 0.5 * (app.model.cs || 1) * 1.1, a.z).project(cam);
-  const r = document.getElementById('c3').getBoundingClientRect();
-  return { id: a.id, x: r.left + (v.x + 1) / 2 * r.width, y: r.top + (1 - v.y) / 2 * r.height };
+  const app = window.__app.app, cam = app.camera, c3 = document.getElementById('c3'), r = c3.getBoundingClientRect();
+  // chọn người đang ngồi mà điểm bấm nằm trên canvas (không bị các thẻ HUD che)
+  const f0 = app.model.desks[0].floor;
+  for (const a of app.sim.agents.filter(x => x.atDesk && x.sit > 0.9 && (x.f ?? 0) === f0)) {
+    const v = new (cam.position.constructor)(a.x, a.y + 0.5 * (app.model.cs || 1) * 1.1, a.z).project(cam);
+    const x = r.left + (v.x + 1) / 2 * r.width, y = r.top + (1 - v.y) / 2 * r.height;
+    if (document.elementFromPoint(x, y) === c3) return { id: a.id, x, y };
+  }
+  return { id: null, x: 0, y: 0 };
 });
 await page.mouse.click(target.x, target.y);
 await page.waitForTimeout(300);

@@ -3865,3 +3865,61 @@ html, body { -webkit-user-select: none; user-select: none; -webkit-touch-callout
   #appRoot .social-bar > #btnAttendance { display: none !important; }
   #appRoot .social-bar:has(> #btnAttendance) > .soc-btn { width: 32px !important; height: 32px !important; }
 }
+
+/* =====================================================================================================
+   LƯỚT TIKTOK — CHỌN ĐIỆN THOẠI (.tt-back[data-model]: iphone mặc định · samsung · duo hai màn hình; nhớ trên máy)
+   ===================================================================================================== */
+.tt-models { position: absolute; left: calc(100% + 10px); bottom: 0; z-index: 6; width: 236px; display: flex; flex-direction: column; gap: 4px; padding: 6px; border-radius: 16px; background: #fff; box-shadow: 0 14px 34px rgba(0,0,0,.35); animation: tt-mpop .18s cubic-bezier(.2,.9,.3,1.1); }
+.tt-models[hidden] { display: none; }
+@keyframes tt-mpop { from { opacity: 0; transform: translateX(-6px) scale(.97); } }
+.tt-models button { display: grid; grid-template-columns: 30px 1fr; grid-template-rows: auto auto; column-gap: 10px; align-items: center; text-align: left; height: auto !important; min-height: 46px; padding: 6px 10px !important; margin: 0 !important; border: 0 !important; border-radius: 11px !important; background: transparent !important; color: var(--ink, #2b2d42) !important; box-shadow: none !important; cursor: pointer; font-family: var(--font); }
+.tt-models button:hover { background: #f3f1ec !important; }
+.tt-models button[aria-pressed="true"] { background: #fff1e6 !important; box-shadow: inset 0 0 0 1.5px #ff8a3d !important; }
+.tt-models b { font: 800 13px var(--font); } .tt-models small { grid-column: 2; font: 600 11px var(--font); color: #7a7c8e; }
+.tt-mi { grid-row: 1 / 3; justify-self: center; position: relative; width: 16px; height: 28px; border-radius: 5px; border: 2px solid #2b2d42; box-sizing: border-box; }
+.tt-mi::after { content: ''; position: absolute; left: 50%; top: 2px; transform: translateX(-50%); width: 6px; height: 2px; border-radius: 2px; background: #2b2d42; }
+.tt-mi-samsung { border-radius: 3px; } .tt-mi-samsung::after { width: 3px; height: 3px; border-radius: 50%; }
+.tt-mi-duo { width: 26px; height: 22px; border-radius: 4px; } .tt-mi-duo::after { top: 0; bottom: 0; width: 2px; height: auto; }
+.tt-hinge, .tt-screen2, .tt-next { display: none; }
+.tt-rail { z-index: 5; }   /* (ô chọn máy mở đè lên màn hình: phải nằm trên lớp vuốt .tt-swipe) */
+
+/* Samsung: camera đục lỗ nhỏ giữa đỉnh, góc vuông hơn, khung đen bóng, phím âm lượng + nguồn cùng ở cạnh phải */
+.tt-back[data-model=samsung] .tt-phone { border-radius: 34px; }
+.tt-back[data-model=samsung] .tt-island { width: 13px; height: 13px; margin-left: -6.5px; top: 11px; box-shadow: 0 0 0 2px #050507; }
+.tt-back[data-model=samsung] .tt-island::after { right: 2px; top: 2px; width: 7px; height: 7px; }
+.tt-back[data-model=samsung] .tt-phone::before { left: auto; right: -9px; top: 18%; height: 70px; box-shadow: none; }
+.tt-back[data-model=samsung] .tt-phone::after { top: 32%; height: 44px; }
+.tt-back[data-model=samsung] .tt-screen { border-radius: 14px; }
+.tt-back.pov[data-model=samsung] .tt-phone { background: linear-gradient(#08080b, #08080b) padding-box, linear-gradient(160deg, #4b4e5c 0%, #17181f 30%, #0c0c10 55%, #2e303b 82%, #5a5d6b 100%) border-box; }
+
+/* Hai màn hình: màn trái phát video, màn phải là tên video + "Tiếp theo" (vòng lại từ đầu, không hiện tổng số), bản lề ở giữa */
+@media (min-width: 561px) {
+  .tt-back[data-model=duo] .tt-phone { display: grid; grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr); grid-template-rows: 34px auto minmax(0, 1fr) auto auto; row-gap: 8px; aspect-ratio: 1.16; max-width: calc(100vw - 190px); border-radius: 26px; padding: 6px 8px 12px; }
+  .tt-back[data-model=duo] .tt-phone::before { display: none; }
+  .tt-back[data-model=duo] .tt-phone::after { top: 12%; height: 56px; }
+  .tt-back[data-model=duo] .tt-status { grid-area: 1 / 1 / 2 / 4; padding: 0 18px; }
+  .tt-back[data-model=duo] .tt-island { left: 25%; width: 10px; height: 10px; margin-left: -5px; top: 12px; }
+  .tt-back[data-model=duo] .tt-island::after { display: none; }
+  .tt-back[data-model=duo] .tt-screen { grid-area: 2 / 1 / 6 / 2; border-radius: 14px; }
+  .tt-back[data-model=duo] .tt-hinge { display: block; grid-area: 1 / 2 / 6 / 3; margin: -6px 3px -12px; border-radius: 3px; background: linear-gradient(90deg, #1a1b22, #4a4d5c 30%, #8a8ea0 50%, #4a4d5c 70%, #1a1b22); }
+  .tt-back[data-model=duo] .tt-screen2 { display: block; grid-area: 2 / 3 / 6 / 4; border-radius: 14px; background: linear-gradient(180deg, #15161e, #0d0e14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.05); }
+  .tt-back[data-model=duo] :is(.tt-info, .tt-next, .tt-acts, .tt-add) { grid-column: 3; position: relative; z-index: 1; margin: 0 12px; }
+  .tt-back[data-model=duo] .tt-info { grid-row: 2; padding: 16px 4px 0; min-height: 0; }
+  .tt-back[data-model=duo] .tt-info b { font-size: 15px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+  .tt-back[data-model=duo] .tt-next { grid-row: 3; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+  .tt-next h4 { margin: 6px 4px 8px; font: 800 11px var(--font); letter-spacing: .08em; text-transform: uppercase; color: rgba(255,255,255,.5); }
+  .tt-next ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; overflow: auto; min-height: 0; scrollbar-width: none; }
+  .tt-next li button { display: flex; flex-direction: column; gap: 2px; width: 100%; height: auto !important; padding: 10px 12px !important; margin: 0 !important; text-align: left; border: 0 !important; border-radius: 12px !important; background: rgba(255,255,255,.06) !important; color: #fff !important; box-shadow: none !important; cursor: pointer; transition: background .15s ease; }
+  .tt-next li button:hover { background: rgba(255,255,255,.12) !important; }
+  .tt-next li b { font: 700 12.5px/1.35 var(--font); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .tt-next li small { font: 600 11px var(--font); color: rgba(255,255,255,.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tt-next-none { padding: 10px 4px; font: 600 12px var(--font); color: rgba(255,255,255,.5); }
+  .tt-back[data-model=duo] .tt-acts { grid-row: 4; justify-content: flex-start; flex-wrap: wrap; }
+  .tt-back[data-model=duo] .tt-add { grid-row: 5; padding: 0; }
+  .tt-back.pov[data-model=duo] .tt-phone { height: min(620px, calc(100dvh - 170px)); }
+  .tt-back.pov[data-model=duo] .tt-shadow { left: 4%; right: 4%; }
+}
+@media (max-width: 560px) { .tt-btn[data-model], .tt-models { display: none !important; } }
+/* (máy nghiêng ra sau: nửa trên nằm sau mặt phẳng của các lớp bọc 3D → lớp bọc nhận cú bấm thay cho nút; chỉ thân máy nhận con trỏ) */
+.tt-back.pov :is(.tt-stage, .tt-hold, .tt-bob) { pointer-events: none; }
+.tt-back.pov .tt-tilt { pointer-events: auto; }

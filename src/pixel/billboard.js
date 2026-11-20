@@ -95,7 +95,7 @@ export class PixelBillboards {
       const mat = new THREE.SpriteMaterial({ transparent: true, alphaTest: 0.5, depthWrite: true });
       const sp = new THREE.Sprite(mat); sp.center.set(0.5, 0.02);
       const sh = new THREE.Mesh(this.shadowGeo, this.shadowMat); sh.renderOrder = 1;
-      this.group.add(sp, sh); it = { sp, sh }; this.items.set(a, it);
+      sp.userData.agent = a; this.group.add(sp, sh); it = { sp, sh }; this.items.set(a, it);
     }
     this.used.add(a); it.sp.visible = it.sh.visible = true;
     // hướng so với camera: đi về phía camera = mặt trước, đi ra xa = sau lưng, còn lại nghiêng trái/phải
@@ -121,5 +121,7 @@ export class PixelBillboards {
     a._tip = (a._tip || new THREE.Vector3()).set(a.x + fx * 0.08, y + h * 0.45, a.z + fz * 0.08);
     return true;
   }
+  /** Sprite đang hiện (để bấm chọn người — userData.agent). */
+  sprites() { const out = []; for (const [a, it] of this.items) if (this.used.has(a) && it.sp.visible) out.push(it.sp); return out; }
   end() { for (const [a, it] of this.items) if (!this.used.has(a)) { this.group.remove(it.sp, it.sh); it.sp.material.dispose(); this.items.delete(a); } }
 }
